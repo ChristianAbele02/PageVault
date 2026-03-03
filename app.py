@@ -125,10 +125,7 @@ def _ensure_schema(db: sqlite3.Connection) -> None:
 
 # ── ISBN metadata (Open Library) ──────────────────────────────────────────────
 def _fetch_openlibrary(isbn: str) -> dict | None:
-    url = (
-        "https://openlibrary.org/api/books"
-        f"?bibkeys=ISBN:{isbn}&format=json&jscmd=data"
-    )
+    url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data"
     try:
         req = urllib.request.Request(
             url, headers={"User-Agent": "PageVault/1.0 (github.com/ChristianAbele02/PageVault)"}
@@ -147,12 +144,8 @@ def _fetch_openlibrary(isbn: str) -> dict | None:
             "isbn": isbn,
             "title": book.get("title", "Unknown Title"),
             "author": authors or None,
-            "cover_url": (
-                covers.get("large") or covers.get("medium") or covers.get("small")
-            ),
-            "description": (
-                (book.get("excerpts") or [{}])[0].get("text") or None
-            ),
+            "cover_url": (covers.get("large") or covers.get("medium") or covers.get("small")),
+            "description": ((book.get("excerpts") or [{}])[0].get("text") or None),
             "publisher": publishers[0].get("name") if publishers else None,
             "year": book.get("publish_date") or None,
             "pages": book.get("number_of_pages"),
@@ -272,7 +265,8 @@ def _api_bp():
                 book.get("pages"),
                 book.get("genre"),
                 book.get("language", "en"),
-                now, now,
+                now,
+                now,
                 status,
             ),
         )
@@ -399,15 +393,10 @@ def _api_bp():
     def api_export():
         """Export entire library as JSON."""
         db = get_db()
-        books = [
-            dict(r)
-            for r in db.execute("SELECT * FROM books ORDER BY title").fetchall()
-        ]
+        books = [dict(r) for r in db.execute("SELECT * FROM books ORDER BY title").fetchall()]
         reviews = [
             dict(r)
-            for r in db.execute(
-                "SELECT * FROM reviews ORDER BY book_id, created_at"
-            ).fetchall()
+            for r in db.execute("SELECT * FROM reviews ORDER BY book_id, created_at").fetchall()
         ]
         return jsonify({"exported_at": _now(), "books": books, "reviews": reviews})
 
