@@ -1,0 +1,80 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+
+# ── Database ───────────────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+# Keep the schema definition if you have one
+!schema.sql
+
+# ── Testing & coverage ─────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# ── Linting ────────────────────────────────────────────────────────────────────
+.ruff_cache/
+.mypy_cache/
+
+# ── Environment / secrets ──────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.secret
+
+# ── IDEs ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+.dockerignore
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/

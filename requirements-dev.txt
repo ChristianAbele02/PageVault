@@ -1,0 +1,14 @@
+-r requirements.txt
+
+# Testing
+pytest>=8.0
+pytest-cov>=5.0
+
+# Linting & formatting
+ruff>=0.4
+
+# Type checking
+mypy>=1.10
+
+# Production server (optional)
+gunicorn>=22.0

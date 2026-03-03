@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run tests with coverage
+        run: pytest --cov=app --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.12'
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install ruff
+        run: pip install ruff
+      - name: Check formatting
+        run: ruff format --check .
+      - name: Lint
+        run: ruff check .
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t pagevault:ci .
+      - name: Smoke test container
+        run: |
+          docker run -d -p 5000:5000 --name pv_test pagevault:ci
+          sleep 4
+          curl -f http://localhost:5000/api/stats || (docker logs pv_test && exit 1)
+          docker stop pv_test

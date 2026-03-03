@@ -1,0 +1,23 @@
+services:
+  pagevault:
+    build: .
+    image: pagevault:latest
+    container_name: pagevault
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persist the SQLite database outside the container
+      - pagevault_data:/data
+    environment:
+      - PAGEVAULT_DB=/data/pagevault.db
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/stats')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  pagevault_data:
+    driver: local

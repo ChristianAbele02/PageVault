@@ -1,0 +1,47 @@
+name: ✨ Feature Request
+description: Suggest a new feature or improvement
+labels: ["enhancement"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Got an idea to make PageVault better? We'd love to hear it!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Motivation
+      description: What problem does this feature solve? What's the use case?
+      placeholder: "I often want to... but currently I have to..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the feature you'd like to see.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any workarounds or alternative approaches you've thought of?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Feature Area
+      options:
+        - ISBN scanning / book lookup
+        - UI / frontend
+        - API / backend
+        - Database / storage
+        - Docker / deployment
+        - Import / export
+        - Other
+    validations:
+      required: true
