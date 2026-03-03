@@ -54,7 +54,7 @@ make coverage
 
 2. **Make your changes.** Keep commits focused and descriptive.
 
-3. **Write or update tests** in `tests/test_api.py` — all new API behaviour must be tested.
+3. **Write or update tests** in `tests/test_api.py` and shared fixtures in `tests/conftest.py` — all new API behaviour must be tested.
 
 4. **Lint and format**:
    ```bash

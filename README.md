@@ -242,6 +242,7 @@ pagevault/
 ├── templates/
 │   └── index.html                Complete frontend (HTML + CSS + JS, single file)
 ├── tests/
+│   ├── conftest.py               Shared pytest fixtures
 │   └── test_api.py               36-test suite
 ├── assets/
 │   ├── logo.svg                  Full wordmark logo
