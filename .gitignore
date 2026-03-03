@@ -25,6 +25,7 @@ MANIFEST
 # ── Virtual environments ───────────────────────────────────────────────────────
 .venv/
 venv/
+.pagevault/
 env/
 ENV/
 env.bak/

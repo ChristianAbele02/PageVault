@@ -5,52 +5,6 @@ Run with: pytest -v
 
 from __future__ import annotations
 
-import json
-import pytest
-from app import create_app
-
-
-# ── Fixtures ──────────────────────────────────────────────────────────────────
-
-@pytest.fixture()
-def app(tmp_path):
-    """Fresh in-memory test app per test."""
-    test_app = create_app({"DATABASE": str(tmp_path / "test.db"), "TESTING": True})
-    yield test_app
-
-
-@pytest.fixture()
-def client(app):
-    return app.test_client()
-
-
-@pytest.fixture()
-def sample_book_payload():
-    return {
-        "isbn": "9780743273565",
-        "book_data": {
-            "isbn": "9780743273565",
-            "title": "The Great Gatsby",
-            "author": "F. Scott Fitzgerald",
-            "cover_url": None,
-            "description": "A novel set in the Jazz Age.",
-            "publisher": "Scribner",
-            "year": "1925",
-            "pages": 180,
-            "genre": "Fiction",
-        },
-        "status": "read",
-    }
-
-
-@pytest.fixture()
-def added_book(client, sample_book_payload):
-    """Add a book and return the JSON response."""
-    r = client.post("/api/books", json=sample_book_payload)
-    assert r.status_code == 201
-    return r.get_json()
-
-
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
 class TestStats:

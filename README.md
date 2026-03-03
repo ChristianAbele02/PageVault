@@ -1,45 +1,77 @@
-<div align="center">
+<p align="center">
+  <img src="assets/logo.svg" alt="PageVault" width="380"/>
+</p>
 
-# 📚 PageVault
+<p align="center">
+  <strong>A self-hosted, local Goodreads alternative.</strong><br/>
+  Scan ISBN barcodes with your phone · Fetch covers & metadata automatically · Keep your reading life private.
+</p>
 
-**Your personal, self-hosted book catalog — a local Goodreads alternative.**
+<br/>
 
-[![CI](https://github.com/ChristianAbele02/PageVault/actions/workflows/ci.yml/badge.svg)](https://github.com/ChristianAbele02/PageVault/actions/workflows/ci.yml)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org)
-[![Flask](https://img.shields.io/badge/Flask-3.x-black?logo=flask)](https://flask.palletsprojects.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-
-Scan ISBN barcodes with your phone, fetch book metadata automatically, and build your personal reading library — all running locally with a single Python file and a SQLite database.
-
-</div>
+<p align="center">
+  <a href="https://github.com/ChristianAbele02/PageVault/actions/workflows/ci.yml">
+    <img src="https://github.com/ChristianAbele02/PageVault/actions/workflows/ci.yml/badge.svg" alt="CI"/>
+  </a>
+  &nbsp;
+  <a href="https://github.com/ChristianAbele02/PageVault/releases">
+    <img src="https://img.shields.io/github/v/release/ChristianAbele02/PageVault?color=c8913a&label=release" alt="Release"/>
+  </a>
+  &nbsp;
+  <img src="https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white" alt="Python"/>
+  &nbsp;
+  <img src="https://img.shields.io/badge/Flask-3.x-black?logo=flask" alt="Flask"/>
+  &nbsp;
+  <img src="https://img.shields.io/badge/database-SQLite-blue?logo=sqlite" alt="SQLite"/>
+  &nbsp;
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-green" alt="License"/>
+  </a>
+</p>
 
 ---
 
-## ✨ Features
+## What is PageVault?
 
-| Feature | Details |
-|---------|---------|
-| 📷 **ISBN barcode scanning** | Works directly in your phone's browser — no app install |
-| 🔍 **Auto metadata fetch** | Title, author, cover, publisher, year, pages via [Open Library](https://openlibrary.org) |
-| ⭐ **Ratings & reviews** | 1–5 stars with written notes; full history per book |
-| 🔖 **Reading status** | Want to Read · Currently Reading · Read |
-| 🔎 **Search & filter** | Full-text search across title and author |
-| 📊 **Library stats** | Total books, read count, average rating |
-| 💾 **100% local** | SQLite database — your data never leaves your machine |
-| 🐳 **Docker ready** | Multi-stage Dockerfile + `docker-compose.yml` included |
-| 🧪 **Tested** | pytest suite with 30+ tests covering all API endpoints |
+PageVault is a lightweight, **100% local** book catalog that runs on your own machine. Point your phone camera at any ISBN barcode — the app fetches the title, author, cover, and metadata instantly, and stores everything in a single SQLite file that never leaves your device.
+
+Think Goodreads, but yours.
 
 ---
 
-## 🚀 Quick Start
+## Features
 
-### Option A — Python (recommended for development)
+**📷 Scan any book in seconds**
+Open PageVault on your phone browser, tap the scan button, and point at the barcode. No app install. No account.
 
-**Requirements:** Python 3.10+
+**📚 Automatic metadata**
+Title, author, cover image, publisher, year, and page count — fetched from [Open Library](https://openlibrary.org), which is free and requires no API key.
+
+**⭐ Ratings & personal notes**
+Give each book a 1–5 star rating and add written notes. Build up a reading journal over time.
+
+**🔖 Reading status**
+Track every book as *Want to Read*, *Currently Reading*, or *Read*.
+
+**🔍 Search & filter**
+Find any book in your library instantly by title or author.
+
+**💾 Fully private, fully local**
+Your entire library lives in one file: `pagevault.db`. Back it up by copying it. Restore by pasting it back.
+
+**🐳 Docker ready**
+One command to run, persistent volume for your data.
+
+---
+
+## Quick Start
+
+### Python (recommended)
+
+> Requires Python 3.10 or newer.
 
 ```bash
-git clone https://github.com/yourname/pagevault.git
+git clone https://github.com/ChristianAbele02/PageVault.git
 cd pagevault
 pip install -r requirements.txt
 python app.py
@@ -47,98 +79,152 @@ python app.py
 
 Open **http://localhost:5000** in your browser.
 
-To access from your **phone on the same Wi-Fi**, replace `localhost` with your machine's local IP:
+### Docker
 
 ```bash
-# macOS / Linux
-ipconfig getifaddr en0   # or: hostname -I
-
-# Windows
-ipconfig  # look for IPv4 Address
-```
-
-Then open `http://192.168.x.x:5000` on your phone.
-
----
-
-### Option B — Docker
-
-```bash
-git clone https://github.com/yourname/pagevault.git
+git clone https://github.com/ChristianAbele02/PageVault.git
 cd pagevault
 docker compose up -d
 ```
 
-PageVault starts at **http://localhost:5000**. The SQLite database is persisted in a named Docker volume (`pagevault_data`).
-
-```bash
-docker compose down        # stop
-docker compose down -v     # stop and delete data
-```
+PageVault starts at **http://localhost:5000**. Data persists in a named Docker volume.
 
 ---
 
-## 📱 Using the App
+## Accessing from your phone
 
-### Adding a book by scanning
+Find your computer's local IP, then open `http://YOUR-IP:5000` on your phone (same Wi-Fi network).
 
-1. Open PageVault on your phone's browser (`http://YOUR-IP:5000`)
-2. Tap **+** → **Scan ISBN Barcode**
-3. Allow camera access when prompted
-4. Point the camera at the barcode on the back of any book
-5. Metadata is fetched automatically — tap **Add to My Shelf**
+```bash
+# macOS
+ipconfig getifaddr en0
 
-> **Safari on iOS?** Apple requires HTTPS for camera access when the host isn't `localhost`. See the [HTTPS workaround](#-https-for-phone-camera) below.
+# Windows (in PowerShell)
+ipconfig
 
-### Adding a book manually
+# Linux
+hostname -I
+```
 
-Tap **+** → type the ISBN in the text field → **Look up**. If the book isn't in Open Library, you can fill in the title and author manually.
+> **Safari on iOS?** Apple requires HTTPS for camera access on non-localhost addresses. See the [HTTPS setup guide](#https-setup-for-ios-safari) below.
 
-### Rating & reviewing
+---
 
-Tap any book card → pick a star rating (1–5) → optionally write a note → **Save Review**. Add as many reviews as you like over time.
+## Usage
+
+### Adding a book
+
+| Step | Action |
+|------|--------|
+| 1 | Tap **+** (bottom right) |
+| 2 | Tap **Scan ISBN Barcode** and allow camera access |
+| 3 | Point at the barcode on the back cover |
+| 4 | Confirm the fetched details and tap **Add to My Shelf** |
+
+Can't scan? Type the ISBN manually and tap **Look up**. If the book isn't in Open Library, fill in the title and author yourself.
+
+### Rating a book
+
+Tap any book → pick a star rating → write an optional note → **Save Review**. Add as many notes as you like over time.
 
 ### Exporting your library
 
 ```bash
-curl http://localhost:5000/api/export > my_books.json
+curl http://localhost:5000/api/export > my_library.json
 ```
 
 ---
 
-## 🔐 HTTPS for Phone Camera
+## HTTPS Setup for iOS Safari
 
-Safari on iOS blocks camera access over plain HTTP from non-`localhost` origins. The easiest fix:
+Safari requires HTTPS for camera access when the host isn't `localhost`. The quickest fix:
 
 ```bash
-pip install mkcert         # or: brew install mkcert
+# Install mkcert (creates locally-trusted certificates)
+brew install mkcert          # macOS
+# or: https://github.com/FiloSottile/mkcert#installation
+
 mkcert -install
-mkcert localhost 127.0.0.1 192.168.x.x   # your local IP
+mkcert localhost 127.0.0.1 192.168.x.x   # replace with your local IP
 ```
 
-This generates `localhost+2.pem` and `localhost+2-key.pem`. Then run Flask with:
+Then edit the last line of `app.py`:
 
 ```python
 app.run(host="0.0.0.0", port=5000, ssl_context=("localhost+2.pem", "localhost+2-key.pem"))
 ```
 
-And open `https://192.168.x.x:5000` on your phone.
+Open `https://192.168.x.x:5000` on your iPhone.
 
 ---
 
-## 🛠️ Development
+## REST API
+
+All responses are JSON. The base URL is `http://localhost:5000`.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/books` | List books — supports `?status=`, `?q=`, `?sort=`, `?order=` |
+| `POST` | `/api/books` | Add a book `{ isbn, status?, book_data? }` |
+| `GET` | `/api/books/:id` | Book detail including all reviews |
+| `PATCH` | `/api/books/:id` | Update `status`, `title`, `author`, `description` |
+| `DELETE` | `/api/books/:id` | Delete a book (reviews cascade) |
+| `GET` | `/api/lookup/:isbn` | Preview ISBN metadata without saving |
+| `POST` | `/api/books/:id/reviews` | Add review `{ rating?, comment? }` |
+| `DELETE` | `/api/books/:id/reviews/:rid` | Remove a review |
+| `GET` | `/api/stats` | Library statistics |
+| `GET` | `/api/export` | Full library export as JSON |
+
+**Example — add a book and review it:**
+
+```bash
+# Add by ISBN (metadata fetched automatically)
+curl -X POST http://localhost:5000/api/books \
+  -H "Content-Type: application/json" \
+  -d '{"isbn": "9780451524935", "status": "read"}'
+
+# Add a review
+curl -X POST http://localhost:5000/api/books/1/reviews \
+  -H "Content-Type: application/json" \
+  -d '{"rating": 5, "comment": "Essential reading."}'
+```
+
+---
+
+## Backup & Restore
+
+Everything is in one file.
+
+```bash
+# Backup
+cp pagevault.db pagevault_backup.db
+
+# Restore
+cp pagevault_backup.db pagevault.db
+```
+
+With Docker:
+
+```bash
+# Backup
+docker cp pagevault:/data/pagevault.db ./pagevault_backup.db
+
+# Restore
+docker cp ./pagevault_backup.db pagevault:/data/pagevault.db
+```
+
+---
+
+## Development
 
 ```bash
 # Install dev dependencies (pytest, ruff, mypy)
 make dev
 
-# Run the development server
-make run
-
 # Run tests
 make test
 
-# Run tests with coverage report
+# Run tests with coverage
 make coverage
 
 # Lint
@@ -148,23 +234,30 @@ make lint
 make format
 ```
 
-### Project structure
+### Project layout
 
 ```
 pagevault/
-├── app.py                  ← Flask app factory, REST API, ISBN lookup
+├── app.py                        Flask app factory + REST API + ISBN lookup
 ├── templates/
-│   └── index.html          ← Complete frontend (HTML + CSS + JS)
+│   └── index.html                Complete frontend (HTML + CSS + JS, single file)
 ├── tests/
-│   └── test_api.py         ← pytest test suite (30+ tests)
+│   ├── conftest.py               Shared pytest fixtures
+│   └── test_api.py               36-test suite
+├── assets/
+│   ├── logo.svg                  Full wordmark logo
+│   └── icon.svg                  Square icon (GitHub avatar, favicon)
 ├── .github/
-│   ├── workflows/ci.yml    ← GitHub Actions (test, lint, Docker)
-│   ├── ISSUE_TEMPLATE/     ← Bug report & feature request forms
-│   └── PULL_REQUEST_TEMPLATE.md
-├── Dockerfile              ← Multi-stage production image
+│   ├── workflows/ci.yml          GitHub Actions: test · lint · Docker build
+│   ├── ISSUE_TEMPLATE/           Bug report & feature request forms
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   └── dependabot.yml
+├── .devcontainer/
+│   └── devcontainer.json         One-click GitHub Codespaces setup
+├── Dockerfile                    Multi-stage, non-root, gunicorn
 ├── docker-compose.yml
-├── Makefile                ← Developer convenience commands
-├── pyproject.toml          ← Project metadata, tool config
+├── Makefile
+├── pyproject.toml
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── CHANGELOG.md
@@ -174,86 +267,37 @@ pagevault/
 
 ---
 
-## 🌐 REST API Reference
-
-All endpoints return JSON.
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/books` | List books (`?status=`, `?q=`, `?sort=`, `?order=`) |
-| `POST` | `/api/books` | Add a book `{ isbn, status?, book_data? }` |
-| `GET` | `/api/books/:id` | Book detail + all reviews |
-| `PATCH` | `/api/books/:id` | Update `status`, `title`, `author`, `description`, `genre` |
-| `DELETE` | `/api/books/:id` | Delete a book (cascades reviews) |
-| `GET` | `/api/lookup/:isbn` | Look up ISBN without saving |
-| `POST` | `/api/books/:id/reviews` | Add review `{ rating?, comment? }` |
-| `DELETE` | `/api/books/:id/reviews/:rid` | Delete a review |
-| `GET` | `/api/stats` | Aggregate stats |
-| `GET` | `/api/export` | Export entire library as JSON |
-
-### Example
-
-```bash
-# Add a book manually
-curl -X POST http://localhost:5000/api/books \
-  -H "Content-Type: application/json" \
-  -d '{"isbn":"9780451524935","status":"read"}'
-
-# Add a review
-curl -X POST http://localhost:5000/api/books/1/reviews \
-  -H "Content-Type: application/json" \
-  -d '{"rating":5,"comment":"A masterpiece of dystopian fiction."}'
-```
-
----
-
-## 🔄 Backup & Restore
-
-Your entire library lives in a single SQLite file:
-
-```bash
-# Backup
-cp pagevault.db pagevault.db.bak
-
-# Restore
-cp pagevault.db.bak pagevault.db
-```
-
-For Docker:
-
-```bash
-# Backup
-docker cp pagevault:/data/pagevault.db ./pagevault.db.bak
-
-# Restore
-docker cp ./pagevault.db.bak pagevault:/data/pagevault.db
-```
-
----
-
-## 🗺️ Roadmap
+## Roadmap
 
 - [ ] Import from Goodreads CSV export
 - [ ] Multiple shelves / custom lists
-- [ ] Reading progress tracker (current page / percentage)
-- [ ] Book genre tags and filtering
-- [ ] Annual reading goal
+- [ ] Reading progress (current page)
+- [ ] Genre tags and filtering
+- [ ] Annual reading goal tracker
 - [ ] Optional password protection
 
----
-
-## 🤝 Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). All contributions are welcome!
+Have an idea? [Open a feature request](https://github.com/ChristianAbele02/PageVault/issues/new/choose).
 
 ---
 
-## 📄 License
+## Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
+
+Found a security issue? See [SECURITY.md](SECURITY.md) for how to report it privately.
+
+---
+
+## License
 
 MIT — see [LICENSE](LICENSE).
 
 ---
 
-<div align="center">
-Built with Flask · SQLite · Open Library API
-</div>
+<p align="center">
+  Built with <a href="https://flask.palletsprojects.com">Flask</a> ·
+  <a href="https://www.sqlite.org">SQLite</a> ·
+  <a href="https://openlibrary.org">Open Library API</a>
+  <br/><br/>
+  <img src="assets/icon.svg" width="28" alt="PageVault icon"/>
+</p>

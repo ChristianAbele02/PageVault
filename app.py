@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 import urllib.request
 from datetime import datetime, timezone
@@ -32,10 +33,13 @@ log = logging.getLogger(__name__)
 def create_app(config: dict | None = None) -> Flask:
     app = Flask(__name__)
 
+    default_db = os.getenv("PAGEVAULT_DB") or str(Path(__file__).parent / "pagevault.db")
+    default_secret = os.getenv("SECRET_KEY") or "change-me-in-production"
+
     # Defaults
     app.config.update(
-        DATABASE=str(Path(__file__).parent / "pagevault.db"),
-        SECRET_KEY="change-me-in-production",
+        DATABASE=default_db,
+        SECRET_KEY=default_secret,
         JSON_SORT_KEYS=False,
     )
     if config:
@@ -127,7 +131,7 @@ def _fetch_openlibrary(isbn: str) -> dict | None:
     )
     try:
         req = urllib.request.Request(
-            url, headers={"User-Agent": "PageVault/1.0 (github.com/yourname/pagevault)"}
+            url, headers={"User-Agent": "PageVault/1.0 (github.com/ChristianAbele02/PageVault)"}
         )
         with urllib.request.urlopen(req, timeout=8) as resp:
             data = json.loads(resp.read())
@@ -175,6 +179,12 @@ def _err(msg: str, code: int = 400):
     return jsonify({"error": msg}), code
 
 
+def _validate_status(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value in {"want_to_read", "reading", "read"}
+
+
 # ── API Blueprint ─────────────────────────────────────────────────────────────
 def _api_bp():
     from flask import Blueprint
@@ -219,7 +229,7 @@ def _api_bp():
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
 
-        sort_col = f"avg_rating" if sort == "avg_rating" else f"b.{sort}"
+        sort_col = "avg_rating" if sort == "avg_rating" else f"b.{sort}"
         sql += f" GROUP BY b.id ORDER BY {sort_col} {order}"
 
         rows = db.execute(sql, params).fetchall()
@@ -230,9 +240,12 @@ def _api_bp():
         db = get_db()
         payload = request.get_json(force=True, silent=True) or {}
         isbn = payload.get("isbn", "").strip().replace("-", "")
+        status = payload.get("status", "want_to_read")
 
         if not isbn:
             return _err("isbn is required")
+        if not _validate_status(status):
+            return _err("status must be one of: want_to_read, reading, read")
 
         existing = db.execute("SELECT id FROM books WHERE isbn = ?", (isbn,)).fetchone()
         if existing:
@@ -260,7 +273,7 @@ def _api_bp():
                 book.get("genre"),
                 book.get("language", "en"),
                 now, now,
-                payload.get("status", "want_to_read"),
+                status,
             ),
         )
         db.commit()
@@ -306,6 +319,8 @@ def _api_bp():
         updates = {k: v for k, v in payload.items() if k in allowed}
         if not updates:
             return _err("No valid fields to update")
+        if "status" in updates and not _validate_status(updates["status"]):
+            return _err("status must be one of: want_to_read, reading, read")
         updates["updated_at"] = _now()
         set_clause = ", ".join(f"{k} = ?" for k in updates)
         db.execute(
@@ -337,8 +352,9 @@ def _api_bp():
         if rating is not None:
             try:
                 rating = int(rating)
-                assert 1 <= rating <= 5
-            except (ValueError, AssertionError):
+            except ValueError:
+                return _err("rating must be an integer 1–5")
+            if not 1 <= rating <= 5:
                 return _err("rating must be an integer 1–5")
         if rating is None and comment is None:
             return _err("Provide at least a rating or a comment")
@@ -383,8 +399,16 @@ def _api_bp():
     def api_export():
         """Export entire library as JSON."""
         db = get_db()
-        books = [dict(r) for r in db.execute("SELECT * FROM books ORDER BY title").fetchall()]
-        reviews = [dict(r) for r in db.execute("SELECT * FROM reviews ORDER BY book_id, created_at").fetchall()]
+        books = [
+            dict(r)
+            for r in db.execute("SELECT * FROM books ORDER BY title").fetchall()
+        ]
+        reviews = [
+            dict(r)
+            for r in db.execute(
+                "SELECT * FROM reviews ORDER BY book_id, created_at"
+            ).fetchall()
+        ]
         return jsonify({"exported_at": _now(), "books": books, "reviews": reviews})
 
     # ── Global error handlers ─────────────────────────────────────────────────
@@ -404,13 +428,13 @@ def _api_bp():
     return bp
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
-if __name__ == "__main__":
+def main() -> None:
     import socket
 
     app = create_app()
     host = "0.0.0.0"
-    port = 5000
+    port = int(os.getenv("PORT", "5000"))
+    debug = os.getenv("FLASK_DEBUG", "0").lower() in {"1", "true", "yes", "on"}
     try:
         local_ip = socket.gethostbyname(socket.gethostname())
     except Exception:
@@ -419,4 +443,9 @@ if __name__ == "__main__":
     print("\n📚  PageVault is running!")
     print(f"    Local  → http://localhost:{port}")
     print(f"    Phone  → http://{local_ip}:{port}  (same Wi-Fi)\n")
-    app.run(host=host, port=port, debug=True)
+    app.run(host=host, port=port, debug=debug)
+
+
+# ── Entry point ───────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 140" width="420" height="140">
+  <defs>
+    <linearGradient id="bookGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#c8913a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#d4a843;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="spineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#7a5c3a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#9b6e42;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="pageGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#e8d9c4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f5efe6;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="2" dy="3" stdDeviation="3" flood-color="#1a1008" flood-opacity="0.35"/>
+    </filter>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background pill -->
+  <rect x="0" y="0" width="420" height="140" rx="16" fill="#1a1008"/>
+
+  <!-- Subtle texture lines -->
+  <line x1="0" y1="20" x2="420" y2="20" stroke="#ffffff" stroke-opacity="0.02" stroke-width="1"/>
+  <line x1="0" y1="120" x2="420" y2="120" stroke="#ffffff" stroke-opacity="0.02" stroke-width="1"/>
+
+  <!-- ── BOOK ICON ── -->
+  <g transform="translate(22, 18)" filter="url(#shadow)">
+
+    <!-- Book pages (right side, fanned) -->
+    <path d="M 58 8 L 98 10 L 96 102 L 56 100 Z" fill="url(#pageGrad)"/>
+    <!-- Page lines -->
+    <line x1="64" y1="22" x2="90" y2="23" stroke="#c4a882" stroke-width="1.2" stroke-opacity="0.6"/>
+    <line x1="64" y1="30" x2="90" y2="31" stroke="#c4a882" stroke-width="1.2" stroke-opacity="0.6"/>
+    <line x1="64" y1="38" x2="90" y2="39" stroke="#c4a882" stroke-width="1.2" stroke-opacity="0.6"/>
+    <line x1="64" y1="46" x2="90" y2="47" stroke="#c4a882" stroke-width="1.2" stroke-opacity="0.6"/>
+    <line x1="64" y1="54" x2="88" y2="55" stroke="#c4a882" stroke-width="1" stroke-opacity="0.4"/>
+    <line x1="64" y1="62" x2="85" y2="63" stroke="#c4a882" stroke-width="1" stroke-opacity="0.4"/>
+    <line x1="64" y1="70" x2="88" y2="71" stroke="#c4a882" stroke-width="1" stroke-opacity="0.4"/>
+    <line x1="64" y1="78" x2="86" y2="79" stroke="#c4a882" stroke-width="1" stroke-opacity="0.4"/>
+    <line x1="64" y1="86" x2="89" y2="87" stroke="#c4a882" stroke-width="1" stroke-opacity="0.4"/>
+
+    <!-- Book spine -->
+    <path d="M 52 6 L 62 8 L 60 102 L 50 100 Z" fill="url(#spineGrad)"/>
+    <!-- Spine highlight -->
+    <path d="M 54 6 L 57 8 L 55 102 L 52 100 Z" fill="#ffffff" fill-opacity="0.08"/>
+
+    <!-- Book cover (front) -->
+    <path d="M 8 6 L 54 6 L 52 100 L 6 100 Z" fill="url(#bookGrad)" rx="2"/>
+    <!-- Cover edge detail -->
+    <path d="M 8 6 L 12 6 L 10 100 L 6 100 Z" fill="#1a1008" fill-opacity="0.15"/>
+
+    <!-- Vault dial on cover -->
+    <circle cx="32" cy="50" r="22" fill="#1a1008" fill-opacity="0.6"/>
+    <circle cx="32" cy="50" r="19" fill="none" stroke="#d4a843" stroke-width="1.5" stroke-opacity="0.8"/>
+    <circle cx="32" cy="50" r="14" fill="none" stroke="#d4a843" stroke-width="1" stroke-opacity="0.5"/>
+    <circle cx="32" cy="50" r="6" fill="#d4a843" fill-opacity="0.9"/>
+    <circle cx="32" cy="50" r="3" fill="#1a1008"/>
+
+    <!-- Dial tick marks -->
+    <line x1="32" y1="29" x2="32" y2="33" stroke="#d4a843" stroke-width="2" stroke-opacity="0.9" stroke-linecap="round"/>
+    <line x1="32" y1="67" x2="32" y2="71" stroke="#d4a843" stroke-width="2" stroke-opacity="0.9" stroke-linecap="round"/>
+    <line x1="11" y1="50" x2="15" y2="50" stroke="#d4a843" stroke-width="2" stroke-opacity="0.9" stroke-linecap="round"/>
+    <line x1="49" y1="50" x2="53" y2="50" stroke="#d4a843" stroke-width="2" stroke-opacity="0.9" stroke-linecap="round"/>
+    <!-- Diagonal ticks -->
+    <line x1="16.4" y1="34.4" x2="19.2" y2="37.2" stroke="#d4a843" stroke-width="1.5" stroke-opacity="0.6" stroke-linecap="round"/>
+    <line x1="44.8" y1="62.8" x2="47.6" y2="65.6" stroke="#d4a843" stroke-width="1.5" stroke-opacity="0.6" stroke-linecap="round"/>
+    <line x1="16.4" y1="65.6" x2="19.2" y2="62.8" stroke="#d4a843" stroke-width="1.5" stroke-opacity="0.6" stroke-linecap="round"/>
+    <line x1="44.8" y1="37.2" x2="47.6" y2="34.4" stroke="#d4a843" stroke-width="1.5" stroke-opacity="0.6" stroke-linecap="round"/>
+
+    <!-- Dial pointer -->
+    <line x1="32" y1="50" x2="32" y2="34" stroke="#d4a843" stroke-width="2" stroke-linecap="round" filter="url(#glow)"/>
+
+    <!-- Bookmark ribbon -->
+    <path d="M 42 6 L 46 6 L 46 22 L 44 19 L 42 22 Z" fill="#9b3a1c"/>
+
+  </g>
+
+  <!-- ── WORDMARK ── -->
+  <text x="138" y="70"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="48"
+    font-weight="bold"
+    letter-spacing="-1"
+    fill="#f5efe6">Page</text>
+  <text x="138" y="70"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="48"
+    font-weight="bold"
+    letter-spacing="-1"
+    fill="none"
+    stroke="#f5efe6"
+    stroke-width="0.5"
+    dx="104">Vault</text>
+  <text x="242" y="70"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="48"
+    font-weight="bold"
+    letter-spacing="-1"
+    fill="url(#bookGrad)">Vault</text>
+
+  <!-- Tagline -->
+  <text x="139" y="96"
+    font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+    font-size="13"
+    font-weight="300"
+    letter-spacing="3.5"
+    fill="#d4a843"
+    fill-opacity="0.75">YOUR PERSONAL BOOK VAULT</text>
+
+  <!-- Subtle decorative line under tagline -->
+  <line x1="139" y1="104" x2="380" y2="104" stroke="#d4a843" stroke-width="0.5" stroke-opacity="0.2"/>
+
+</svg>

@@ -9,7 +9,7 @@ Thank you for your interest in contributing! PageVault is a small personal proje
 ### 1. Fork & clone
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/pagevault.git
+git clone https://github.com/ChristianAbele02/PageVault
 cd pagevault
 ```
 
@@ -54,7 +54,7 @@ make coverage
 
 2. **Make your changes.** Keep commits focused and descriptive.
 
-3. **Write or update tests** in `tests/test_api.py` — all new API behaviour must be tested.
+3. **Write or update tests** in `tests/test_api.py` and shared fixtures in `tests/conftest.py` — all new API behaviour must be tested.
 
 4. **Lint and format**:
    ```bash

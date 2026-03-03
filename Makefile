@@ -1,6 +1,6 @@
 .PHONY: help install dev test coverage lint format clean docker docker-up docker-down
 
-PYTHON  := python3
+PYTHON  ?= python
 PIP     := $(PYTHON) -m pip
 PYTEST  := $(PYTHON) -m pytest
 RUFF    := $(PYTHON) -m ruff
@@ -43,7 +43,7 @@ test:
 coverage:
 	$(PYTEST) --cov=app --cov-report=html --cov-report=term-missing
 	@echo "\n✅  Coverage report → htmlcov/index.html"
-	@$(PYTHON) -m webbrowser htmlcov/index.html 2>/dev/null || true
+	-@$(PYTHON) -m webbrowser htmlcov/index.html
 
 # ── Code quality ───────────────────────────────────────────────────────────────
 lint:
@@ -55,12 +55,7 @@ format:
 
 # ── Cleanup ────────────────────────────────────────────────────────────────────
 clean:
-	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name htmlcov -exec rm -rf {} + 2>/dev/null || true
-	find . -name "*.pyc" -delete 2>/dev/null || true
-	find . -name ".coverage" -delete 2>/dev/null || true
-	find . -name "coverage.xml" -delete 2>/dev/null || true
+	@$(PYTHON) -c "import pathlib, shutil; root = pathlib.Path('.'); [shutil.rmtree(p, ignore_errors=True) for p in root.rglob('__pycache__') if p.is_dir()]; [shutil.rmtree(p, ignore_errors=True) for p in root.rglob('.pytest_cache') if p.is_dir()]; [shutil.rmtree(p, ignore_errors=True) for p in root.rglob('htmlcov') if p.is_dir()]; [p.unlink(missing_ok=True) for p in root.rglob('*.pyc') if p.is_file()]; (root / '.coverage').unlink(missing_ok=True); (root / 'coverage.xml').unlink(missing_ok=True)"
 	@echo "🧹  Cleaned."
 
 # ── Docker ─────────────────────────────────────────────────────────────────────
