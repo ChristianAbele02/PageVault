@@ -7,6 +7,7 @@ from __future__ import annotations
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
+
 class TestStats:
     def test_empty_stats(self, client):
         r = client.get("/api/stats")
@@ -24,6 +25,7 @@ class TestStats:
 
 
 # ── Books CRUD ────────────────────────────────────────────────────────────────
+
 
 class TestBooks:
     def test_list_empty(self, client):
@@ -109,6 +111,7 @@ class TestBooks:
 
 # ── Reviews ───────────────────────────────────────────────────────────────────
 
+
 class TestReviews:
     def test_add_review_rating_only(self, client, added_book):
         book_id = added_book["id"]
@@ -176,6 +179,7 @@ class TestReviews:
 
 # ── Export ────────────────────────────────────────────────────────────────────
 
+
 class TestExport:
     def test_export_empty(self, client):
         r = client.get("/api/export")
@@ -194,6 +198,7 @@ class TestExport:
 
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
+
 
 class TestFrontend:
     def test_index_returns_html(self, client):
