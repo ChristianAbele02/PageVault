@@ -9,7 +9,7 @@ Thank you for your interest in contributing! PageVault is a small personal proje
 ### 1. Fork & clone
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/pagevault.git
+git clone https://github.com/ChristianAbele02/PageVault
 cd pagevault
 ```
 

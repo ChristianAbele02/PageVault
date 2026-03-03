@@ -1,0 +1,9 @@
+{
+  "name": "PageVault Dev",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "postCreateCommand": "pip install -r requirements-dev.txt",
+  "forwardPorts": [5000],
+  "portsAttributes": {
+    "5000": { "label": "PageVault App", "onAutoForward": "openBrowser" }
+  }
+}

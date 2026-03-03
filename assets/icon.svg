@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="coverG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#c8913a"/>
+      <stop offset="100%" style="stop-color:#d4a843"/>
+    </linearGradient>
+    <linearGradient id="spineG" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#6b4d2e"/>
+      <stop offset="100%" style="stop-color:#8a6035"/>
+    </linearGradient>
+    <linearGradient id="pageG" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ddd0bb"/>
+      <stop offset="100%" style="stop-color:#f0e8da"/>
+    </linearGradient>
+    <filter id="s">
+      <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="100" height="100" rx="18" fill="#1a1008"/>
+
+  <!-- Glow accent -->
+  <circle cx="50" cy="50" r="38" fill="#c8913a" fill-opacity="0.05"/>
+
+  <g transform="translate(16, 10)" filter="url(#s)">
+    <!-- Pages -->
+    <path d="M 44 4 L 70 6 L 68 80 L 42 78 Z" fill="url(#pageG)"/>
+    <line x1="49" y1="15" x2="63" y2="16" stroke="#b09070" stroke-width="1" stroke-opacity="0.5"/>
+    <line x1="49" y1="22" x2="63" y2="23" stroke="#b09070" stroke-width="1" stroke-opacity="0.5"/>
+    <line x1="49" y1="29" x2="63" y2="30" stroke="#b09070" stroke-width="1" stroke-opacity="0.5"/>
+    <line x1="49" y1="36" x2="62" y2="37" stroke="#b09070" stroke-width="0.8" stroke-opacity="0.4"/>
+    <line x1="49" y1="43" x2="62" y2="44" stroke="#b09070" stroke-width="0.8" stroke-opacity="0.4"/>
+    <line x1="49" y1="50" x2="63" y2="51" stroke="#b09070" stroke-width="0.8" stroke-opacity="0.4"/>
+    <line x1="49" y1="57" x2="62" y2="58" stroke="#b09070" stroke-width="0.8" stroke-opacity="0.4"/>
+    <line x1="49" y1="64" x2="63" y2="65" stroke="#b09070" stroke-width="0.8" stroke-opacity="0.4"/>
+
+    <!-- Spine -->
+    <path d="M 38 4 L 46 4 L 44 78 L 36 78 Z" fill="url(#spineG)"/>
+    <path d="M 40 4 L 42 4 L 40 78 L 38 78 Z" fill="#fff" fill-opacity="0.07"/>
+
+    <!-- Cover -->
+    <path d="M 4 4 L 40 4 L 38 78 L 2 78 Z" fill="url(#coverG)"/>
+    <path d="M 4 4 L 8 4 L 6 78 L 2 78 Z" fill="#000" fill-opacity="0.12"/>
+
+    <!-- Vault dial -->
+    <circle cx="22" cy="38" r="16" fill="#1a1008" fill-opacity="0.65"/>
+    <circle cx="22" cy="38" r="13.5" fill="none" stroke="#d4a843" stroke-width="1.2" stroke-opacity="0.85"/>
+    <circle cx="22" cy="38" r="9"   fill="none" stroke="#d4a843" stroke-width="0.8" stroke-opacity="0.45"/>
+    <circle cx="22" cy="38" r="4"   fill="#d4a843" fill-opacity="0.95"/>
+    <circle cx="22" cy="38" r="2"   fill="#1a1008"/>
+
+    <!-- Ticks -->
+    <line x1="22" y1="22.5" x2="22" y2="26" stroke="#d4a843" stroke-width="1.8" stroke-linecap="round" stroke-opacity="0.95"/>
+    <line x1="22" y1="50" x2="22" y2="53.5" stroke="#d4a843" stroke-width="1.8" stroke-linecap="round" stroke-opacity="0.95"/>
+    <line x1="6.5" y1="38" x2="10"  y2="38" stroke="#d4a843" stroke-width="1.8" stroke-linecap="round" stroke-opacity="0.95"/>
+    <line x1="34" y1="38" x2="37.5" y2="38" stroke="#d4a843" stroke-width="1.8" stroke-linecap="round" stroke-opacity="0.95"/>
+    <!-- Diagonals -->
+    <line x1="11.3" y1="27.3" x2="13.7" y2="29.7" stroke="#d4a843" stroke-width="1.2" stroke-linecap="round" stroke-opacity="0.6"/>
+    <line x1="30.3" y1="46.3" x2="32.7" y2="48.7" stroke="#d4a843" stroke-width="1.2" stroke-linecap="round" stroke-opacity="0.6"/>
+    <line x1="11.3" y1="48.7" x2="13.7" y2="46.3" stroke="#d4a843" stroke-width="1.2" stroke-linecap="round" stroke-opacity="0.6"/>
+    <line x1="30.3" y1="29.7" x2="32.7" y2="27.3" stroke="#d4a843" stroke-width="1.2" stroke-linecap="round" stroke-opacity="0.6"/>
+
+    <!-- Pointer -->
+    <line x1="22" y1="38" x2="22" y2="25.5" stroke="#d4a843" stroke-width="1.8" stroke-linecap="round"/>
+
+    <!-- Bookmark -->
+    <path d="M 29 4 L 33 4 L 33 16 L 31 13.5 L 29 16 Z" fill="#9b3a1c"/>
+  </g>
+</svg>
