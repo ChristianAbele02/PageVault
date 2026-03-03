@@ -4,7 +4,7 @@
 
 **Your personal, self-hosted book catalog — a local Goodreads alternative.**
 
-[![CI](https://github.com/yourname/pagevault/actions/workflows/ci.yml/badge.svg)](https://github.com/yourname/pagevault/actions/workflows/ci.yml)
+[![CI](https://github.com/ChristianAbele02/PageVault/actions/workflows/ci.yml/badge.svg)](https://github.com/ChristianAbele02/PageVault/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org)
 [![Flask](https://img.shields.io/badge/Flask-3.x-black?logo=flask)](https://flask.palletsprojects.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)

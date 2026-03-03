@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "A self-hosted, personal book catalog with ISBN barcode scanning — your local Goodreads alternative."
 readme = "README.md"
 license = { file = "LICENSE" }
-authors = [{ name = "Your Name", email = "you@example.com" }]
+authors = [{ name = "Christian Abele", email = "christian.abele@uni-bielefeld.de" }]
 requires-python = ">=3.10"
 keywords = ["books", "catalog", "isbn", "flask", "self-hosted", "library"]
 classifiers = [
@@ -40,10 +40,10 @@ prod = [
 ]
 
 [project.urls]
-Homepage    = "https://github.com/yourname/pagevault"
-Repository  = "https://github.com/yourname/pagevault"
-Issues      = "https://github.com/yourname/pagevault/issues"
-Changelog   = "https://github.com/yourname/pagevault/blob/main/CHANGELOG.md"
+Homepage    = "https://github.com/ChristianAbele02/PageVault"
+Repository  = "https://github.com/ChristianAbele02/PageVault"
+Issues      = "https://github.com/ChristianAbele02/PageVault/issues"
+Changelog   = "https://github.com/ChristianAbele02/PageVault/blob/main/CHANGELOG.md"
 
 [project.scripts]
 pagevault = "app:main"

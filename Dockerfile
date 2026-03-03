@@ -12,7 +12,7 @@ FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="PageVault"
 LABEL org.opencontainers.image.description="Self-hosted personal book catalog with ISBN scanning"
-LABEL org.opencontainers.image.source="https://github.com/yourname/pagevault"
+LABEL org.opencontainers.image.source="https://github.com/ChristianAbele02/PageVault"
 LABEL org.opencontainers.image.licenses="MIT"
 
 # Non-root user for security

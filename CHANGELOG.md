@@ -37,5 +37,5 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Makefile** for developer convenience
 - Local SQLite database — data stays on your machine
 
-[Unreleased]: https://github.com/yourname/pagevault/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/yourname/pagevault/releases/tag/v1.0.0
+[Unreleased]: https://github.com/ChristianAbele02/PageVault
+[1.0.0]: https://github.com/ChristianAbele02/PageVault

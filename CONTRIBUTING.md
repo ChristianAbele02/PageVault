@@ -98,7 +98,7 @@ Use the [Feature Request](.github/ISSUE_TEMPLATE/feature_request.yml) template. 
 
 ## Commit Message Convention
 
-We loosely follow [Conventional Commits](https://www.conventionalcommits.org/):
+I loosely follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 feat: add Goodreads CSV import
@@ -112,4 +112,4 @@ chore: bump Flask to 3.1
 
 ## Questions?
 
-Open a [GitHub Discussion](https://github.com/yourname/pagevault/discussions) or file an issue — happy to help.
+Open a [GitHub Discussion](https://github.com/ChristianAbele02/PageVault/discussions) or file an issue — happy to help.

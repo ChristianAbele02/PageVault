@@ -14,7 +14,7 @@ PageVault is designed for **personal, local use on a trusted network**. It does 
 
 If you discover a security vulnerability, please **do not open a public GitHub issue**.
 
-Instead, email **security@yourname.example** (replace with your actual contact) with:
+Instead, email **christian.abele@uni-bielefeld.de** (replace with your actual contact) with:
 - A description of the vulnerability
 - Steps to reproduce
 - Potential impact
