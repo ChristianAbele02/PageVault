@@ -33,6 +33,18 @@ jobs:
       - name: Run tests with coverage
         run: pytest --cov=app --cov-report=xml --cov-report=term-missing
 
+      - name: Upload coverage to Codecov
+        if: ${{ secrets.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Skip Codecov upload (no token)
+        if: ${{ secrets.CODECOV_TOKEN == '' }}
+        run: echo "CODECOV_TOKEN is not set; skipping Codecov upload."
+
   lint:
     name: Lint & Format
     runs-on: ubuntu-latest
@@ -59,6 +71,6 @@ jobs:
       - name: Smoke test container
         run: |
           docker run -d -p 5000:5000 --name pv_test pagevault:ci
-          sleep 4
+          sleep 10
           curl -f http://localhost:5000/api/stats || (docker logs pv_test && exit 1)
           docker stop pv_test

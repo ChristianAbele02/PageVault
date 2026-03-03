@@ -352,8 +352,9 @@ def _api_bp():
         if rating is not None:
             try:
                 rating = int(rating)
-                assert 1 <= rating <= 5
-            except (ValueError, AssertionError):
+            except ValueError:
+                return _err("rating must be an integer 1–5")
+            if not 1 <= rating <= 5:
                 return _err("rating must be an integer 1–5")
         if rating is None and comment is None:
             return _err("Provide at least a rating or a comment")
@@ -398,8 +399,16 @@ def _api_bp():
     def api_export():
         """Export entire library as JSON."""
         db = get_db()
-        books = [dict(r) for r in db.execute("SELECT * FROM books ORDER BY title").fetchall()]
-        reviews = [dict(r) for r in db.execute("SELECT * FROM reviews ORDER BY book_id, created_at").fetchall()]
+        books = [
+            dict(r)
+            for r in db.execute("SELECT * FROM books ORDER BY title").fetchall()
+        ]
+        reviews = [
+            dict(r)
+            for r in db.execute(
+                "SELECT * FROM reviews ORDER BY book_id, created_at"
+            ).fetchall()
+        ]
         return jsonify({"exported_at": _now(), "books": books, "reviews": reviews})
 
     # ── Global error handlers ─────────────────────────────────────────────────
