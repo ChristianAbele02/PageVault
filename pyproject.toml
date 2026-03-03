@@ -64,7 +64,7 @@ addopts   = "-v --tb=short"
 
 # ── Coverage ──────────────────────────────────────────────────────────────────
 [tool.coverage.run]
-source  = ["app"]
+source  = ["app.py"]
 omit    = ["tests/*"]
 
 [tool.coverage.report]

@@ -655,14 +655,15 @@ function renderBooks() {
     const card = document.createElement('div');
     card.className = 'book-card';
     card.onclick = () => openDetail(b.id);
+    const safeCover = safeImageUrl(b.cover_url);
 
     const statusMap = { reading:'badge-reading', read:'badge-read', want_to_read:'badge-want' };
     const statusLabel = { reading:'Reading', read:'Read', want_to_read:'Soon' };
     const stars = b.avg_rating ? renderStars(b.avg_rating) : '';
 
     card.innerHTML = `
-      ${b.cover_url
-        ? `<img class="book-cover" src="${b.cover_url}" alt="${esc(b.title)}" loading="lazy">`
+      ${safeCover
+        ? `<img class="book-cover" src="${esc(safeCover)}" alt="${esc(b.title)}" loading="lazy">`
         : `<div class="cover-placeholder"><div class="ph-icon">📖</div><div class="ph-title">${esc(b.title)}</div></div>`
       }
       <div class="book-info">
@@ -687,6 +688,17 @@ function renderStars(rating) {
 function esc(str) {
   if (!str) return '';
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function safeImageUrl(value) {
+  if (!value || typeof value !== 'string') return null;
+  try {
+    const parsed = new URL(value, window.location.origin);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.href;
+    }
+  } catch (_) {}
+  return null;
 }
 
 // ─── Add modal ────────────────────────────────────────────────────────────────
@@ -820,8 +832,9 @@ async function openDetail(id) {
 
   // Cover
   const wrap = document.getElementById('detail-cover-wrap');
-  wrap.innerHTML = b.cover_url
-    ? `<img class="detail-cover" src="${b.cover_url}" alt="cover">`
+  const safeCover = safeImageUrl(b.cover_url);
+  wrap.innerHTML = safeCover
+    ? `<img class="detail-cover" src="${esc(safeCover)}" alt="cover">`
     : `<div class="detail-cover-ph">📖</div>`;
 
   // Star picker for quick rating

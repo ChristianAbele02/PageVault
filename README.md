@@ -10,12 +10,12 @@
 <br/>
 
 <p align="center">
-  <a href="https://github.com/YOURNAME/pagevault/actions/workflows/ci.yml">
-    <img src="https://github.com/YOURNAME/pagevault/actions/workflows/ci.yml/badge.svg" alt="CI"/>
+  <a href="https://github.com/ChristianAbele02/PageVault/actions/workflows/ci.yml">
+    <img src="https://github.com/ChristianAbele02/PageVault/actions/workflows/ci.yml/badge.svg" alt="CI"/>
   </a>
   &nbsp;
-  <a href="https://github.com/YOURNAME/pagevault/releases">
-    <img src="https://img.shields.io/github/v/release/YOURNAME/pagevault?color=c8913a&label=release" alt="Release"/>
+  <a href="https://github.com/ChristianAbele02/PageVault/releases">
+    <img src="https://img.shields.io/github/v/release/ChristianAbele02/PageVault?color=c8913a&label=release" alt="Release"/>
   </a>
   &nbsp;
   <img src="https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white" alt="Python"/>
@@ -71,7 +71,7 @@ One command to run, persistent volume for your data.
 > Requires Python 3.10 or newer.
 
 ```bash
-git clone https://github.com/YOURNAME/pagevault.git
+git clone https://github.com/ChristianAbele02/PageVault.git
 cd pagevault
 pip install -r requirements.txt
 python app.py
@@ -82,7 +82,7 @@ Open **http://localhost:5000** in your browser.
 ### Docker
 
 ```bash
-git clone https://github.com/YOURNAME/pagevault.git
+git clone https://github.com/ChristianAbele02/PageVault.git
 cd pagevault
 docker compose up -d
 ```
@@ -242,7 +242,6 @@ pagevault/
 ├── templates/
 │   └── index.html                Complete frontend (HTML + CSS + JS, single file)
 ├── tests/
-│   ├── conftest.py               pytest fixtures
 │   └── test_api.py               36-test suite
 ├── assets/
 │   ├── logo.svg                  Full wordmark logo
@@ -251,7 +250,6 @@ pagevault/
 │   ├── workflows/ci.yml          GitHub Actions: test · lint · Docker build
 │   ├── ISSUE_TEMPLATE/           Bug report & feature request forms
 │   ├── PULL_REQUEST_TEMPLATE.md
-│   ├── CODEOWNERS
 │   └── dependabot.yml
 ├── .devcontainer/
 │   └── devcontainer.json         One-click GitHub Codespaces setup
@@ -277,7 +275,7 @@ pagevault/
 - [ ] Annual reading goal tracker
 - [ ] Optional password protection
 
-Have an idea? [Open a feature request](https://github.com/YOURNAME/pagevault/issues/new/choose).
+Have an idea? [Open a feature request](https://github.com/ChristianAbele02/PageVault/issues/new/choose).
 
 ---
 

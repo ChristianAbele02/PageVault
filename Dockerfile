@@ -32,7 +32,7 @@ RUN mkdir -p /data && chown pagevault:pagevault /data
 ENV PAGEVAULT_DB=/data/pagevault.db
 
 # Install gunicorn for production
-RUN pip install --no-cache-dir gunicorn>=22.0
+RUN pip install --no-cache-dir "gunicorn>=22.0"
 
 USER pagevault
 
