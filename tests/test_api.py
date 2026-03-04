@@ -170,6 +170,31 @@ class TestBooks:
         assert len(data) == 1
         assert data[0]["title"] == "Of Mice and Men"
 
+    def test_list_books_filter_continue_reading(self, client):
+        in_progress = client.post(
+            "/api/books",
+            json={
+                "isbn": "9780451524937",
+                "status": "reading",
+                "book_data": {"title": "Progress Book", "author": "Reader", "pages": 300},
+            },
+        ).get_json()
+        finished = client.post(
+            "/api/books",
+            json={
+                "isbn": "9780451524938",
+                "status": "reading",
+                "book_data": {"title": "Finished Book", "author": "Reader", "pages": 280},
+            },
+        ).get_json()
+
+        client.post(f"/api/books/{in_progress['id']}/reviews", json={"current_page": 120})
+        client.post(f"/api/books/{finished['id']}/reviews", json={"current_page": 280})
+
+        data = client.get("/api/books?continue_reading=1").get_json()
+        assert len(data) == 1
+        assert data[0]["title"] == "Progress Book"
+
     def test_update_book_status(self, client, added_book):
         book_id = added_book["id"]
         r = client.patch(f"/api/books/{book_id}", json={"status": "reading"})
@@ -278,8 +303,33 @@ class TestReviews:
         )
         assert r.status_code == 201
 
+    def test_add_review_with_current_page(self, client, added_book):
+        book_id = added_book["id"]
+        r = client.post(
+            f"/api/books/{book_id}/reviews",
+            json={"current_page": 42},
+        )
+        assert r.status_code == 201
+
+        detail = client.get(f"/api/books/{book_id}").get_json()
+        assert detail["current_page"] == 42
+        assert detail["progress_percent"] == 23.3
+        assert detail["reviews"][0]["current_page"] == 42
+
+        listing = client.get("/api/books").get_json()
+        assert listing[0]["current_page"] == 42
+        assert listing[0]["progress_percent"] == 23.3
+
     def test_add_review_invalid_rating(self, client, added_book):
         r = client.post(f"/api/books/{added_book['id']}/reviews", json={"rating": 6})
+        assert r.status_code == 400
+
+    def test_add_review_invalid_current_page(self, client, added_book):
+        r = client.post(f"/api/books/{added_book['id']}/reviews", json={"current_page": -1})
+        assert r.status_code == 400
+
+    def test_add_review_current_page_exceeds_pages(self, client, added_book):
+        r = client.post(f"/api/books/{added_book['id']}/reviews", json={"current_page": 999})
         assert r.status_code == 400
 
     def test_add_review_empty(self, client, added_book):

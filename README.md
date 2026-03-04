@@ -52,6 +52,9 @@ Title, author, cover image, publisher, year, and page count — fetched with a m
 **⭐ Ratings & personal notes**
 Give each book a 1–5 star rating and add written notes. Build up a reading journal over time.
 
+**📖 Reading progress (current page)**
+Save page progress together with each review entry and see a live progress bar on the library grid.
+
 **🔖 Reading status**
 Track every book as *Want to Read*, *Currently Reading*, or *Read*.
 
@@ -364,7 +367,6 @@ pagevault/
 ## Roadmap
 
 - [ ] Goodreads import mapping presets (regional variants)
-- [ ] Reading progress (current page)
 - [ ] Annual reading goal tracker
 - [ ] Optional password protection
 
