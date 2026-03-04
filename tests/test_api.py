@@ -8,6 +8,7 @@ from __future__ import annotations
 import io
 
 import app as app_module
+from pagevault_core import metadata as core_metadata
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
@@ -464,6 +465,39 @@ class TestFrontend:
 
 
 class TestLookup:
+    def test_lookup_uses_ttl_cache_for_repeated_isbn(self, monkeypatch):
+        core_metadata.clear_lookup_cache()
+        calls = {"openlibrary": 0}
+
+        def fake_openlibrary(_isbn):
+            calls["openlibrary"] += 1
+            return {
+                "isbn": "9789999999991",
+                "title": "Cached Book",
+                "author": "Cached Author",
+                "cover_url": "https://example.com/cached-cover.jpg",
+                "description": "Cached Description",
+                "publisher": "Cached Publisher",
+                "year": "2025",
+                "genre_tags": ["Cached"],
+            }
+
+        monkeypatch.setattr(app_module, "_fetch_openlibrary", fake_openlibrary)
+        monkeypatch.setattr(app_module, "_fetch_googlebooks", lambda _isbn: None)
+        monkeypatch.setattr(app_module, "_fetch_crossref", lambda _isbn: None)
+        monkeypatch.setattr(app_module, "_fetch_openlibrary_search", lambda _isbn: None)
+        monkeypatch.setattr(app_module, "_fetch_openlibrary_covers", lambda _isbn: None)
+
+        first = app_module.lookup_isbn("9789999999991")
+        second = app_module.lookup_isbn("9789999999991")
+
+        assert first is not None
+        assert second is not None
+        assert first["title"] == second["title"]
+        assert calls["openlibrary"] == 1
+
+        core_metadata.clear_lookup_cache()
+
     def test_lookup_returns_three_genre_tags_max(self, client, monkeypatch):
         def fake_lookup(_isbn):
             return {
@@ -506,6 +540,8 @@ class TestLookup:
                 "genre_tags": ["Thriller", "Fiction"],
             },
         )
+        monkeypatch.setattr(app_module, "_fetch_openlibrary_search", lambda _isbn: None)
+        monkeypatch.setattr(app_module, "_fetch_openlibrary_covers", lambda _isbn: None)
 
         data = app_module.lookup_isbn("9780000000001")
         assert data is not None
@@ -526,6 +562,8 @@ class TestLookup:
                 "genre_tags": ["Mystery", "Suspense"],
             },
         )
+        monkeypatch.setattr(app_module, "_fetch_openlibrary_search", lambda _isbn: None)
+        monkeypatch.setattr(app_module, "_fetch_openlibrary_covers", lambda _isbn: None)
 
         data = app_module.lookup_isbn("9780000000002")
         assert data is not None
@@ -546,6 +584,8 @@ class TestLookup:
             },
         )
         monkeypatch.setattr(app_module, "_fetch_googlebooks", lambda _isbn: None)
+        monkeypatch.setattr(app_module, "_fetch_openlibrary_search", lambda _isbn: None)
+        monkeypatch.setattr(app_module, "_fetch_openlibrary_covers", lambda _isbn: None)
         monkeypatch.setattr(
             app_module,
             "_fetch_crossref",
@@ -563,3 +603,56 @@ class TestLookup:
         assert data["author"] == "Cross Ref Author"
         assert data["publisher"] == "Cross Ref Pub"
         assert data["year"] == "2020"
+
+    def test_lookup_uses_openlibrary_search_as_additional_fallback(self, monkeypatch):
+        monkeypatch.setattr(app_module, "_fetch_openlibrary", lambda _isbn: None)
+        monkeypatch.setattr(app_module, "_fetch_googlebooks", lambda _isbn: None)
+        monkeypatch.setattr(app_module, "_fetch_crossref", lambda _isbn: None)
+        monkeypatch.setattr(
+            app_module,
+            "_fetch_openlibrary_search",
+            lambda _isbn: {
+                "isbn": "9780000000004",
+                "title": "Search Title",
+                "author": "Search Author",
+                "publisher": "Search Publisher",
+                "year": "2018",
+                "genre_tags": ["Fantasy"],
+            },
+        )
+        monkeypatch.setattr(app_module, "_fetch_openlibrary_covers", lambda _isbn: None)
+
+        data = app_module.lookup_isbn("9780000000004")
+        assert data is not None
+        assert data["title"] == "Search Title"
+        assert data["author"] == "Search Author"
+
+    def test_lookup_uses_openlibrary_covers_for_cover_fallback(self, monkeypatch):
+        monkeypatch.setattr(
+            app_module,
+            "_fetch_openlibrary",
+            lambda _isbn: {
+                "isbn": "9780000000005",
+                "title": "No Cover",
+                "author": "Author",
+                "description": "Desc",
+                "publisher": "Pub",
+                "year": "2024",
+                "cover_url": None,
+            },
+        )
+        monkeypatch.setattr(app_module, "_fetch_googlebooks", lambda _isbn: None)
+        monkeypatch.setattr(app_module, "_fetch_crossref", lambda _isbn: None)
+        monkeypatch.setattr(app_module, "_fetch_openlibrary_search", lambda _isbn: None)
+        monkeypatch.setattr(
+            app_module,
+            "_fetch_openlibrary_covers",
+            lambda _isbn: {
+                "isbn": "9780000000005",
+                "cover_url": "https://covers.openlibrary.org/b/isbn/9780000000005-L.jpg?default=false",
+            },
+        )
+
+        data = app_module.lookup_isbn("9780000000005")
+        assert data is not None
+        assert data["cover_url"].startswith("https://covers.openlibrary.org/b/isbn/")
