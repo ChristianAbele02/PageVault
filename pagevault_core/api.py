@@ -683,7 +683,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             title = row.get("title") or row.get("Title") or None
             author = row.get("author") or row.get("Author") or None
             publisher = row.get("publisher") or row.get("Publisher") or None
-            year = row.get("year") or row.get("Year Published") or row.get("Original Publication Year")
+            year = (
+                row.get("year") or row.get("Year Published") or row.get("Original Publication Year")
+            )
             cover_url = row.get("cover_url") or None
             description = row.get("description") or None
             language = row.get("language") or "en"
@@ -696,7 +698,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 pages = None
 
             status_raw = row.get("status") or row.get("Exclusive Shelf")
-            status = status_raw if validate_status(status_raw) else status_from_goodreads(status_raw)
+            status = (
+                status_raw if validate_status(status_raw) else status_from_goodreads(status_raw)
+            )
 
             lookup_data = lookup_isbn(isbn)
             metadata = merge_lookup_data(
