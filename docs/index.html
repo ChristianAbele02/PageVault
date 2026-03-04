@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PageVault — Your local Goodreads alternative</title>
+  <meta name="description" content="PageVault is a self-hosted, private book catalog with ISBN scanning, shelves, tags, reviews, and CSV import/export." />
+  <style>
+    :root {
+      --ink: #1a1008;
+      --cream: #fdf8f2;
+      --sepia: #f5efe6;
+      --brown: #7a5c3a;
+      --amber: #c8913a;
+      --rust: #9b3a1c;
+      --sage: #5c7a5e;
+      --card: #fffdf9;
+      --line: rgba(122, 92, 58, 0.2);
+      --shadow: rgba(26, 16, 8, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 0% 0%, rgba(200,145,58,.18), transparent 45%),
+        radial-gradient(circle at 100% 100%, rgba(92,122,94,.16), transparent 40%),
+        var(--cream);
+      line-height: 1.5;
+    }
+
+    .wrap {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(8px);
+      background: rgba(253, 248, 242, 0.82);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .topbar-inner {
+      height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .brand {
+      font-weight: 800;
+      letter-spacing: .02em;
+      color: var(--ink);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+    }
+
+    .brand-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--amber);
+      box-shadow: 0 0 0 5px rgba(200, 145, 58, .15);
+    }
+
+    .top-links {
+      display: flex;
+      gap: .55rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: .55rem .85rem;
+      background: var(--card);
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: .9rem;
+      transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(122,92,58,.4);
+      box-shadow: 0 10px 24px var(--shadow);
+    }
+
+    .btn.primary {
+      background: var(--ink);
+      color: var(--cream);
+      border-color: var(--ink);
+    }
+
+    .hero {
+      padding: 4.2rem 0 2.4rem;
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 1.2rem;
+      align-items: center;
+    }
+
+    .hero h1 {
+      margin: 0 0 .8rem;
+      font-size: clamp(1.9rem, 4.2vw, 3.05rem);
+      line-height: 1.1;
+      letter-spacing: -.02em;
+    }
+
+    .hero p {
+      margin: 0;
+      color: #4c3825;
+      max-width: 62ch;
+    }
+
+    .hero-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--card);
+      box-shadow: 0 12px 28px var(--shadow);
+      overflow: hidden;
+    }
+
+    .hero-strip {
+      height: 11px;
+      background: linear-gradient(90deg, var(--amber), var(--rust), var(--sage));
+    }
+
+    .hero-card-inner {
+      padding: 1rem 1rem 1.1rem;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .6rem;
+      margin-top: .7rem;
+    }
+
+    .meta-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      padding: .55rem .65rem;
+      font-size: .85rem;
+    }
+
+    .section-title {
+      font-size: 1.28rem;
+      margin: 0 0 .8rem;
+      letter-spacing: -.01em;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .8rem;
+      margin: .4rem 0 1.4rem;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--card);
+      padding: .85rem;
+      box-shadow: 0 8px 18px rgba(26,16,8,.06);
+    }
+
+    .card h3 {
+      margin: 0 0 .35rem;
+      font-size: .98rem;
+    }
+
+    .card p {
+      margin: 0;
+      font-size: .88rem;
+      color: #5a4430;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .8rem;
+      margin-bottom: 1.6rem;
+    }
+
+    .list {
+      margin: 0;
+      padding-left: 1.1rem;
+      color: #4f3b28;
+    }
+
+    .list li + li { margin-top: .3rem; }
+
+    .about {
+      margin: 1rem 0 2.2rem;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--sepia);
+      padding: .95rem;
+      font-size: .94rem;
+    }
+
+    .love {
+      margin-top: .4rem;
+      font-style: italic;
+      color: var(--brown);
+    }
+
+    .footer-links {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: .6rem;
+      margin: 0 0 3rem;
+    }
+
+    .link-block {
+      text-decoration: none;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--card);
+      text-align: center;
+      padding: .62rem .52rem;
+      font-weight: 700;
+      font-size: .84rem;
+    }
+
+    .k {
+      display: block;
+      font-size: .67rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #866643;
+      margin-bottom: .13rem;
+    }
+
+    .small {
+      font-size: .78rem;
+      color: #644d35;
+    }
+
+    @media (max-width: 920px) {
+      .hero { grid-template-columns: 1fr; }
+      .cards { grid-template-columns: 1fr 1fr; }
+      .split { grid-template-columns: 1fr; }
+      .footer-links { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 560px) {
+      .cards { grid-template-columns: 1fr; }
+      .footer-links { grid-template-columns: 1fr; }
+      .topbar-inner { height: auto; padding: .6rem 0; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="https://christianabele02.github.io/PageVault/" aria-label="PageVault Home">
+        <span class="brand-dot" aria-hidden="true"></span>
+        PageVault
+      </a>
+      <nav class="top-links" aria-label="Top Links">
+        <a class="btn" href="https://github.com/ChristianAbele02/PageVault">Repository</a>
+        <a class="btn" href="https://github.com/ChristianAbele02/PageVault/releases">Releases</a>
+        <a class="btn primary" href="https://github.com/ChristianAbele02/PageVault#readme">Get Started</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <div>
+        <h1>Your private book universe.<br/>No cloud required.</h1>
+        <p>
+          PageVault is a local, self-hosted Goodreads alternative with barcode scanning, shelves, tags, ratings, CSV portability,
+          and robust multi-provider metadata lookup — optimized for reliable cover fetching.
+        </p>
+      </div>
+      <aside class="hero-card" aria-label="Project Snapshot">
+        <div class="hero-strip"></div>
+        <div class="hero-card-inner">
+          <strong>📚 Project Snapshot</strong>
+          <div class="meta">
+            <div class="meta-item"><strong>Stack:</strong><br/>Flask + SQLite</div>
+            <div class="meta-item"><strong>Mode:</strong><br/>Self-hosted</div>
+            <div class="meta-item"><strong>Metadata:</strong><br/>5-source fallback</div>
+            <div class="meta-item"><strong>Import:</strong><br/>Goodreads CSV</div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section>
+      <h2 class="section-title">Highlights</h2>
+      <div class="cards">
+        <article class="card"><h3>📷 ISBN Scan & Add</h3><p>Scan from phone camera or enter ISBN manually with live metadata preview.</p></article>
+        <article class="card"><h3>🗂️ Shelves + Tags</h3><p>Organize books with multi-shelf assignment and interactive genre chips.</p></article>
+        <article class="card"><h3>🔎 Smart Filters</h3><p>Filter by status, author, shelf, genre, or full-text query.</p></article>
+        <article class="card"><h3>⭐ Reviews & Ratings</h3><p>Track star ratings and notes with detailed book view.</p></article>
+        <article class="card"><h3>🔄 Metadata Refresh</h3><p>Bulk refresh metadata while preserving your reviews, shelves, and custom tags.</p></article>
+        <article class="card"><h3>📤📥 CSV Portability</h3><p>Export full library and import Goodreads-compatible CSVs.</p></article>
+      </div>
+    </section>
+
+    <section class="split">
+      <article class="card">
+        <h3>🧠 Metadata Fallback Chain</h3>
+        <ul class="list">
+          <li>Open Library Books API (primary)</li>
+          <li>Google Books + Open Library Search + Crossref (parallel fallback)</li>
+          <li>Open Library Covers API (cover rescue)</li>
+          <li>In-memory ISBN TTL cache for faster bulk operations</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>🚀 Quick Start</h3>
+        <ul class="list">
+          <li><span class="small">Clone:</span> <code>git clone https://github.com/ChristianAbele02/PageVault.git</code></li>
+          <li><span class="small">Install:</span> <code>pip install -r requirements.txt</code></li>
+          <li><span class="small">Run:</span> <code>python app.py</code></li>
+          <li><span class="small">Open:</span> <code>http://localhost:5000</code></li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="about" aria-label="About">
+      <strong>About</strong><br/>
+      Built and maintained by Christian Abele.
+      <div class="love">Made with love for my wife Emili. ❤️</div>
+    </section>
+
+    <section class="footer-links" aria-label="Project Links">
+      <a class="link-block" href="https://christianabele02.github.io" target="_blank" rel="noopener noreferrer">
+        <span class="k">Website</span>
+        🌐 GitHub Pages
+      </a>
+      <a class="link-block" href="https://github.com/ChristianAbele02/PageVault" target="_blank" rel="noopener noreferrer">
+        <span class="k">Code</span>
+        💻 Repository
+      </a>
+      <a class="link-block" href="https://github.com/ChristianAbele02" target="_blank" rel="noopener noreferrer">
+        <span class="k">Author</span>
+        👤 Christian Abele
+      </a>
+      <a class="link-block" href="mailto:christian.abele@uni-bielefeld.de?subject=PageVault%20Contact">
+        <span class="k">Contact</span>
+        ✉️ Email
+      </a>
+    </section>
+  </main>
+</body>
+</html>
