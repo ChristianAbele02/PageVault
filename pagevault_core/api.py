@@ -12,7 +12,7 @@ import csv
 import io
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any
 
 from flask import Blueprint, Response, jsonify, request
 

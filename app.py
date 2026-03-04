@@ -10,18 +10,15 @@ Usage:
 
 from __future__ import annotations
 
-import json
+import csv
+import io
 import logging
 import os
 import sqlite3
-import csv
-import io
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
 
-from flask import Flask, Response, g, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 
 from pagevault_core import db as core_db
 from pagevault_core import metadata as core_metadata
