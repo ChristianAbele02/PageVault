@@ -19,6 +19,9 @@
     --sage:   #5c7a5e;
     --gold:   #d4a843;
     --shadow: rgba(26,16,8,.15);
+    --shelf-line: rgba(122,92,58,.2);
+    --toast-bg: #1a1008;
+    --toast-fg: #fdf8f2;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -29,8 +32,9 @@
     color: var(--ink);
     min-height: 100vh;
     background-image:
-      radial-gradient(ellipse at 20% 0%, rgba(200,145,58,.08) 0%, transparent 60%),
-      radial-gradient(ellipse at 80% 100%, rgba(92,122,94,.06) 0%, transparent 60%);
+      radial-gradient(ellipse at 20% 0%, rgba(255,226,168,.26) 0%, transparent 62%),
+      radial-gradient(ellipse at 80% 100%, rgba(214,232,255,.2) 0%, transparent 66%),
+      linear-gradient(to bottom, rgba(255,255,255,.25), rgba(255,255,255,0));
   }
 
   /* ── Header ── */
@@ -51,14 +55,18 @@
     letter-spacing: .02em;
   }
   .logo span { color: #fff; font-style: italic; font-weight: 400; }
-  .header-actions { display: flex; gap: .5rem; }
-  .btn-icon {
-    background: none; border: none; cursor: pointer;
-    color: var(--tan); font-size: 1.2rem; padding: .4rem;
-    border-radius: 6px; transition: color .2s, background .2s;
+  .theme-toggle {
+    border: 1.5px solid rgba(255,255,255,.18);
+    background: rgba(255,255,255,.06);
+    color: var(--tan);
+    border-radius: 999px;
+    padding: .35rem .65rem;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    cursor: pointer;
   }
-  .btn-icon:hover { color: var(--gold); background: rgba(255,255,255,.08); }
-
+  .theme-toggle:hover { border-color: rgba(255,255,255,.3); color: var(--gold); }
   /* ── Stats bar ── */
   #stats-bar {
     background: var(--ink);
@@ -76,28 +84,30 @@
 
   /* ── Filter tabs ── */
   .filter-bar {
-    display: flex;
-    gap: .5rem;
-    padding: 1rem 1.25rem .5rem;
-    overflow-x: auto;
-    scrollbar-width: none;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .55rem;
+    padding: 1rem 1.25rem .35rem;
   }
-  .filter-bar::-webkit-scrollbar { display: none; }
-  .tab {
-    background: none; border: 1.5px solid var(--tan); border-radius: 20px;
-    padding: .35rem .9rem; font-family: 'Lato', sans-serif;
-    font-size: .78rem; font-weight: 700; letter-spacing: .06em;
-    text-transform: uppercase; cursor: pointer; white-space: nowrap;
-    color: var(--brown); transition: all .2s;
+  .filter-select {
+    width: 100%;
+    background: #fff;
+    border: 1.5px solid #c8b59f;
+    border-radius: 8px;
+    padding: .52rem .65rem;
+    font-family: 'Lato', sans-serif;
+    font-size: .82rem;
+    color: #2e1f0e;
+    font-weight: 700;
   }
-  .tab.active {
-    background: var(--ink); border-color: var(--ink); color: var(--gold);
-  }
-  .tab:not(.active):hover { border-color: var(--brown); }
 
   /* ── Search ── */
   .search-wrap {
     padding: .25rem 1.25rem .75rem;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: .55rem;
+    align-items: center;
   }
   .search-input {
     width: 100%; background: #fff; border: 1.5px solid var(--tan);
@@ -107,13 +117,36 @@
   }
   .search-input:focus { border-color: var(--amber); }
   .search-input::placeholder { color: #bbb; }
+  .mini-btn {
+    border: 1.5px solid #b89f83;
+    border-radius: 8px;
+    background: #f7f1e9;
+    color: #4f341c;
+    font-size: .78rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: .53rem .8rem;
+  }
+  .mini-btn:hover { border-color: #7a5c3a; }
 
   /* ── Book grid ── */
   #book-grid {
+    --shelf-offset: 245px;
+    --shelf-step: 383px;
+    --shelf-line-thickness: 6px;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 1.25rem;
     padding: .75rem 1.25rem 6rem;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent var(--shelf-offset),
+      var(--shelf-line) var(--shelf-offset),
+      var(--shelf-line) calc(var(--shelf-offset) + var(--shelf-line-thickness)),
+      transparent calc(var(--shelf-offset) + var(--shelf-line-thickness)),
+      transparent var(--shelf-step)
+    );
   }
 
   .book-card {
@@ -178,8 +211,17 @@
   .badge-want      { background: var(--brown); color: var(--tan); }
 
   /* ── FAB ── */
+  .fab-stack {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+  }
   #fab {
-    position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 50;
+    position: static;
     width: 56px; height: 56px; border-radius: 50%;
     background: var(--amber); border: none;
     box-shadow: 0 4px 16px rgba(200,145,58,.5);
@@ -188,6 +230,23 @@
     transition: transform .2s, box-shadow .2s;
   }
   #fab:hover { transform: scale(1.08); box-shadow: 0 6px 22px rgba(200,145,58,.6); }
+  .fab-mini {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1rem;
+    box-shadow: 0 4px 14px rgba(0,0,0,.25);
+    transition: transform .2s, box-shadow .2s;
+  }
+  .fab-mini:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.32); }
+  #export-fab { background: var(--brown); }
+  #import-fab { background: var(--sage); }
 
   /* ── Empty state ── */
   #empty-state {
@@ -317,7 +376,8 @@
 
   .toast {
     position: fixed; bottom: 5rem; left: 50%; transform: translateX(-50%) translateY(20px);
-    background: var(--ink); color: #fff; padding: .6rem 1.2rem;
+    background: var(--toast-bg); color: var(--toast-fg); padding: .6rem 1.2rem;
+    border: 1px solid rgba(212,168,67,.35);
     border-radius: 20px; font-size: .85rem; opacity: 0;
     transition: opacity .3s, transform .3s; z-index: 500; white-space: nowrap;
     pointer-events: none;
@@ -363,6 +423,73 @@
 
   .status-select { margin-top: .6rem; }
   .status-select select { padding: .35rem .6rem; font-size: .8rem; }
+  .detail-shelves { margin-top: .6rem; }
+  .detail-shelves select {
+    width: 100%;
+    padding: .35rem .6rem;
+    font-size: .8rem;
+    min-height: 86px;
+  }
+  .detail-shelves .mini-btn { margin-top: .45rem; width: 100%; }
+  .detail-genres {
+    margin-top: .6rem;
+  }
+  .detail-genres .mini-btn { margin-top: .45rem; width: 100%; }
+
+  .tag-editor {
+    width: 100%;
+    background: #fff;
+    border: 1.5px solid var(--tan);
+    border-radius: 8px;
+    padding: .35rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    min-height: 44px;
+    align-items: center;
+  }
+  .tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    background: var(--ink);
+    color: var(--gold);
+    border-radius: 999px;
+    padding: .2rem .5rem;
+    font-size: .74rem;
+    font-weight: 700;
+  }
+  .tag-chip button {
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: .78rem;
+    line-height: 1;
+    padding: 0;
+  }
+  .tag-input {
+    border: none !important;
+    outline: none;
+    background: transparent;
+    padding: .2rem .25rem !important;
+    font-size: .82rem !important;
+    min-width: 110px;
+    flex: 1;
+  }
+  .tag-msg {
+    display: block;
+    margin-top: .32rem;
+    font-size: .72rem;
+    color: #c48a8a;
+    min-height: 1em;
+  }
+  .tag-counter {
+    display: block;
+    margin-top: .15rem;
+    font-size: .7rem;
+    color: #9b8570;
+  }
 
   .detail-section {
     border-top: 1px solid var(--tan);
@@ -421,16 +548,90 @@
     header { background: #0f0b05; }
     #stats-bar { background: #0f0b05; border-top-color: rgba(255,255,255,.05); }
     input[type=text], input[type=number], textarea, select, .review-item, #preview-card { background: #211709; border-color: #3d2e1e; }
+    .filter-select, .mini-btn { background: #211709; color: #f5efe6; border-color: #5a4531; }
+  }
+
+  .dark-mode {
+    --cream: #1a130a; --sepia: #211709; --tan: #3d2e1e;
+    --ink: #f5efe6; --shadow: rgba(0,0,0,.5);
+    --shelf-line: rgba(111,78,44,.42);
+    --toast-bg: #f5efe6;
+    --toast-fg: #2a1b0f;
+  }
+  .dark-mode header { background: #0f0b05; }
+  .dark-mode #stats-bar { background: #0f0b05; border-top-color: rgba(255,255,255,.05); }
+  .dark-mode body,
+  body.dark-mode {
+    background-image:
+      radial-gradient(ellipse at 18% 0%, rgba(212,168,67,.22) 0%, transparent 48%),
+      radial-gradient(ellipse at 86% 14%, rgba(212,168,67,.16) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 100%, rgba(0,0,0,.5) 0%, transparent 62%),
+      linear-gradient(to bottom, #211508 0%, #170f07 100%);
+  }
+  .dark-mode input[type=text],
+  .dark-mode input[type=number],
+  .dark-mode textarea,
+  .dark-mode select,
+  .dark-mode .review-item,
+  .dark-mode #preview-card,
+  .dark-mode .tag-editor {
+    background: #211709;
+    border-color: #5a4531;
+    color: #f5efe6;
+  }
+  .dark-mode .tag-input {
+    color: #f5efe6 !important;
+  }
+  .dark-mode .filter-select,
+  .dark-mode .mini-btn {
+    background: #211709;
+    color: #f5efe6;
+    border-color: #5a4531;
+  }
+  .dark-mode .search-input::placeholder,
+  .dark-mode .tag-input::placeholder {
+    color: #b8a894;
+  }
+  .dark-mode .tag-counter {
+    color: #b8a894;
+  }
+
+  .light-mode {
+    --cream: #fdf8f2;
+    --sepia: #f5efe6;
+    --tan: #dfcdb8;
+    --ink: #1a1008;
+    --shadow: rgba(26,16,8,.15);
+    --shelf-line: rgba(151,114,74,.28);
+    --toast-bg: #1f140a;
+    --toast-fg: #fdf8f2;
+  }
+  .light-mode header {
+    background: #362213;
+  }
+  .light-mode #stats-bar {
+    background: #362213;
+  }
+  .light-mode body,
+  body.light-mode {
+    background-image:
+      radial-gradient(ellipse at 20% 0%, rgba(255,232,181,.36) 0%, transparent 60%),
+      radial-gradient(ellipse at 82% 100%, rgba(180,214,247,.28) 0%, transparent 66%),
+      linear-gradient(to bottom, rgba(255,255,255,.35), rgba(255,255,255,0));
+  }
+
+  @media (max-width: 900px) {
+    .filter-bar {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 </style>
 </head>
-<body>
+<body class="dark-mode">
 
 <header>
-  <div class="logo">My<span>Shelf</span></div>
-  <div class="header-actions">
-    <button class="btn-icon" onclick="openAdd()" title="Add book">＋</button>
-  </div>
+  <div class="logo">Page<span>Vault</span></div>
+  <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()" title="Switch dark/light mode">Light</button>
 </header>
 
 <div id="stats-bar">
@@ -441,14 +642,29 @@
 </div>
 
 <div class="filter-bar">
-  <button class="tab active" data-status="">All</button>
-  <button class="tab" data-status="reading">Reading</button>
-  <button class="tab" data-status="read">Read</button>
-  <button class="tab" data-status="want_to_read">Want to Read</button>
+  <select id="status-filter" class="filter-select">
+    <option value="">All status</option>
+    <option value="reading">Reading</option>
+    <option value="read">Read</option>
+    <option value="want_to_read">Want to Read</option>
+  </select>
+  <select id="author-filter" class="filter-select">
+    <option value="">All authors</option>
+  </select>
+  <select id="genre-filter" class="filter-select">
+    <option value="">All genres</option>
+  </select>
+  <select id="shelf-filter" class="filter-select">
+    <option value="">All shelves</option>
+  </select>
 </div>
 
 <div class="search-wrap">
   <input class="search-input" type="text" id="search-input" placeholder="Search title or author…">
+  <div style="display:flex;gap:.5rem;">
+    <button class="mini-btn" onclick="clearAdvancedFilters()">Clear filters</button>
+    <button class="mini-btn" onclick="refreshLibraryMetadata()">Reload metadata</button>
+  </div>
 </div>
 
 <div id="book-grid">
@@ -459,7 +675,12 @@
   </div>
 </div>
 
-<button id="fab" onclick="openAdd()">＋</button>
+<div class="fab-stack">
+  <button id="export-fab" class="fab-mini" onclick="exportCsvFile()" title="Export CSV">⇩</button>
+  <button id="import-fab" class="fab-mini" onclick="triggerCsvImport()" title="Import CSV">⇧</button>
+  <button id="fab" onclick="openAdd()" title="Add book">＋</button>
+</div>
+<input id="csv-import-input" type="file" accept=".csv,text/csv" style="display:none" />
 <div class="toast" id="toast"></div>
 
 <!-- ── Add Book Modal ── -->
@@ -519,6 +740,33 @@
         </select>
       </div>
 
+      <div class="form-group">
+        <label>Genre tags</label>
+        <div class="tag-editor" id="add-genre-editor">
+          <div id="add-genre-chips"></div>
+          <input type="text" id="add-genre-input" class="tag-input" placeholder="Type tag and press Enter">
+        </div>
+        <small class="tag-msg" id="add-genre-msg"></small>
+        <small class="tag-counter" id="add-genre-count">0/10 tags</small>
+      </div>
+
+      <div class="form-group">
+        <label>Add to shelves</label>
+        <select id="add-shelves" multiple size="4"></select>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.5rem;align-items:end;margin:.5rem 0 0;">
+        <div class="form-group" style="margin:0;">
+          <label>New shelf name</label>
+          <input type="text" id="new-shelf-name" placeholder="Favorites">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label>Logo URL (optional)</label>
+          <input type="text" id="new-shelf-logo" placeholder="https://...">
+        </div>
+        <button class="mini-btn" onclick="createShelfFromAdd()" style="height:40px;">Create shelf</button>
+      </div>
+
       <button class="btn-primary" id="add-btn" onclick="addBook()" disabled>Add to My Shelf</button>
     </div>
   </div>
@@ -548,6 +796,19 @@
             <option value="reading">Currently Reading</option>
             <option value="read">Read</option>
           </select>
+        </div>
+        <div class="detail-shelves">
+          <select id="d-shelves" multiple size="4"></select>
+          <button class="mini-btn" onclick="updateBookShelves()">Save Shelves</button>
+        </div>
+        <div class="detail-genres">
+          <div class="tag-editor" id="d-genre-editor">
+            <div id="d-genre-chips"></div>
+            <input type="text" id="d-genre-input" class="tag-input" placeholder="Type tag and press Enter">
+          </div>
+          <small class="tag-msg" id="d-genre-msg"></small>
+          <small class="tag-counter" id="d-genre-count">0/10 tags</small>
+          <button class="mini-btn" onclick="updateBookGenres()">Save Genre Tags</button>
         </div>
       </div>
     </div>
@@ -586,15 +847,18 @@ let currentBookData = null;
 let scanner = null;
 let scannerRunning = false;
 let newRating = 0;
+let shelves = [];
+let currentAuthor = '';
+let currentGenre = '';
+let currentShelfId = '';
+let addGenreTags = [];
+let detailGenreTags = [];
+const MAX_GENRE_TAGS = 10;
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-document.querySelectorAll('.tab').forEach(t => {
-  t.addEventListener('click', () => {
-    document.querySelector('.tab.active').classList.remove('active');
-    t.classList.add('active');
-    currentFilter = t.dataset.status;
-    renderBooks();
-  });
+document.getElementById('status-filter').addEventListener('change', e => {
+  currentFilter = e.target.value;
+  loadBooks();
 });
 
 let searchTimeout;
@@ -606,10 +870,29 @@ document.getElementById('search-input').addEventListener('input', e => {
   }, 350);
 });
 
+document.getElementById('author-filter').addEventListener('change', e => {
+  currentAuthor = e.target.value;
+  loadBooks();
+});
+
+document.getElementById('genre-filter').addEventListener('change', e => {
+  currentGenre = e.target.value;
+  loadBooks();
+});
+
+document.getElementById('shelf-filter').addEventListener('change', e => {
+  currentShelfId = e.target.value;
+  loadBooks();
+});
+
 // ─── API helpers ──────────────────────────────────────────────────────────────
 async function api(path, opts={}) {
+  const isFormData = opts.body instanceof FormData;
+  const headers = isFormData
+    ? (opts.headers || {})
+    : {'Content-Type':'application/json', ...(opts.headers || {})};
   const r = await fetch(path, {
-    headers: {'Content-Type':'application/json'},
+    headers,
     ...opts
   });
   return r;
@@ -620,10 +903,22 @@ async function loadBooks() {
   const params = new URLSearchParams();
   if (currentFilter) params.set('status', currentFilter);
   if (currentSearch) params.set('q', currentSearch);
+  if (currentAuthor) params.set('author', currentAuthor);
+  if (currentGenre) params.set('genre', currentGenre);
+  if (currentShelfId) params.set('shelf_id', currentShelfId);
   const r = await api(`/api/books?${params}`);
   books = await r.json();
+  updateFilterOptions();
   renderBooks();
   loadStats();
+}
+
+async function loadShelves() {
+  const r = await api('/api/shelves');
+  if (!r.ok) return;
+  shelves = await r.json();
+  updateShelfFilter();
+  updateAddShelfSelect();
 }
 
 async function loadStats() {
@@ -640,22 +935,19 @@ function renderBooks() {
   const grid = document.getElementById('book-grid');
   grid.innerHTML = '';
 
-  const filtered = currentFilter
-    ? books.filter(b => b.status === currentFilter)
-    : books;
-
-  if (!filtered.length) {
+  if (!books.length) {
     const es = document.getElementById('empty-state').cloneNode(true);
     es.style.display = 'flex';
     grid.appendChild(es);
+    syncShelfLines();
     return;
   }
 
-  filtered.forEach(b => {
+  books.forEach(b => {
     const card = document.createElement('div');
     card.className = 'book-card';
     card.onclick = () => openDetail(b.id);
-    const safeCover = safeImageUrl(b.cover_url);
+    const safeCover = getBookCover(b);
 
     const statusMap = { reading:'badge-reading', read:'badge-read', want_to_read:'badge-want' };
     const statusLabel = { reading:'Reading', read:'Read', want_to_read:'Soon' };
@@ -663,7 +955,7 @@ function renderBooks() {
 
     card.innerHTML = `
       ${safeCover
-        ? `<img class="book-cover" src="${esc(safeCover)}" alt="${esc(b.title)}" loading="lazy">`
+        ? `<img class="book-cover" src="${esc(safeCover)}" alt="${esc(b.title)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;cover-placeholder&quot;><div class=&quot;ph-icon&quot;>📖</div><div class=&quot;ph-title&quot;>No cover</div></div>'">`
         : `<div class="cover-placeholder"><div class="ph-icon">📖</div><div class="ph-title">${esc(b.title)}</div></div>`
       }
       <div class="book-info">
@@ -675,6 +967,295 @@ function renderBooks() {
     `;
     grid.appendChild(card);
   });
+
+  syncShelfLines();
+}
+
+function syncShelfLines() {
+  const grid = document.getElementById('book-grid');
+  const firstCard = grid.querySelector('.book-card');
+  if (!firstCard) {
+    grid.style.setProperty('--shelf-offset', '245px');
+    grid.style.setProperty('--shelf-step', '383px');
+    return;
+  }
+
+  const cardRect = firstCard.getBoundingClientRect();
+  const gridStyles = getComputedStyle(grid);
+  const gridPaddingTop = parseFloat(gridStyles.paddingTop) || 0;
+  const rowGap = parseFloat(gridStyles.rowGap || gridStyles.gap) || 20;
+
+  const shelfOffset = Math.round(gridPaddingTop + cardRect.height + 12);
+  const shelfStep = Math.round(cardRect.height + rowGap);
+
+  grid.style.setProperty('--shelf-offset', `${Math.max(shelfOffset, 180)}px`);
+  grid.style.setProperty('--shelf-step', `${Math.max(shelfStep, 240)}px`);
+}
+
+let shelfResizeTimer = null;
+function debouncedSyncShelfLines() {
+  if (shelfResizeTimer) {
+    clearTimeout(shelfResizeTimer);
+  }
+  shelfResizeTimer = setTimeout(() => {
+    syncShelfLines();
+  }, 120);
+}
+
+function updateFilterOptions() {
+  const authorSelect = document.getElementById('author-filter');
+  const genreSelect = document.getElementById('genre-filter');
+
+  const authors = [...new Set(books.map(b => (b.author || '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  const genres = [...new Set(books.flatMap(b => {
+    const tags = b.genre_tags || [];
+    return b.genre ? [...tags, b.genre] : tags;
+  }))]
+    .sort((a, b) => a.localeCompare(b));
+
+  authorSelect.innerHTML = '<option value="">All authors</option>' +
+    authors.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+  genreSelect.innerHTML = '<option value="">All genres</option>' +
+    genres.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+
+  authorSelect.value = currentAuthor;
+  genreSelect.value = currentGenre;
+}
+
+function updateShelfFilter() {
+  const shelfSelect = document.getElementById('shelf-filter');
+  shelfSelect.innerHTML = '<option value="">All shelves</option>' +
+    shelves.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  shelfSelect.value = currentShelfId;
+}
+
+function updateAddShelfSelect() {
+  const addShelfSelect = document.getElementById('add-shelves');
+  addShelfSelect.innerHTML = shelves.length
+    ? shelves.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')
+    : '<option disabled>No shelves yet</option>';
+}
+
+function clearAdvancedFilters() {
+  currentFilter = '';
+  currentAuthor = '';
+  currentGenre = '';
+  currentShelfId = '';
+  document.getElementById('status-filter').value = '';
+  document.getElementById('author-filter').value = '';
+  document.getElementById('genre-filter').value = '';
+  document.getElementById('shelf-filter').value = '';
+  loadBooks();
+}
+
+async function refreshLibraryMetadata() {
+  if (!books.length) {
+    showToast('No books to refresh');
+    return;
+  }
+
+  const yes = confirm(
+    'Reload metadata for all books? Reviews, ratings, shelves, and your manual tags are preserved.'
+  );
+  if (!yes) return;
+
+  showToast('Refreshing metadata…');
+  const r = await api('/api/books/refresh', { method: 'POST' });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    showToast(err.error || 'Could not refresh metadata');
+    return;
+  }
+  const result = await r.json();
+  await loadBooks();
+  showToast(`Updated ${result.updated}/${result.total} books`);
+}
+
+function exportCsvFile() {
+  window.location.href = '/api/export/csv';
+}
+
+function triggerCsvImport() {
+  const input = document.getElementById('csv-import-input');
+  input.value = '';
+  input.click();
+}
+
+document.getElementById('csv-import-input').addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  showToast('Importing CSV…');
+  const r = await api('/api/import/csv', {
+    method: 'POST',
+    body: formData,
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    showToast(err.error || 'CSV import failed');
+    return;
+  }
+  const result = await r.json();
+  await loadShelves();
+  await loadBooks();
+  showToast(`Imported ${result.imported}, updated ${result.updated}`);
+});
+
+function parseTags(text) {
+  if (!text) return [];
+  const seen = new Set();
+  const source = Array.isArray(text) ? text.join(',') : text;
+  return source
+    .split(',')
+    .map(t => t.trim())
+    .filter(Boolean)
+    .filter(t => {
+      const key = t.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function getGenreState(kind) {
+  return kind === 'add' ? addGenreTags : detailGenreTags;
+}
+
+function getGenreMessageEl(kind) {
+  return document.getElementById(kind === 'add' ? 'add-genre-msg' : 'd-genre-msg');
+}
+
+function getGenreCountEl(kind) {
+  return document.getElementById(kind === 'add' ? 'add-genre-count' : 'd-genre-count');
+}
+
+function updateGenreCounter(kind) {
+  const element = getGenreCountEl(kind);
+  if (!element) return;
+  const count = getGenreState(kind).length;
+  element.textContent = `${count}/${MAX_GENRE_TAGS} tags`;
+}
+
+function setGenreMessage(kind, message='') {
+  const element = getGenreMessageEl(kind);
+  if (!element) return;
+  element.textContent = message;
+}
+
+function setGenreState(kind, values) {
+  const parsed = parseTags(Array.isArray(values) ? values.join(',') : (values || ''));
+  const limited = parsed.slice(0, MAX_GENRE_TAGS);
+  if (kind === 'add') addGenreTags = limited;
+  else detailGenreTags = limited;
+  setGenreMessage(kind, parsed.length > MAX_GENRE_TAGS ? `Maximum ${MAX_GENRE_TAGS} tags allowed.` : '');
+  renderGenreTags(kind);
+  updateGenreCounter(kind);
+}
+
+function renderGenreTags(kind) {
+  const chips = document.getElementById(kind === 'add' ? 'add-genre-chips' : 'd-genre-chips');
+  const tags = getGenreState(kind);
+  chips.innerHTML = tags.map((tag, index) => `
+    <span class="tag-chip">
+      ${esc(tag)}
+      <button type="button" onclick="removeGenreTag('${kind}', ${index})" aria-label="Remove tag">✕</button>
+    </span>
+  `).join('');
+  updateGenreCounter(kind);
+}
+
+function addGenreTag(kind, rawTag) {
+  const value = (rawTag || '').trim();
+  if (!value) return;
+  const current = getGenreState(kind);
+  if (current.length >= MAX_GENRE_TAGS) {
+    setGenreMessage(kind, `Maximum ${MAX_GENRE_TAGS} tags allowed.`);
+    return;
+  }
+  const exists = current.some(item => item.toLowerCase() === value.toLowerCase());
+  if (exists) {
+    setGenreMessage(kind, `Tag "${value}" already exists.`);
+    return;
+  }
+  const next = [...current, value];
+  if (kind === 'add') addGenreTags = next;
+  else detailGenreTags = next;
+  setGenreMessage(kind, '');
+  renderGenreTags(kind);
+}
+
+function removeGenreTag(kind, index) {
+  const current = getGenreState(kind);
+  const next = current.filter((_, i) => i !== index);
+  if (kind === 'add') addGenreTags = next;
+  else detailGenreTags = next;
+  setGenreMessage(kind, '');
+  renderGenreTags(kind);
+}
+
+function applyTheme(theme) {
+  const mode = theme === 'light' ? 'light' : 'dark';
+  document.body.classList.toggle('dark-mode', mode === 'dark');
+  document.body.classList.toggle('light-mode', mode === 'light');
+  const toggle = document.getElementById('theme-toggle');
+  toggle.textContent = mode === 'dark' ? 'Light' : 'Dark';
+  toggle.title = mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  localStorage.setItem('pagevault-theme', mode);
+}
+
+function toggleTheme() {
+  const current = document.body.classList.contains('dark-mode') ? 'dark' : 'light';
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('pagevault-theme');
+  applyTheme(saved || 'dark');
+}
+
+function consumePendingGenreInput(kind) {
+  const input = document.getElementById(kind === 'add' ? 'add-genre-input' : 'd-genre-input');
+  const pending = input.value.trim();
+  if (pending) {
+    addGenreTag(kind, pending);
+    input.value = '';
+  }
+}
+
+function wireGenreInput(kind) {
+  const input = document.getElementById(kind === 'add' ? 'add-genre-input' : 'd-genre-input');
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ',' || event.key === 'Tab') {
+      const value = input.value.trim();
+      if (value) {
+        event.preventDefault();
+        addGenreTag(kind, value);
+        input.value = '';
+      }
+      return;
+    }
+    if (event.key === 'Backspace' && !input.value.trim()) {
+      const current = getGenreState(kind);
+      if (current.length) {
+        removeGenreTag(kind, current.length - 1);
+      }
+    }
+  });
+
+  input.addEventListener('blur', () => {
+    consumePendingGenreInput(kind);
+  });
+}
+
+function selectedInts(selectId) {
+  const select = document.getElementById(selectId);
+  return [...select.selectedOptions]
+    .map(opt => Number(opt.value))
+    .filter(Number.isInteger);
 }
 
 function renderStars(rating) {
@@ -701,12 +1282,26 @@ function safeImageUrl(value) {
   return null;
 }
 
+function getBookCover(book) {
+  const direct = safeImageUrl(book.cover_url);
+  if (direct) return direct;
+  if (book?.isbn) {
+    return `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(book.isbn)}-L.jpg?default=false`;
+  }
+  return null;
+}
+
 // ─── Add modal ────────────────────────────────────────────────────────────────
 function openAdd() {
   document.getElementById('add-modal').classList.add('open');
   document.getElementById('isbn-input').value = '';
   document.getElementById('preview-card').classList.remove('visible');
   document.getElementById('manual-fields').style.display = 'none';
+  setGenreState('add', []);
+  document.getElementById('add-genre-input').value = '';
+  document.getElementById('new-shelf-name').value = '';
+  document.getElementById('new-shelf-logo').value = '';
+  [...document.getElementById('add-shelves').options].forEach(opt => { opt.selected = false; });
   document.getElementById('add-btn').disabled = true;
   currentBookData = null;
 }
@@ -764,6 +1359,8 @@ async function lookupIsbn() {
   if (!r.ok) {
     // Not found - show manual fields
     document.getElementById('manual-fields').style.display = 'block';
+    setGenreState('add', []);
+    document.getElementById('add-genre-input').value = '';
     document.getElementById('add-btn').disabled = false;
     currentBookData = { isbn, title: '', author: '' };
     showToast('Book not found – fill in manually');
@@ -771,6 +1368,8 @@ async function lookupIsbn() {
   }
   const book = await r.json();
   currentBookData = book;
+  setGenreState('add', book.genre_tags || []);
+  document.getElementById('add-genre-input').value = '';
   showPreview(book);
   document.getElementById('add-btn').disabled = false;
   showToast('Book found! ✓');
@@ -779,8 +1378,11 @@ async function lookupIsbn() {
 function showPreview(book) {
   const card = document.getElementById('preview-card');
   const img  = document.getElementById('preview-cover');
-  if (book.cover_url) {
-    img.src = book.cover_url; img.style.display = 'block';
+  const cover = getBookCover(book);
+  if (cover) {
+    img.src = cover;
+    img.onerror = () => { img.style.display = 'none'; };
+    img.style.display = 'block';
   } else {
     img.style.display = 'none';
   }
@@ -794,6 +1396,9 @@ async function addBook() {
   if (!currentBookData) return;
   const isbn = document.getElementById('isbn-input').value.trim() || currentBookData.isbn;
   const status = document.getElementById('add-status').value;
+  consumePendingGenreInput('add');
+  const genreTags = [...addGenreTags];
+  const shelfIds = selectedInts('add-shelves');
 
   // Manual overrides
   const manTitle  = document.getElementById('m-title').value.trim();
@@ -805,7 +1410,13 @@ async function addBook() {
   document.getElementById('add-btn').disabled = true;
   const r = await api('/api/books', {
     method: 'POST',
-    body: JSON.stringify({ isbn, book_data: currentBookData, status })
+    body: JSON.stringify({
+      isbn,
+      book_data: currentBookData,
+      status,
+      genre_tags: genreTags,
+      shelf_ids: shelfIds
+    })
   });
   if (r.status === 409) { showToast('Already in your shelf!'); document.getElementById('add-btn').disabled = false; return; }
   if (!r.ok) { showToast('Error adding book'); document.getElementById('add-btn').disabled = false; return; }
@@ -815,9 +1426,42 @@ async function addBook() {
   loadBooks();
 }
 
+async function createShelfFromAdd() {
+  const name = document.getElementById('new-shelf-name').value.trim();
+  const logoUrl = document.getElementById('new-shelf-logo').value.trim();
+  if (!name) {
+    showToast('Shelf name is required');
+    return;
+  }
+
+  const r = await api('/api/shelves', {
+    method: 'POST',
+    body: JSON.stringify({ name, logo_url: logoUrl || null })
+  });
+  if (r.status === 409) {
+    showToast('Shelf already exists');
+    return;
+  }
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    showToast(err.error || 'Could not create shelf');
+    return;
+  }
+
+  const shelf = await r.json();
+  await loadShelves();
+  const addSelect = document.getElementById('add-shelves');
+  const option = [...addSelect.options].find(opt => Number(opt.value) === shelf.id);
+  if (option) option.selected = true;
+  document.getElementById('new-shelf-name').value = '';
+  document.getElementById('new-shelf-logo').value = '';
+  showToast('Shelf created ✓');
+}
+
 // ─── Detail modal ──────────────────────────────────────────────────────────────
 async function openDetail(id) {
   currentBookId = id;
+  await loadShelves();
   const r = await api(`/api/books/${id}`);
   const b = await r.json();
 
@@ -828,13 +1472,15 @@ async function openDetail(id) {
   if (b.publisher) sub.push(`<span>${esc(b.publisher)}</span>`);
   if (b.year)      sub.push(`<span>${esc(b.year)}</span>`);
   if (b.pages)     sub.push(`<span>${b.pages} pages</span>`);
+  if (b.genre_tags?.length) sub.push(`<span>${esc(b.genre_tags.join(', '))}</span>`);
+  if (b.shelves?.length) sub.push(`<span>${esc(b.shelves.map(s => s.name).join(', '))}</span>`);
   document.getElementById('d-sub').innerHTML = sub.join('');
 
   // Cover
   const wrap = document.getElementById('detail-cover-wrap');
-  const safeCover = safeImageUrl(b.cover_url);
+  const safeCover = getBookCover(b);
   wrap.innerHTML = safeCover
-    ? `<img class="detail-cover" src="${esc(safeCover)}" alt="cover">`
+    ? `<img class="detail-cover" src="${esc(safeCover)}" alt="cover" onerror="this.outerHTML='<div class=&quot;detail-cover-ph&quot;>📖</div>'">`
     : `<div class="detail-cover-ph">📖</div>`;
 
   // Star picker for quick rating
@@ -842,6 +1488,9 @@ async function openDetail(id) {
 
   // Status
   document.getElementById('d-status').value = b.status;
+  populateDetailShelfSelect((b.shelves || []).map(s => s.id));
+  setGenreState('detail', b.genre_tags || []);
+  document.getElementById('d-genre-input').value = '';
 
   // Description
   if (b.description) {
@@ -859,6 +1508,21 @@ async function openDetail(id) {
   buildNewStarPicker();
 
   document.getElementById('detail-modal').classList.add('open');
+}
+
+function populateDetailShelfSelect(selectedIds=[]) {
+  const select = document.getElementById('d-shelves');
+  if (!shelves.length) {
+    select.innerHTML = '<option disabled>No shelves yet</option>';
+    return;
+  }
+  select.innerHTML = shelves
+    .map(s => `<option value="${s.id}">${esc(s.name)}</option>`)
+    .join('');
+  const idSet = new Set(selectedIds.map(Number));
+  [...select.options].forEach(opt => {
+    opt.selected = idSet.has(Number(opt.value));
+  });
 }
 
 function buildStarPicker(containerId, labelId, currentRating) {
@@ -944,6 +1608,39 @@ async function updateStatus() {
   loadBooks();
 }
 
+async function updateBookShelves() {
+  const shelfIds = selectedInts('d-shelves');
+  const r = await api(`/api/books/${currentBookId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ shelf_ids: shelfIds })
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    showToast(err.error || 'Could not update shelves');
+    return;
+  }
+  showToast('Shelves updated ✓');
+  loadBooks();
+  openDetail(currentBookId);
+}
+
+async function updateBookGenres() {
+  consumePendingGenreInput('detail');
+  const genreTags = [...detailGenreTags];
+  const r = await api(`/api/books/${currentBookId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ genre_tags: genreTags })
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    showToast(err.error || 'Could not update genres');
+    return;
+  }
+  showToast('Genres updated ✓');
+  loadBooks();
+  openDetail(currentBookId);
+}
+
 async function deleteBook() {
   if (!confirm('Remove this book from your shelf?')) return;
   await api(`/api/books/${currentBookId}`, { method: 'DELETE' });
@@ -969,12 +1666,27 @@ function showToast(msg) {
 
 function formatDate(iso) {
   if (!iso) return '';
-  const d = new Date(iso + 'Z');
-  return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(iso);
+  }
+  const d = String(parsed.getDate()).padStart(2, '0');
+  const m = String(parsed.getMonth() + 1).padStart(2, '0');
+  const y = String(parsed.getFullYear());
+  const hh = String(parsed.getHours()).padStart(2, '0');
+  const mm = String(parsed.getMinutes()).padStart(2, '0');
+  return `${d}.${m}.${y} ${hh}:${mm}`;
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
+wireGenreInput('add');
+wireGenreInput('detail');
+initTheme();
+setGenreState('add', []);
+setGenreState('detail', []);
+loadShelves();
 loadBooks();
+window.addEventListener('resize', debouncedSyncShelfLines);
 </script>
 </body>
 </html>
