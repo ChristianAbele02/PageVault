@@ -37,6 +37,8 @@ PageVault is a lightweight, **100% local** book catalog that runs on your own ma
 
 Think Goodreads, but yours.
 
+Made with love for my wife Emili. ❤️
+
 ---
 
 ## Features
@@ -45,7 +47,7 @@ Think Goodreads, but yours.
 Open PageVault on your phone browser, tap the scan button, and point at the barcode. No app install. No account.
 
 **📚 Automatic metadata**
-Title, author, cover image, publisher, year, and page count — fetched with provider fallback: [Open Library](https://openlibrary.org) → Google Books → Crossref.
+Title, author, cover image, publisher, year, and page count — fetched with a multi-provider fallback chain: [Open Library Books API](https://openlibrary.org/dev/docs/api/books) → [Google Books API](https://developers.google.com/books) → [Open Library Search API](https://openlibrary.org/dev/docs/api/search) → [Crossref API](https://api.crossref.org) + [Open Library Covers API](https://openlibrary.org/dev/docs/api/covers) for cover rescue.
 
 **⭐ Ratings & personal notes**
 Give each book a 1–5 star rating and add written notes. Build up a reading journal over time.
@@ -292,18 +294,27 @@ PageVault is now organized into a lightweight core package so features can grow 
 - **`app.py`**: app factory + dependency wiring + entrypoint.
 - **`pagevault_core/api.py`**: REST blueprint (`/api`) with all route handlers.
 - **`pagevault_core/db.py`**: SQLite lifecycle (`get_db`, hooks, schema bootstrap).
-- **`pagevault_core/metadata.py`**: ISBN metadata providers + merge chain.
+- **`pagevault_core/metadata.py`**: ISBN metadata providers + parallel merge chain + TTL cache.
 - **`pagevault_core/utils.py`**: shared validation and parsing helpers.
 
 ### Metadata fallback chain
 
-When you look up an ISBN (or run metadata refresh), PageVault resolves metadata in this order:
+When you look up an ISBN (or run metadata refresh), PageVault:
 
-1. Open Library
-2. Google Books
-3. Crossref
+1. Starts with Open Library Books API as primary source.
+2. If fields are missing, runs additional fallbacks in parallel: Google Books, Open Library Search, and Crossref.
+3. If cover image is still missing, queries Open Library Covers API.
 
 Fields are merged progressively so missing values are filled without discarding good data from earlier providers.
+
+### Metadata lookup cache
+
+- ISBN lookups are cached in-process with a lightweight TTL cache to speed up repeated lookups during refresh/import.
+- Default TTL: `900` seconds (15 minutes).
+- Default max cache size: `2000` ISBN entries.
+- Configure via environment variables:
+  - `PAGEVAULT_LOOKUP_CACHE_TTL_SECONDS`
+  - `PAGEVAULT_LOOKUP_CACHE_MAX_ITEMS`
 
 ### CSV architecture
 
@@ -320,7 +331,7 @@ pagevault/
 │   ├── __init__.py
 │   ├── api.py                    API blueprint and route handlers
 │   ├── db.py                     SQLite connection + schema bootstrap
-│   ├── metadata.py               OpenLibrary/Google/Crossref lookup + merge
+│   ├── metadata.py               Multi-provider lookup + parallel merge + TTL cache
 │   └── utils.py                  Shared parsing/validation helpers
 ├── templates/
 │   └── index.html                Complete frontend (HTML + CSS + JS, single file)

@@ -85,6 +85,14 @@ def _fetch_crossref(isbn: str) -> dict | None:
     return core_metadata.fetch_crossref(isbn)
 
 
+def _fetch_openlibrary_search(isbn: str) -> dict | None:
+    return core_metadata.fetch_openlibrary_search(isbn)
+
+
+def _fetch_openlibrary_covers(isbn: str) -> dict | None:
+    return core_metadata.fetch_openlibrary_covers(isbn)
+
+
 def _merge_lookup_data(primary: dict | None, fallback: dict | None) -> dict | None:
     return core_metadata.merge_lookup_data(primary, fallback)
 
@@ -95,6 +103,8 @@ def lookup_isbn(isbn: str) -> dict | None:
         fetch_openlibrary_fn=_fetch_openlibrary,
         fetch_googlebooks_fn=_fetch_googlebooks,
         fetch_crossref_fn=_fetch_crossref,
+        fetch_openlibrary_search_fn=_fetch_openlibrary_search,
+        fetch_openlibrary_covers_fn=_fetch_openlibrary_covers,
     )
 
 

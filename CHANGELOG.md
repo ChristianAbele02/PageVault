@@ -10,11 +10,39 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Planned
-- Import from Goodreads CSV export
-- Multiple reading shelves / custom lists
 - Reading progress tracker (current page)
-- Book genres / tags filtering
 - Annual reading goal tracker
+
+---
+
+## [1.1.0] — 2026-03-05
+
+### Added
+- Multi-shelf library system with shelf CRUD endpoints, optional shelf logo URL, and book-to-many-shelves mapping.
+- Genre tag system with normalized tags, chip-based add/remove UX, duplicate protection, and max-tag constraints.
+- Expanded book filtering for `status`, `author`, `genre`, `shelf_id`, and free-text search across core fields/relations.
+- Goodreads-compatible CSV import plus full-library CSV export endpoint and UI actions.
+- Metadata reload endpoint/UI action to refresh stored metadata in bulk.
+- Additional metadata providers: Open Library Search API and Open Library Covers API.
+- In-memory ISBN lookup TTL cache to speed repeated lookups during CSV import and bulk refresh.
+
+### Changed
+- Metadata pipeline now uses a richer fallback chain with progressive merge and provider concurrency for better completeness and latency.
+- Book detail and list payloads now hydrate related shelves and genre tags directly.
+- Frontend refreshed with PageVault branding, improved control layout, compact filters, and shelf-themed visual styling.
+- Theme system expanded with persistent dark/light toggle (dark default) and improved readability contrast.
+- Core architecture modularized via `pagevault_core` (`db.py`, `api.py`, `metadata.py`, `utils.py`) with dependency-injected routing.
+
+### Fixed
+- Docker runtime packaging now includes modular core package so Gunicorn boot succeeds in containerized runs.
+- Date parsing/formatting for review timestamps (now consistent `DD.MM.YYYY HH:MM` display).
+- Cover fallback reliability for ISBNs with partial provider metadata.
+- CSV import metadata merge behavior to better preserve existing non-empty stored fields.
+- CI quality gates (`ruff` format/import checks) for updated modular code paths.
+
+### Documentation
+- README updated for modular architecture, expanded metadata API chain, CSV behavior, and lookup cache configuration.
+- API and project-layout documentation aligned with current implementation.
 
 ---
 
@@ -37,5 +65,6 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Makefile** for developer convenience
 - Local SQLite database — data stays on your machine
 
-[Unreleased]: https://github.com/ChristianAbele02/PageVault
+[Unreleased]: https://github.com/ChristianAbele02/PageVault/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ChristianAbele02/PageVault

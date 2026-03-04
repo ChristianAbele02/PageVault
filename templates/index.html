@@ -129,6 +129,67 @@
   }
   .mini-btn:hover { border-color: #7a5c3a; }
 
+  /* ── About panel ── */
+  .about-panel {
+    margin: 0 1.25rem .9rem;
+    border: 1px solid rgba(122, 92, 58, .28);
+    border-radius: 10px;
+    background: rgba(253, 248, 242, .72);
+    padding: .7rem .85rem;
+    font-size: .8rem;
+    color: #4e3a24;
+    line-height: 1.45;
+  }
+  .about-title {
+    font-family: 'Playfair Display', serif;
+    font-size: .92rem;
+    color: var(--ink);
+    margin-bottom: .25rem;
+  }
+  .about-love {
+    margin-top: .25rem;
+    font-size: .76rem;
+    color: #7a5c3a;
+    font-style: italic;
+  }
+  .about-footer {
+    margin: 0 1.25rem 6rem;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .55rem;
+  }
+  .about-block {
+    border: 1px solid rgba(122, 92, 58, .28);
+    border-radius: 10px;
+    background: rgba(253, 248, 242, .72);
+    padding: .55rem .65rem;
+    text-decoration: none;
+    color: #5d4227;
+    font-size: .73rem;
+    line-height: 1.35;
+    font-weight: 700;
+    text-align: center;
+    transition: border-color .2s, transform .15s;
+  }
+  .about-block:hover {
+    border-color: rgba(122, 92, 58, .55);
+    transform: translateY(-1px);
+  }
+  .about-block .about-k {
+    display: block;
+    font-size: .62rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #8a6a47;
+    margin-bottom: .12rem;
+  }
+  .about-icon {
+    display: inline-block;
+    margin-right: .25rem;
+    font-size: .85rem;
+    vertical-align: -1px;
+  }
+
   /* ── Book grid ── */
   #book-grid {
     --shelf-offset: 245px;
@@ -595,6 +656,24 @@
   .dark-mode .tag-counter {
     color: #b8a894;
   }
+  .dark-mode .about-panel {
+    background: rgba(15, 11, 5, .62);
+    border-color: rgba(212, 168, 67, .28);
+    color: #dbc8ae;
+  }
+  .dark-mode .about-title { color: #f4e8d0; }
+  .dark-mode .about-love { color: #cfb089; }
+  .dark-mode .about-block {
+    background: rgba(15, 11, 5, .62);
+    border-color: rgba(212, 168, 67, .28);
+    color: #f0d8b1;
+  }
+  .dark-mode .about-block .about-k {
+    color: #c89f5f;
+  }
+  .dark-mode .about-block:hover {
+    border-color: rgba(255, 211, 138, .55);
+  }
 
   .light-mode {
     --cream: #fdf8f2;
@@ -624,6 +703,15 @@
     .filter-bar {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+    .about-footer {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 520px) {
+    .about-footer {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
 </head>
@@ -635,9 +723,9 @@
 </header>
 
 <div id="stats-bar">
-  <div class="stat-item"><strong id="s-total">0</strong> books</div>
-  <div class="stat-item"><strong id="s-read">0</strong> read</div>
-  <div class="stat-item"><strong id="s-reading">0</strong> reading</div>
+  <div class="stat-item">📚 <strong id="s-total">0</strong> books</div>
+  <div class="stat-item">✅ <strong id="s-read">0</strong> read</div>
+  <div class="stat-item">📖 <strong id="s-reading">0</strong> reading</div>
   <div class="stat-item">⭐ <strong id="s-avg">—</strong> avg</div>
 </div>
 
@@ -662,10 +750,18 @@
 <div class="search-wrap">
   <input class="search-input" type="text" id="search-input" placeholder="Search title or author…">
   <div style="display:flex;gap:.5rem;">
-    <button class="mini-btn" onclick="clearAdvancedFilters()">Clear filters</button>
-    <button class="mini-btn" onclick="refreshLibraryMetadata()">Reload metadata</button>
+    <button class="mini-btn" onclick="clearAdvancedFilters()">🧹 Clear filters</button>
+    <button class="mini-btn" onclick="refreshLibraryMetadata()">🔄 Reload metadata</button>
   </div>
 </div>
+
+<section class="about-panel" aria-label="About PageVault">
+  <div class="about-title">About PageVault</div>
+  <div>
+    Built and maintained by Christian Abele — a private, local Goodreads alternative focused on speed and ownership.
+  </div>
+  <div class="about-love">Made with love for my wife Emili. ❤️</div>
+</section>
 
 <div id="book-grid">
   <div id="empty-state">
@@ -674,6 +770,25 @@
     <small>Tap + to scan or add a book.</small>
   </div>
 </div>
+
+<footer class="about-footer" aria-label="About and Contact Links">
+  <a class="about-block" href="https://christianabele02.github.io" target="_blank" rel="noopener noreferrer">
+    <span class="about-k">Website</span>
+    <span class="about-icon" aria-hidden="true">🌐</span>GitHub Pages
+  </a>
+  <a class="about-block" href="https://github.com/ChristianAbele02/PageVault" target="_blank" rel="noopener noreferrer">
+    <span class="about-k">Code</span>
+    <span class="about-icon" aria-hidden="true">💻</span>Repository
+  </a>
+  <a class="about-block" href="https://github.com/ChristianAbele02" target="_blank" rel="noopener noreferrer">
+    <span class="about-k">Author</span>
+    <span class="about-icon" aria-hidden="true">👤</span>Christian Abele
+  </a>
+  <a class="about-block" href="mailto:christian.abele@uni-bielefeld.de?subject=PageVault%20Contact">
+    <span class="about-k">Contact</span>
+    <span class="about-icon" aria-hidden="true">✉️</span>christian.abele@uni-bielefeld.de
+  </a>
+</footer>
 
 <div class="fab-stack">
   <button id="export-fab" class="fab-mini" onclick="exportCsvFile()" title="Export CSV">⇩</button>

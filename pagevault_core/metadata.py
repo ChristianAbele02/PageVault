@@ -2,14 +2,58 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import threading
+import time
 import urllib.request
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .utils import normalize_tags
 
 log = logging.getLogger(__name__)
 
 
-UA = {"User-Agent": "PageVault/1.0 (github.com/ChristianAbele02/PageVault)"}
+UA = {"User-Agent": "PageVault/1.1.0 (github.com/ChristianAbele02/PageVault)"}
+
+LOOKUP_CACHE_TTL_SECONDS = max(0, int(os.getenv("PAGEVAULT_LOOKUP_CACHE_TTL_SECONDS", "900")))
+LOOKUP_CACHE_MAX_ITEMS = max(1, int(os.getenv("PAGEVAULT_LOOKUP_CACHE_MAX_ITEMS", "2000")))
+
+_LOOKUP_CACHE: OrderedDict[str, tuple[float, dict | None]] = OrderedDict()
+_LOOKUP_CACHE_LOCK = threading.RLock()
+
+
+def clear_lookup_cache() -> None:
+    with _LOOKUP_CACHE_LOCK:
+        _LOOKUP_CACHE.clear()
+
+
+def _get_cached_lookup(isbn: str) -> tuple[bool, dict | None]:
+    if LOOKUP_CACHE_TTL_SECONDS <= 0:
+        return False, None
+    now = time.monotonic()
+    with _LOOKUP_CACHE_LOCK:
+        entry = _LOOKUP_CACHE.get(isbn)
+        if not entry:
+            return False, None
+        expires_at, cached_value = entry
+        if expires_at <= now:
+            _LOOKUP_CACHE.pop(isbn, None)
+            return False, None
+        _LOOKUP_CACHE.move_to_end(isbn)
+        return True, (dict(cached_value) if isinstance(cached_value, dict) else None)
+
+
+def _set_cached_lookup(isbn: str, value: dict | None) -> None:
+    if LOOKUP_CACHE_TTL_SECONDS <= 0:
+        return
+    expires_at = time.monotonic() + LOOKUP_CACHE_TTL_SECONDS
+    cached_value = dict(value) if isinstance(value, dict) else None
+    with _LOOKUP_CACHE_LOCK:
+        _LOOKUP_CACHE[isbn] = (expires_at, cached_value)
+        _LOOKUP_CACHE.move_to_end(isbn)
+        while len(_LOOKUP_CACHE) > LOOKUP_CACHE_MAX_ITEMS:
+            _LOOKUP_CACHE.popitem(last=False)
 
 
 def fetch_openlibrary(isbn: str) -> dict | None:
@@ -41,6 +85,55 @@ def fetch_openlibrary(isbn: str) -> dict | None:
         }
     except Exception as exc:
         log.warning("Open Library lookup failed for ISBN %s: %s", isbn, exc)
+        return None
+
+
+def fetch_openlibrary_search(isbn: str) -> dict | None:
+    url = f"https://openlibrary.org/search.json?isbn={isbn}&limit=1"
+    try:
+        req = urllib.request.Request(url, headers=UA)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read())
+
+        docs = data.get("docs") or []
+        if not docs:
+            return None
+
+        doc = docs[0]
+        authors = ", ".join(doc.get("author_name") or [])
+        publishers = doc.get("publisher") or []
+        subjects = normalize_tags(doc.get("subject") or [])[:3]
+        cover_id = doc.get("cover_i")
+        cover_url = (
+            f"https://covers.openlibrary.org/b/id/{cover_id}-L.jpg?default=false"
+            if cover_id
+            else None
+        )
+
+        return {
+            "isbn": isbn,
+            "title": doc.get("title") or None,
+            "author": authors or None,
+            "cover_url": cover_url,
+            "publisher": publishers[0] if publishers else None,
+            "year": str(doc.get("first_publish_year")) if doc.get("first_publish_year") else None,
+            "genre": subjects[0] if subjects else None,
+            "genre_tags": subjects,
+            "language": None,
+        }
+    except Exception as exc:
+        log.warning("Open Library search lookup failed for ISBN %s: %s", isbn, exc)
+        return None
+
+
+def fetch_openlibrary_covers(isbn: str) -> dict | None:
+    cover_url = f"https://covers.openlibrary.org/b/isbn/{isbn}-L.jpg?default=false"
+    try:
+        req = urllib.request.Request(cover_url, headers=UA, method="HEAD")
+        with urllib.request.urlopen(req, timeout=5):
+            pass
+        return {"isbn": isbn, "cover_url": cover_url}
+    except Exception:
         return None
 
 
@@ -89,7 +182,7 @@ def fetch_crossref(isbn: str) -> dict | None:
     url = f"https://api.crossref.org/works?filter=isbn:{isbn}&rows=1"
     try:
         req = urllib.request.Request(
-            url, headers={"User-Agent": "PageVault/1.0 (mailto:pagevault@localhost)"}
+            url, headers={"User-Agent": "PageVault/1.1.0 (mailto:pagevault@localhost)"}
         )
         with urllib.request.urlopen(req, timeout=8) as resp:
             data = json.loads(resp.read())
@@ -166,10 +259,16 @@ def lookup_isbn(
     fetch_openlibrary_fn=fetch_openlibrary,
     fetch_googlebooks_fn=fetch_googlebooks,
     fetch_crossref_fn=fetch_crossref,
+    fetch_openlibrary_search_fn=fetch_openlibrary_search,
+    fetch_openlibrary_covers_fn=fetch_openlibrary_covers,
 ) -> dict | None:
     clean = isbn.strip().replace("-", "").replace(" ", "")
     if not clean:
         return None
+
+    hit, cached = _get_cached_lookup(clean)
+    if hit:
+        return cached
 
     openlibrary_data = fetch_openlibrary_fn(clean)
 
@@ -178,22 +277,39 @@ def lookup_isbn(
         or not openlibrary_data.get("cover_url")
         or not openlibrary_data.get("description")
         or not openlibrary_data.get("author")
+        or not openlibrary_data.get("publisher")
+        or not openlibrary_data.get("year")
     )
     if not needs_fallback:
+        _set_cached_lookup(clean, openlibrary_data)
         return openlibrary_data
 
-    googlebooks_data = fetch_googlebooks_fn(clean)
-    merged_data = merge_lookup_data(openlibrary_data, googlebooks_data)
+    provider_jobs = {
+        "googlebooks": fetch_googlebooks_fn,
+        "openlibrary_search": fetch_openlibrary_search_fn,
+        "crossref": fetch_crossref_fn,
+    }
+    if not openlibrary_data or not openlibrary_data.get("cover_url"):
+        provider_jobs["openlibrary_covers"] = fetch_openlibrary_covers_fn
 
-    needs_third_fallback = (
-        not merged_data
-        or not merged_data.get("title")
-        or not merged_data.get("author")
-        or not merged_data.get("publisher")
-        or not merged_data.get("year")
-    )
-    if not needs_third_fallback:
-        return merged_data
+    results: dict[str, dict | None] = {}
+    with ThreadPoolExecutor(max_workers=len(provider_jobs)) as executor:
+        future_map = {
+            executor.submit(provider_fn, clean): provider_name
+            for provider_name, provider_fn in provider_jobs.items()
+        }
+        for future in as_completed(future_map):
+            provider_name = future_map[future]
+            try:
+                results[provider_name] = future.result()
+            except Exception as exc:
+                log.warning("%s fallback failed for ISBN %s: %s", provider_name, clean, exc)
+                results[provider_name] = None
 
-    crossref_data = fetch_crossref_fn(clean)
-    return merge_lookup_data(merged_data, crossref_data)
+    merged_data = openlibrary_data
+    for provider_name in ["googlebooks", "openlibrary_search", "crossref", "openlibrary_covers"]:
+        if provider_name in results:
+            merged_data = merge_lookup_data(merged_data, results[provider_name])
+
+    _set_cached_lookup(clean, merged_data)
+    return merged_data
