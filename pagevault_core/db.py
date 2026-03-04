@@ -63,6 +63,7 @@ def ensure_schema(db: sqlite3.Connection) -> None:
             book_id     INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
             rating      INTEGER CHECK(rating BETWEEN 1 AND 5),
             comment     TEXT,
+            current_page INTEGER,
             created_at  TEXT    NOT NULL,
             updated_at  TEXT    NOT NULL
         );
@@ -100,6 +101,9 @@ def ensure_schema(db: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_book_tags_book ON book_tags(book_id);
         CREATE INDEX IF NOT EXISTS idx_book_tags_tag ON book_tags(tag_id);
     """)
+    review_cols = {row["name"] for row in db.execute("PRAGMA table_info(reviews)").fetchall()}
+    if "current_page" not in review_cols:
+        db.execute("ALTER TABLE reviews ADD COLUMN current_page INTEGER")
     db.commit()
     log.info("Database schema verified.")
 

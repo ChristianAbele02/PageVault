@@ -128,6 +128,11 @@
     padding: .53rem .8rem;
   }
   .mini-btn:hover { border-color: #7a5c3a; }
+  .mini-btn.active {
+    background: var(--ink);
+    color: var(--gold);
+    border-color: var(--ink);
+  }
 
   /* ── About panel ── */
   .about-panel {
@@ -257,6 +262,26 @@
     font-size: .72rem; color: var(--brown); margin-top: .2rem;
     display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+  .book-progress {
+    margin-top: .35rem;
+  }
+  .book-progress-track {
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(122, 92, 58, .2);
+    overflow: hidden;
+  }
+  .book-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--amber), var(--sage));
+  }
+  .book-progress-label {
+    margin-top: .18rem;
+    font-size: .65rem;
+    color: #8a7156;
   }
   .book-stars { margin-top: .3rem; display: flex; align-items: center; gap: .2rem; }
   .stars { color: var(--gold); font-size: .75rem; letter-spacing: -.5px; }
@@ -575,6 +600,12 @@
   .review-stars { color: var(--gold); font-size: .85rem; }
   .review-date { font-size: .7rem; color: #bbb; }
   .review-text { font-size: .82rem; color: #444; margin-top: .4rem; line-height: 1.5; }
+  .review-progress {
+    margin-top: .35rem;
+    font-size: .74rem;
+    color: var(--brown);
+    font-weight: 700;
+  }
   .btn-delete-review {
     background: none; border: none; cursor: pointer;
     font-size: .7rem; color: #ccc; margin-left: .5rem;
@@ -655,6 +686,15 @@
   }
   .dark-mode .tag-counter {
     color: #b8a894;
+  }
+  .dark-mode .book-progress-track {
+    background: rgba(245,239,230,.18);
+  }
+  .dark-mode .book-progress-label {
+    color: #b8a894;
+  }
+  .dark-mode .review-progress {
+    color: #d0b998;
   }
   .dark-mode .about-panel {
     background: rgba(15, 11, 5, .62);
@@ -750,6 +790,7 @@
 <div class="search-wrap">
   <input class="search-input" type="text" id="search-input" placeholder="Search title or author…">
   <div style="display:flex;gap:.5rem;">
+    <button id="continue-reading-btn" class="mini-btn" onclick="toggleContinueReadingFilter()">📖 Continue reading</button>
     <button class="mini-btn" onclick="clearAdvancedFilters()">🧹 Clear filters</button>
     <button class="mini-btn" onclick="refreshLibraryMetadata()">🔄 Reload metadata</button>
   </div>
@@ -940,6 +981,10 @@
           <div class="star-picker" id="new-stars"></div>
           <span style="font-size:.78rem;color:var(--brown)" id="new-rating-label">No rating</span>
         </div>
+        <div class="form-group" style="margin:0;">
+          <label>Current page (optional)</label>
+          <input type="number" id="new-current-page" min="0" step="1" placeholder="e.g. 135">
+        </div>
         <textarea id="new-comment" placeholder="Write a note or review…" rows="3"></textarea>
         <button class="btn-primary" onclick="submitReview()" style="margin-top:0">Save Review</button>
       </div>
@@ -966,6 +1011,7 @@ let shelves = [];
 let currentAuthor = '';
 let currentGenre = '';
 let currentShelfId = '';
+let currentContinueReading = false;
 let addGenreTags = [];
 let detailGenreTags = [];
 const MAX_GENRE_TAGS = 10;
@@ -1021,11 +1067,24 @@ async function loadBooks() {
   if (currentAuthor) params.set('author', currentAuthor);
   if (currentGenre) params.set('genre', currentGenre);
   if (currentShelfId) params.set('shelf_id', currentShelfId);
+  if (currentContinueReading) params.set('continue_reading', '1');
   const r = await api(`/api/books?${params}`);
   books = await r.json();
   updateFilterOptions();
   renderBooks();
   loadStats();
+  updateContinueReadingButton();
+}
+
+function updateContinueReadingButton() {
+  const button = document.getElementById('continue-reading-btn');
+  if (!button) return;
+  button.classList.toggle('active', currentContinueReading);
+}
+
+function toggleContinueReadingFilter() {
+  currentContinueReading = !currentContinueReading;
+  loadBooks();
 }
 
 async function loadShelves() {
@@ -1067,6 +1126,13 @@ function renderBooks() {
     const statusMap = { reading:'badge-reading', read:'badge-read', want_to_read:'badge-want' };
     const statusLabel = { reading:'Reading', read:'Read', want_to_read:'Soon' };
     const stars = b.avg_rating ? renderStars(b.avg_rating) : '';
+    const progress = formatProgress(b.current_page, b.pages, b.progress_percent);
+    const progressMarkup = progress
+      ? `<div class="book-progress">
+           <div class="book-progress-track"><div class="book-progress-fill" style="width:${progress.percent}%"></div></div>
+           <div class="book-progress-label">${esc(progress.label)}</div>
+         </div>`
+      : '';
 
     card.innerHTML = `
       ${safeCover
@@ -1075,6 +1141,7 @@ function renderBooks() {
       }
       <div class="book-info">
         <div class="book-title">${esc(b.title)}</div>
+        ${progressMarkup}
         <div class="book-author">${esc(b.author||'Unknown author')}</div>
         ${stars ? `<div class="book-stars"><span class="stars">${stars}</span><span class="stars-count">${b.avg_rating}</span></div>` : ''}
       </div>
@@ -1157,6 +1224,7 @@ function clearAdvancedFilters() {
   currentAuthor = '';
   currentGenre = '';
   currentShelfId = '';
+  currentContinueReading = false;
   document.getElementById('status-filter').value = '';
   document.getElementById('author-filter').value = '';
   document.getElementById('genre-filter').value = '';
@@ -1587,6 +1655,10 @@ async function openDetail(id) {
   if (b.publisher) sub.push(`<span>${esc(b.publisher)}</span>`);
   if (b.year)      sub.push(`<span>${esc(b.year)}</span>`);
   if (b.pages)     sub.push(`<span>${b.pages} pages</span>`);
+  if (b.current_page != null && b.pages) {
+    const percent = b.progress_percent ?? Math.round((b.current_page / b.pages) * 1000) / 10;
+    sub.push(`<span>${b.current_page}/${b.pages} (${percent}%)</span>`);
+  }
   if (b.genre_tags?.length) sub.push(`<span>${esc(b.genre_tags.join(', '))}</span>`);
   if (b.shelves?.length) sub.push(`<span>${esc(b.shelves.map(s => s.name).join(', '))}</span>`);
   document.getElementById('d-sub').innerHTML = sub.join('');
@@ -1621,6 +1693,7 @@ async function openDetail(id) {
   // New review star picker
   newRating = 0;
   buildNewStarPicker();
+  document.getElementById('new-current-page').value = b.current_page ?? '';
 
   document.getElementById('detail-modal').classList.add('open');
 }
@@ -1681,6 +1754,7 @@ function renderReviews(reviews) {
           <button class="btn-delete-review" onclick="deleteReview(${rv.id})">✕</button>
         </span>
       </div>
+      ${rv.current_page != null ? `<div class="review-progress">📖 Progress: Page ${rv.current_page}</div>` : ''}
       ${rv.comment ? `<div class="review-text">${esc(rv.comment)}</div>` : ''}
     </div>
   `).join('');
@@ -1688,12 +1762,27 @@ function renderReviews(reviews) {
 
 async function submitReview() {
   const comment = document.getElementById('new-comment').value.trim();
-  if (!newRating && !comment) { showToast('Add a rating or comment'); return; }
-  await api(`/api/books/${currentBookId}/reviews`, {
+  const currentPageRaw = document.getElementById('new-current-page').value.trim();
+  const currentPage = currentPageRaw === '' ? null : Number(currentPageRaw);
+  if (!newRating && !comment && currentPage == null) {
+    showToast('Add a rating, comment, or current page');
+    return;
+  }
+  if (currentPageRaw !== '' && (!Number.isInteger(currentPage) || currentPage < 0)) {
+    showToast('Current page must be a non-negative integer');
+    return;
+  }
+  const saveResponse = await api(`/api/books/${currentBookId}/reviews`, {
     method: 'POST',
-    body: JSON.stringify({ rating: newRating || null, comment })
+    body: JSON.stringify({ rating: newRating || null, comment, current_page: currentPage })
   });
+  if (!saveResponse.ok) {
+    const err = await saveResponse.json().catch(() => ({}));
+    showToast(err.error || 'Could not save review');
+    return;
+  }
   document.getElementById('new-comment').value = '';
+  document.getElementById('new-current-page').value = '';
   newRating = 0;
   buildNewStarPicker();
   document.getElementById('new-rating-label').textContent = 'No rating';
@@ -1791,6 +1880,18 @@ function formatDate(iso) {
   const hh = String(parsed.getHours()).padStart(2, '0');
   const mm = String(parsed.getMinutes()).padStart(2, '0');
   return `${d}.${m}.${y} ${hh}:${mm}`;
+}
+
+function formatProgress(currentPage, totalPages, percent) {
+  if (currentPage == null || !totalPages || totalPages <= 0) return null;
+  const safeCurrent = Math.max(0, Math.min(currentPage, totalPages));
+  const safePercent = percent != null
+    ? Math.max(0, Math.min(Number(percent), 100))
+    : Math.round((safeCurrent / totalPages) * 1000) / 10;
+  return {
+    percent: safePercent,
+    label: `Page ${safeCurrent} of ${totalPages} (${safePercent}%)`
+  };
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────

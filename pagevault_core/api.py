@@ -110,6 +110,13 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         if not book_row:
             return None
         result = dict(book_row)
+        pages = result.get("pages")
+        current_page = result.get("current_page")
+        if pages and current_page is not None:
+            progress = round((max(0, min(current_page, pages)) / pages) * 100, 1)
+        else:
+            progress = None
+        result["progress_percent"] = progress
         result["genre_tags"] = fetch_book_tags(db, result["id"])
         result["shelves"] = fetch_book_shelves(db, result["id"])
         return result
@@ -145,6 +152,12 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         author = request.args.get("author", "").strip()
         genre = request.args.get("genre", "").strip()
         shelf_id = request.args.get("shelf_id", "").strip()
+        continue_reading = request.args.get("continue_reading", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
         sort = request.args.get("sort", "added_at")
         order = "ASC" if request.args.get("order", "desc").lower() == "asc" else "DESC"
 
@@ -155,7 +168,15 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         sql = """
             SELECT b.*,
                    rs.avg_rating,
-                   COALESCE(rs.review_count, 0) AS review_count
+                                     COALESCE(rs.review_count, 0) AS review_count,
+                                     (
+                                             SELECT r.current_page
+                                             FROM reviews r
+                                             WHERE r.book_id = b.id
+                                                 AND r.current_page IS NOT NULL
+                                             ORDER BY r.created_at DESC, r.id DESC
+                                             LIMIT 1
+                                     ) AS current_page
             FROM books b
             LEFT JOIN (
                 SELECT book_id,
@@ -215,6 +236,18 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 "EXISTS (SELECT 1 FROM book_shelves bs WHERE bs.book_id = b.id AND bs.shelf_id = ?)"
             )
             params.append(shelf_id_int)
+        if continue_reading:
+            latest_progress_sql = """COALESCE((
+                SELECT r.current_page
+                FROM reviews r
+                WHERE r.book_id = b.id
+                  AND r.current_page IS NOT NULL
+                ORDER BY r.created_at DESC, r.id DESC
+                LIMIT 1
+            ), 0)"""
+            conditions.append("b.status = 'reading'")
+            conditions.append(f"{latest_progress_sql} > 0")
+            conditions.append(f"(b.pages IS NULL OR {latest_progress_sql} < b.pages)")
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
 
@@ -286,7 +319,15 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         row = db.execute(
             """SELECT b.*,
                       rs.avg_rating,
-                      COALESCE(rs.review_count, 0) AS review_count
+                                            COALESCE(rs.review_count, 0) AS review_count,
+                                            (
+                                                    SELECT r.current_page
+                                                    FROM reviews r
+                                                    WHERE r.book_id = b.id
+                                                        AND r.current_page IS NOT NULL
+                                                    ORDER BY r.created_at DESC, r.id DESC
+                                                    LIMIT 1
+                                            ) AS current_page
                FROM books b
                LEFT JOIN (
                     SELECT book_id,
@@ -485,11 +526,13 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
     @bp.post("/books/<int:book_id>/reviews")
     def api_add_review(book_id: int):
         db = get_db()
-        if not db.execute("SELECT 1 FROM books WHERE id=?", (book_id,)).fetchone():
+        book = db.execute("SELECT id, pages FROM books WHERE id=?", (book_id,)).fetchone()
+        if not book:
             return err("Book not found", 404)
         payload = request.get_json(force=True, silent=True) or {}
         rating = payload.get("rating")
         comment = (payload.get("comment") or "").strip() or None
+        current_page = payload.get("current_page")
         if rating is not None:
             try:
                 rating = int(rating)
@@ -497,12 +540,24 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 return err("rating must be an integer 1–5")
             if not 1 <= rating <= 5:
                 return err("rating must be an integer 1–5")
-        if rating is None and comment is None:
-            return err("Provide at least a rating or a comment")
+        if current_page is not None and current_page != "":
+            try:
+                current_page = int(current_page)
+            except (ValueError, TypeError):
+                return err("current_page must be a non-negative integer")
+            if current_page < 0:
+                return err("current_page must be a non-negative integer")
+            if book["pages"] and current_page > book["pages"]:
+                return err("current_page cannot exceed total pages")
+        else:
+            current_page = None
+
+        if rating is None and comment is None and current_page is None:
+            return err("Provide at least a rating, comment, or current_page")
         current = now()
         db.execute(
-            "INSERT INTO reviews (book_id, rating, comment, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-            (book_id, rating, comment, current, current),
+            "INSERT INTO reviews (book_id, rating, comment, current_page, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (book_id, rating, comment, current_page, current, current),
         )
         db.commit()
         return jsonify({"ok": True}), 201
