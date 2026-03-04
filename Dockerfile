@@ -25,6 +25,7 @@ COPY --from=builder /install /usr/local
 
 # Copy application code
 COPY app.py .
+COPY pagevault_core/ pagevault_core/
 COPY templates/ templates/
 
 # Data directory (SQLite database lives here — mount as a volume)

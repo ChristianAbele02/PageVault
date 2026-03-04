@@ -152,7 +152,9 @@ def merge_lookup_data(primary: dict | None, fallback: dict | None) -> dict | Non
         if not merged.get(field) and fallback.get(field):
             merged[field] = fallback[field]
 
-    merged_tags = normalize_tags((primary.get("genre_tags") or []) + (fallback.get("genre_tags") or []))
+    merged_tags = normalize_tags(
+        (primary.get("genre_tags") or []) + (fallback.get("genre_tags") or [])
+    )
     merged["genre_tags"] = merged_tags[:3]
     if not merged.get("genre") and merged["genre_tags"]:
         merged["genre"] = merged["genre_tags"][0]
