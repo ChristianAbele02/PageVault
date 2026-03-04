@@ -1,241 +1,142 @@
-"""
-PageVault — Personal Book Catalog
-Flask application factory and REST API.
+"""API blueprint for PageVault.
 
-Usage:
-    python app.py                  # development
-    flask run --host=0.0.0.0       # production-ish
-    gunicorn -w 2 "app:create_app()"
+This module owns route registration and endpoint behavior for the REST API.
+The application entrypoint (`app.py`) injects runtime dependencies (database access,
+lookup providers, validators, and helpers) so this module stays modular and easy
+to test in isolation.
 """
 
 from __future__ import annotations
 
-import json
-import logging
-import os
-import sqlite3
 import csv
 import io
-import urllib.request
+import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
-from urllib.parse import urlparse
+from typing import Any, Callable
 
-from flask import Flask, Response, g, jsonify, render_template, request
-
-from pagevault_core import db as core_db
-from pagevault_core import metadata as core_metadata
-from pagevault_core import utils as core_utils
-
-# ── Logging ───────────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-8s  %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-log = logging.getLogger(__name__)
+from flask import Blueprint, Response, jsonify, request
 
 
-# ── Application factory ───────────────────────────────────────────────────────
-def create_app(config: dict | None = None) -> Flask:
-    app = Flask(__name__)
+def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
+    """Create and return the `/api` blueprint.
 
-    default_db = os.getenv("PAGEVAULT_DB") or str(Path(__file__).parent / "pagevault.db")
-    default_secret = os.getenv("SECRET_KEY") or "change-me-in-production"
+    Parameters
+    ----------
+    deps:
+        Dependency injection container. Required keys:
+        - `get_db`: callable returning sqlite3 connection
+        - `lookup_isbn`: callable ISBN lookup with fallback chain
+        - `merge_lookup_data`: callable for metadata merging
+        - `now`: callable producing UTC ISO timestamp
+        - `err`: callable returning JSON error response tuple
+        - `validate_status`: callable status validator
+        - `validate_logo_url`: callable logo URL validator
+        - `normalize_tags`: callable to sanitize/de-duplicate tags
+        - `int_list`: callable parsing int lists
+        - `normalize_isbn`: callable ISBN normalizer
+        - `split_multi_value`: callable parser for comma/pipe-separated fields
+        - `status_from_goodreads`: callable Goodreads shelf -> status mapper
+        - `log`: logger instance
+    """
 
-    # Defaults
-    app.config.update(
-        DATABASE=default_db,
-        SECRET_KEY=default_secret,
-        JSON_SORT_KEYS=False,
-    )
-    if config:
-        app.config.update(config)
+    get_db = deps["get_db"]
+    lookup_isbn = deps["lookup_isbn"]
+    merge_lookup_data = deps["merge_lookup_data"]
+    now = deps["now"]
+    err = deps["err"]
+    validate_status = deps["validate_status"]
+    validate_logo_url = deps["validate_logo_url"]
+    normalize_tags = deps["normalize_tags"]
+    int_list = deps["int_list"]
+    normalize_isbn = deps["normalize_isbn"]
+    split_multi_value = deps["split_multi_value"]
+    status_from_goodreads = deps["status_from_goodreads"]
+    log = deps["log"]
 
-    # Register components
-    _init_db_hook(app)
-    app.register_blueprint(_api_bp())
-    app.add_url_rule("/", "index", lambda: render_template("index.html"))
-
-    core_db.bootstrap_database(app)
-
-    return app
-
-
-# ── Database helpers ──────────────────────────────────────────────────────────
-def get_db() -> sqlite3.Connection:
-    return core_db.get_db()
-
-
-def _init_db_hook(app: Flask) -> None:
-    core_db.init_db_hook(app)
-
-
-def _ensure_schema(db: sqlite3.Connection) -> None:
-    core_db.ensure_schema(db)
-
-
-# ── ISBN metadata (Open Library) ──────────────────────────────────────────────
-def _fetch_openlibrary(isbn: str) -> dict | None:
-    return core_metadata.fetch_openlibrary(isbn)
-
-
-def _fetch_googlebooks(isbn: str) -> dict | None:
-    return core_metadata.fetch_googlebooks(isbn)
-
-
-def _fetch_crossref(isbn: str) -> dict | None:
-    return core_metadata.fetch_crossref(isbn)
-
-
-def _merge_lookup_data(primary: dict | None, fallback: dict | None) -> dict | None:
-    return core_metadata.merge_lookup_data(primary, fallback)
-
-
-def lookup_isbn(isbn: str) -> dict | None:
-    return core_metadata.lookup_isbn(
-        isbn,
-        fetch_openlibrary_fn=_fetch_openlibrary,
-        fetch_googlebooks_fn=_fetch_googlebooks,
-        fetch_crossref_fn=_fetch_crossref,
-    )
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-def _now() -> str:
-    return core_utils.now_utc_iso()
-
-
-def _err(msg: str, code: int = 400):
-    return jsonify({"error": msg}), code
-
-
-def _validate_status(value: str | None) -> bool:
-    return core_utils.validate_status(value)
-
-
-def _validate_logo_url(value: str | None) -> bool:
-    return core_utils.validate_logo_url(value)
-
-
-def _normalize_tags(value) -> list[str]:
-    return core_utils.normalize_tags(value)
-
-
-def _int_list(values) -> list[int]:
-    return core_utils.int_list(values)
-
-
-def _normalize_isbn(value: str | None) -> str:
-    return core_utils.normalize_isbn(value)
-
-
-def _split_multi_value(value: str | None) -> list[str]:
-    return core_utils.split_multi_value(value)
-
-
-def _status_from_goodreads(value: str | None) -> str:
-    return core_utils.status_from_goodreads(value)
-
-
-def _ensure_shelf(db: sqlite3.Connection, name: str) -> int | None:
-    clean_name = (name or "").strip()
-    if not clean_name:
-        return None
-    row = db.execute("SELECT id FROM shelves WHERE name = ?", (clean_name,)).fetchone()
-    if row:
-        return row["id"]
-    now = _now()
-    db.execute(
-        "INSERT INTO shelves (name, logo_url, created_at, updated_at) VALUES (?, NULL, ?, ?)",
-        (clean_name, now, now),
-    )
-    return db.execute("SELECT last_insert_rowid()").fetchone()[0]
-
-
-def _fetch_book_shelves(db: sqlite3.Connection, book_id: int) -> list[dict]:
-    rows = db.execute(
-        """SELECT s.id, s.name, s.logo_url
-           FROM shelves s
-           JOIN book_shelves bs ON bs.shelf_id = s.id
-           WHERE bs.book_id = ?
-           ORDER BY s.name COLLATE NOCASE""",
-        (book_id,),
-    ).fetchall()
-    return [dict(r) for r in rows]
-
-
-def _fetch_book_tags(db: sqlite3.Connection, book_id: int) -> list[str]:
-    rows = db.execute(
-        """SELECT t.name
-           FROM tags t
-           JOIN book_tags bt ON bt.tag_id = t.id
-           WHERE bt.book_id = ?
-           ORDER BY t.name COLLATE NOCASE""",
-        (book_id,),
-    ).fetchall()
-    return [r["name"] for r in rows]
-
-
-def _replace_book_shelves(db: sqlite3.Connection, book_id: int, shelf_ids: list[int]) -> None:
-    db.execute("DELETE FROM book_shelves WHERE book_id = ?", (book_id,))
-    if not shelf_ids:
-        return
-    valid_ids = {
-        r["id"]
-        for r in db.execute(
-            "SELECT id FROM shelves WHERE id IN ({})".format(
-                ",".join("?" for _ in shelf_ids)
-            ),
-            shelf_ids,
+    def fetch_book_shelves(db: sqlite3.Connection, book_id: int) -> list[dict]:
+        rows = db.execute(
+            """SELECT s.id, s.name, s.logo_url
+               FROM shelves s
+               JOIN book_shelves bs ON bs.shelf_id = s.id
+               WHERE bs.book_id = ?
+               ORDER BY s.name COLLATE NOCASE""",
+            (book_id,),
         ).fetchall()
-    }
-    for shelf_id in shelf_ids:
-        if shelf_id in valid_ids:
-            db.execute(
-                "INSERT OR IGNORE INTO book_shelves (book_id, shelf_id) VALUES (?, ?)",
-                (book_id, shelf_id),
-            )
+        return [dict(r) for r in rows]
 
+    def fetch_book_tags(db: sqlite3.Connection, book_id: int) -> list[str]:
+        rows = db.execute(
+            """SELECT t.name
+               FROM tags t
+               JOIN book_tags bt ON bt.tag_id = t.id
+               WHERE bt.book_id = ?
+               ORDER BY t.name COLLATE NOCASE""",
+            (book_id,),
+        ).fetchall()
+        return [r["name"] for r in rows]
 
-def _replace_book_tags(db: sqlite3.Connection, book_id: int, tags: list[str]) -> None:
-    db.execute("DELETE FROM book_tags WHERE book_id = ?", (book_id,))
-    if not tags:
-        return
-    for tag in tags:
-        db.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", (tag,))
-        tag_row = db.execute("SELECT id FROM tags WHERE name = ?", (tag,)).fetchone()
-        if tag_row:
-            db.execute(
-                "INSERT OR IGNORE INTO book_tags (book_id, tag_id) VALUES (?, ?)",
-                (book_id, tag_row["id"]),
-            )
+    def replace_book_shelves(db: sqlite3.Connection, book_id: int, shelf_ids: list[int]) -> None:
+        db.execute("DELETE FROM book_shelves WHERE book_id = ?", (book_id,))
+        if not shelf_ids:
+            return
+        valid_ids = {
+            r["id"]
+            for r in db.execute(
+                "SELECT id FROM shelves WHERE id IN ({})".format(",".join("?" for _ in shelf_ids)),
+                shelf_ids,
+            ).fetchall()
+        }
+        for shelf_id in shelf_ids:
+            if shelf_id in valid_ids:
+                db.execute(
+                    "INSERT OR IGNORE INTO book_shelves (book_id, shelf_id) VALUES (?, ?)",
+                    (book_id, shelf_id),
+                )
 
+    def replace_book_tags(db: sqlite3.Connection, book_id: int, tags: list[str]) -> None:
+        db.execute("DELETE FROM book_tags WHERE book_id = ?", (book_id,))
+        if not tags:
+            return
+        for tag in tags:
+            db.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", (tag,))
+            tag_row = db.execute("SELECT id FROM tags WHERE name = ?", (tag,)).fetchone()
+            if tag_row:
+                db.execute(
+                    "INSERT OR IGNORE INTO book_tags (book_id, tag_id) VALUES (?, ?)",
+                    (book_id, tag_row["id"]),
+                )
 
-def _with_book_relations(db: sqlite3.Connection, book_row: sqlite3.Row | None):
-    if not book_row:
-        return None
-    result = dict(book_row)
-    result["genre_tags"] = _fetch_book_tags(db, result["id"])
-    result["shelves"] = _fetch_book_shelves(db, result["id"])
-    return result
+    def with_book_relations(db: sqlite3.Connection, book_row: sqlite3.Row | None):
+        if not book_row:
+            return None
+        result = dict(book_row)
+        result["genre_tags"] = fetch_book_tags(db, result["id"])
+        result["shelves"] = fetch_book_shelves(db, result["id"])
+        return result
 
-
-# ── API Blueprint ─────────────────────────────────────────────────────────────
-def _api_bp_legacy():
-    from flask import Blueprint
+    def ensure_shelf(db: sqlite3.Connection, name: str) -> int | None:
+        clean_name = (name or "").strip()
+        if not clean_name:
+            return None
+        row = db.execute("SELECT id FROM shelves WHERE name = ?", (clean_name,)).fetchone()
+        if row:
+            return row["id"]
+        current = now()
+        db.execute(
+            "INSERT INTO shelves (name, logo_url, created_at, updated_at) VALUES (?, NULL, ?, ?)",
+            (clean_name, current, current),
+        )
+        return db.execute("SELECT last_insert_rowid()").fetchone()[0]
 
     bp = Blueprint("api", __name__, url_prefix="/api")
 
-    # ── /api/lookup/<isbn> ────────────────────────────────────────────────────
     @bp.get("/lookup/<isbn>")
     def api_lookup(isbn: str):
         data = lookup_isbn(isbn)
         if not data:
-            return _err("Book not found for this ISBN", 404)
+            return err("Book not found for this ISBN", 404)
         return jsonify(data)
 
-    # ── /api/books ────────────────────────────────────────────────────────────
     @bp.get("/books")
     def api_list_books():
         db = get_db()
@@ -309,7 +210,7 @@ def _api_bp_legacy():
             try:
                 shelf_id_int = int(shelf_id)
             except ValueError:
-                return _err("shelf_id must be an integer")
+                return err("shelf_id must be an integer")
             conditions.append(
                 "EXISTS (SELECT 1 FROM book_shelves bs WHERE bs.book_id = b.id AND bs.shelf_id = ?)"
             )
@@ -321,7 +222,7 @@ def _api_bp_legacy():
         sql += f" ORDER BY {sort_col} {order}"
 
         rows = db.execute(sql, params).fetchall()
-        return jsonify([_with_book_relations(db, r) for r in rows])
+        return jsonify([with_book_relations(db, r) for r in rows])
 
     @bp.post("/books")
     def api_add_book():
@@ -329,23 +230,23 @@ def _api_bp_legacy():
         payload = request.get_json(force=True, silent=True) or {}
         isbn = payload.get("isbn", "").strip().replace("-", "")
         status = payload.get("status", "want_to_read")
-        genre_tags = _normalize_tags(payload.get("genre_tags"))
-        shelf_ids = _int_list(payload.get("shelf_ids"))
+        genre_tags = normalize_tags(payload.get("genre_tags"))
+        shelf_ids = int_list(payload.get("shelf_ids"))
 
         if not isbn:
-            return _err("isbn is required")
-        if not _validate_status(status):
-            return _err("status must be one of: want_to_read, reading, read")
+            return err("isbn is required")
+        if not validate_status(status):
+            return err("status must be one of: want_to_read, reading, read")
 
         existing = db.execute("SELECT id FROM books WHERE isbn = ?", (isbn,)).fetchone()
         if existing:
-            return _err("Book already in your library", 409)
+            return err("Book already in your library", 409)
 
         book = payload.get("book_data") or lookup_isbn(isbn)
         if not book:
-            return _err("Could not fetch metadata — try providing book_data manually", 404)
+            return err("Could not fetch metadata — try providing book_data manually", 404)
 
-        now = _now()
+        current = now()
         db.execute(
             """INSERT INTO books
                (isbn, title, author, cover_url, description, publisher,
@@ -362,14 +263,14 @@ def _api_bp_legacy():
                 book.get("pages"),
                 book.get("genre"),
                 book.get("language", "en"),
-                now,
-                now,
+                current,
+                current,
                 status,
             ),
         )
         new_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
-        _replace_book_shelves(db, new_id, shelf_ids)
-        _replace_book_tags(db, new_id, genre_tags)
+        replace_book_shelves(db, new_id, shelf_ids)
+        replace_book_tags(db, new_id, genre_tags)
         db.commit()
         row = db.execute(
             """SELECT b.*, 0 AS avg_rating, 0 AS review_count
@@ -377,9 +278,8 @@ def _api_bp_legacy():
             (new_id,),
         ).fetchone()
         log.info("Book added: %s (ISBN %s)", book.get("title"), isbn)
-        return jsonify(_with_book_relations(db, row)), 201
+        return jsonify(with_book_relations(db, row)), 201
 
-    # ── /api/books/<id> ───────────────────────────────────────────────────────
     @bp.get("/books/<int:book_id>")
     def api_get_book(book_id: int):
         db = get_db()
@@ -399,8 +299,8 @@ def _api_bp_legacy():
             (book_id,),
         ).fetchone()
         if not row:
-            return _err("Book not found", 404)
-        result = _with_book_relations(db, row)
+            return err("Book not found", 404)
+        result = with_book_relations(db, row)
         reviews = db.execute(
             "SELECT * FROM reviews WHERE book_id = ? ORDER BY created_at DESC",
             (book_id,),
@@ -412,32 +312,31 @@ def _api_bp_legacy():
     def api_update_book(book_id: int):
         db = get_db()
         if not db.execute("SELECT 1 FROM books WHERE id=?", (book_id,)).fetchone():
-            return _err("Book not found", 404)
+            return err("Book not found", 404)
         payload = request.get_json(force=True, silent=True) or {}
         allowed = {"status", "title", "author", "description", "genre", "language"}
         updates = {k: v for k, v in payload.items() if k in allowed}
-        genre_tags = _normalize_tags(payload.get("genre_tags")) if "genre_tags" in payload else None
-        shelf_ids = _int_list(payload.get("shelf_ids")) if "shelf_ids" in payload else None
+        genre_tags = normalize_tags(payload.get("genre_tags")) if "genre_tags" in payload else None
+        shelf_ids = int_list(payload.get("shelf_ids")) if "shelf_ids" in payload else None
 
         if not updates and genre_tags is None and shelf_ids is None:
-            return _err("No valid fields to update")
-        if "status" in updates and not _validate_status(updates["status"]):
-            return _err("status must be one of: want_to_read, reading, read")
+            return err("No valid fields to update")
+        if "status" in updates and not validate_status(updates["status"]):
+            return err("status must be one of: want_to_read, reading, read")
         if updates:
-            updates["updated_at"] = _now()
+            updates["updated_at"] = now()
             set_clause = ", ".join(f"{k} = ?" for k in updates)
             db.execute(
                 f"UPDATE books SET {set_clause} WHERE id = ?",
                 (*updates.values(), book_id),
             )
         if genre_tags is not None:
-            _replace_book_tags(db, book_id, genre_tags)
+            replace_book_tags(db, book_id, genre_tags)
         if shelf_ids is not None:
-            _replace_book_shelves(db, book_id, shelf_ids)
+            replace_book_shelves(db, book_id, shelf_ids)
         db.commit()
         return jsonify({"ok": True})
 
-    # ── /api/shelves ──────────────────────────────────────────────────────────
     @bp.get("/shelves")
     def api_list_shelves():
         db = get_db()
@@ -458,18 +357,18 @@ def _api_bp_legacy():
         logo_url = (payload.get("logo_url") or "").strip() or None
 
         if not name:
-            return _err("name is required")
-        if not _validate_logo_url(logo_url):
-            return _err("logo_url must be a valid http/https URL")
+            return err("name is required")
+        if not validate_logo_url(logo_url):
+            return err("logo_url must be a valid http/https URL")
 
-        now = _now()
+        current = now()
         try:
             db.execute(
                 "INSERT INTO shelves (name, logo_url, created_at, updated_at) VALUES (?, ?, ?, ?)",
-                (name, logo_url, now, now),
+                (name, logo_url, current, current),
             )
         except sqlite3.IntegrityError:
-            return _err("Shelf already exists", 409)
+            return err("Shelf already exists", 409)
         db.commit()
         shelf_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
         row = db.execute(
@@ -486,25 +385,25 @@ def _api_bp_legacy():
     def api_update_shelf(shelf_id: int):
         db = get_db()
         if not db.execute("SELECT 1 FROM shelves WHERE id = ?", (shelf_id,)).fetchone():
-            return _err("Shelf not found", 404)
+            return err("Shelf not found", 404)
 
         payload = request.get_json(force=True, silent=True) or {}
         updates = {}
         if "name" in payload:
             name = (payload.get("name") or "").strip()
             if not name:
-                return _err("name cannot be empty")
+                return err("name cannot be empty")
             updates["name"] = name
         if "logo_url" in payload:
             logo_url = (payload.get("logo_url") or "").strip() or None
-            if not _validate_logo_url(logo_url):
-                return _err("logo_url must be a valid http/https URL")
+            if not validate_logo_url(logo_url):
+                return err("logo_url must be a valid http/https URL")
             updates["logo_url"] = logo_url
 
         if not updates:
-            return _err("No valid fields to update")
+            return err("No valid fields to update")
 
-        updates["updated_at"] = _now()
+        updates["updated_at"] = now()
         set_clause = ", ".join(f"{k} = ?" for k in updates)
         try:
             db.execute(
@@ -512,7 +411,7 @@ def _api_bp_legacy():
                 (*updates.values(), shelf_id),
             )
         except sqlite3.IntegrityError:
-            return _err("Shelf already exists", 409)
+            return err("Shelf already exists", 409)
         db.commit()
         return jsonify({"ok": True})
 
@@ -520,7 +419,7 @@ def _api_bp_legacy():
     def api_delete_shelf(shelf_id: int):
         db = get_db()
         if not db.execute("SELECT 1 FROM shelves WHERE id = ?", (shelf_id,)).fetchone():
-            return _err("Shelf not found", 404)
+            return err("Shelf not found", 404)
         db.execute("DELETE FROM shelves WHERE id = ?", (shelf_id,))
         db.commit()
         return jsonify({"ok": True})
@@ -529,7 +428,7 @@ def _api_bp_legacy():
     def api_delete_book(book_id: int):
         db = get_db()
         if not db.execute("SELECT 1 FROM books WHERE id=?", (book_id,)).fetchone():
-            return _err("Book not found", 404)
+            return err("Book not found", 404)
         db.execute("DELETE FROM books WHERE id = ?", (book_id,))
         db.commit()
         log.info("Book %d deleted.", book_id)
@@ -537,7 +436,7 @@ def _api_bp_legacy():
 
     @bp.post("/books/refresh")
     def api_refresh_books():
-        """Refresh book metadata from remote providers without touching reviews/tags/shelves."""
+        """Refresh metadata for all books without touching reviews/tags/shelves."""
         db = get_db()
         rows = db.execute("SELECT * FROM books ORDER BY id").fetchall()
 
@@ -572,7 +471,7 @@ def _api_bp_legacy():
                 skipped += 1
                 continue
 
-            updates["updated_at"] = _now()
+            updates["updated_at"] = now()
             set_clause = ", ".join(f"{k} = ?" for k in updates)
             db.execute(
                 f"UPDATE books SET {set_clause} WHERE id = ?",
@@ -583,12 +482,11 @@ def _api_bp_legacy():
         db.commit()
         return jsonify({"ok": True, "total": total, "updated": updated, "skipped": skipped})
 
-    # ── /api/books/<id>/reviews ───────────────────────────────────────────────
     @bp.post("/books/<int:book_id>/reviews")
     def api_add_review(book_id: int):
         db = get_db()
         if not db.execute("SELECT 1 FROM books WHERE id=?", (book_id,)).fetchone():
-            return _err("Book not found", 404)
+            return err("Book not found", 404)
         payload = request.get_json(force=True, silent=True) or {}
         rating = payload.get("rating")
         comment = (payload.get("comment") or "").strip() or None
@@ -596,16 +494,15 @@ def _api_bp_legacy():
             try:
                 rating = int(rating)
             except ValueError:
-                return _err("rating must be an integer 1–5")
+                return err("rating must be an integer 1–5")
             if not 1 <= rating <= 5:
-                return _err("rating must be an integer 1–5")
+                return err("rating must be an integer 1–5")
         if rating is None and comment is None:
-            return _err("Provide at least a rating or a comment")
-        now = _now()
+            return err("Provide at least a rating or a comment")
+        current = now()
         db.execute(
-            "INSERT INTO reviews (book_id, rating, comment, created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (book_id, rating, comment, now, now),
+            "INSERT INTO reviews (book_id, rating, comment, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (book_id, rating, comment, current, current),
         )
         db.commit()
         return jsonify({"ok": True}), 201
@@ -620,7 +517,6 @@ def _api_bp_legacy():
         db.commit()
         return jsonify({"ok": True})
 
-    # ── /api/stats ────────────────────────────────────────────────────────────
     @bp.get("/stats")
     def api_stats():
         db = get_db()
@@ -637,10 +533,8 @@ def _api_bp_legacy():
         ).fetchone()
         return jsonify(dict(row))
 
-    # ── /api/export ───────────────────────────────────────────────────────────
     @bp.get("/export")
     def api_export():
-        """Export entire library as JSON."""
         db = get_db()
         books = [dict(r) for r in db.execute("SELECT * FROM books ORDER BY title").fetchall()]
         reviews = [
@@ -659,7 +553,7 @@ def _api_bp_legacy():
         ]
         return jsonify(
             {
-                "exported_at": _now(),
+                "exported_at": now(),
                 "books": books,
                 "reviews": reviews,
                 "shelves": shelves,
@@ -671,7 +565,6 @@ def _api_bp_legacy():
 
     @bp.get("/export/csv")
     def api_export_csv():
-        """Export library as CSV (includes metadata, shelves, tags, and review summary)."""
         db = get_db()
         rows = db.execute(
             """SELECT b.*,
@@ -712,8 +605,8 @@ def _api_bp_legacy():
 
         for row in rows:
             book_id = row["id"]
-            shelves = [s["name"] for s in _fetch_book_shelves(db, book_id)]
-            tags = _fetch_book_tags(db, book_id)
+            shelves = [s["name"] for s in fetch_book_shelves(db, book_id)]
+            tags = fetch_book_tags(db, book_id)
             latest_review = db.execute(
                 """SELECT rating, comment
                    FROM reviews
@@ -757,20 +650,19 @@ def _api_bp_legacy():
 
     @bp.post("/import/csv")
     def api_import_csv():
-        """Import CSV exported by PageVault or Goodreads-compatible CSV exports."""
         db = get_db()
         upload = request.files.get("file")
         if not upload:
-            return _err("CSV file is required", 400)
+            return err("CSV file is required", 400)
 
         try:
             text = upload.read().decode("utf-8-sig")
         except Exception:
-            return _err("Could not read CSV file", 400)
+            return err("Could not read CSV file", 400)
 
         reader = csv.DictReader(io.StringIO(text))
         if not reader.fieldnames:
-            return _err("CSV is missing a header row", 400)
+            return err("CSV is missing a header row", 400)
 
         imported = 0
         updated = 0
@@ -780,9 +672,9 @@ def _api_bp_legacy():
         for raw_row in reader:
             row = {str(k).strip(): (v or "").strip() for k, v in raw_row.items() if k is not None}
             isbn = (
-                _normalize_isbn(row.get("isbn"))
-                or _normalize_isbn(row.get("ISBN13"))
-                or _normalize_isbn(row.get("ISBN"))
+                normalize_isbn(row.get("isbn"))
+                or normalize_isbn(row.get("ISBN13"))
+                or normalize_isbn(row.get("ISBN"))
             )
             if not isbn:
                 skipped += 1
@@ -804,10 +696,10 @@ def _api_bp_legacy():
                 pages = None
 
             status_raw = row.get("status") or row.get("Exclusive Shelf")
-            status = status_raw if _validate_status(status_raw) else _status_from_goodreads(status_raw)
+            status = status_raw if validate_status(status_raw) else status_from_goodreads(status_raw)
 
             lookup_data = lookup_isbn(isbn)
-            metadata = _merge_lookup_data(
+            metadata = merge_lookup_data(
                 {
                     "isbn": isbn,
                     "title": title,
@@ -823,12 +715,12 @@ def _api_bp_legacy():
                 lookup_data,
             )
 
-            genre_tags = _normalize_tags(
-                _split_multi_value(row.get("genre_tags") or row.get("genres"))
+            genre_tags = normalize_tags(
+                split_multi_value(row.get("genre_tags") or row.get("genres"))
                 + (lookup_data.get("genre_tags") if lookup_data else [])
             )[:3]
 
-            shelves_input = _split_multi_value(row.get("shelves")) + _split_multi_value(
+            shelves_input = split_multi_value(row.get("shelves")) + split_multi_value(
                 row.get("Bookshelves")
             )
             exclusive_shelf = (row.get("Exclusive Shelf") or "").strip()
@@ -842,13 +734,13 @@ def _api_bp_legacy():
                 shelves_input.append(exclusive_shelf)
 
             shelf_ids = []
-            for shelf_name in _normalize_tags(shelves_input):
-                shelf_id = _ensure_shelf(db, shelf_name)
+            for shelf_name in normalize_tags(shelves_input):
+                shelf_id = ensure_shelf(db, shelf_name)
                 if shelf_id is not None:
                     shelf_ids.append(shelf_id)
 
             existing = db.execute("SELECT * FROM books WHERE isbn = ?", (isbn,)).fetchone()
-            now = _now()
+            current = now()
 
             if existing:
                 updates = {}
@@ -868,7 +760,7 @@ def _api_bp_legacy():
                     if incoming_value and not existing_value:
                         updates[field] = incoming_value
                 if updates:
-                    updates["updated_at"] = now
+                    updates["updated_at"] = current
                     set_clause = ", ".join(f"{k} = ?" for k in updates)
                     db.execute(
                         f"UPDATE books SET {set_clause} WHERE id = ?",
@@ -893,8 +785,8 @@ def _api_bp_legacy():
                         metadata.get("pages"),
                         metadata.get("genre"),
                         metadata.get("language") or "en",
-                        now,
-                        now,
+                        current,
+                        current,
                         status,
                     ),
                 )
@@ -946,7 +838,7 @@ def _api_bp_legacy():
                 if not existing_review:
                     db.execute(
                         "INSERT INTO reviews (book_id, rating, comment, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-                        (book_id, rating, comment, now, now),
+                        (book_id, rating, comment, current, current),
                     )
                     reviews_added += 1
 
@@ -961,64 +853,17 @@ def _api_bp_legacy():
             }
         )
 
-    # ── Global error handlers ─────────────────────────────────────────────────
     @bp.app_errorhandler(404)
     def not_found(_):
-        return _err("Not found", 404)
+        return err("Not found", 404)
 
     @bp.app_errorhandler(405)
     def method_not_allowed(_):
-        return _err("Method not allowed", 405)
+        return err("Method not allowed", 405)
 
     @bp.app_errorhandler(500)
     def internal_error(exc):
         log.exception("Unhandled exception: %s", exc)
-        return _err("Internal server error", 500)
+        return err("Internal server error", 500)
 
     return bp
-
-
-def _api_bp():
-    """Create API blueprint using modular core infrastructure."""
-    from pagevault_core import api as core_api
-
-    return core_api.create_api_blueprint(
-        deps={
-            "get_db": get_db,
-            "lookup_isbn": lambda isbn: lookup_isbn(isbn),
-            "merge_lookup_data": _merge_lookup_data,
-            "now": _now,
-            "err": _err,
-            "validate_status": _validate_status,
-            "validate_logo_url": _validate_logo_url,
-            "normalize_tags": _normalize_tags,
-            "int_list": _int_list,
-            "normalize_isbn": _normalize_isbn,
-            "split_multi_value": _split_multi_value,
-            "status_from_goodreads": _status_from_goodreads,
-            "log": log,
-        }
-    )
-
-
-def main() -> None:
-    import socket
-
-    app = create_app()
-    host = "0.0.0.0"
-    port = int(os.getenv("PORT", "5000"))
-    debug = os.getenv("FLASK_DEBUG", "0").lower() in {"1", "true", "yes", "on"}
-    try:
-        local_ip = socket.gethostbyname(socket.gethostname())
-    except Exception:
-        local_ip = "127.0.0.1"
-
-    print("\n📚  PageVault is running!")
-    print(f"    Local  → http://localhost:{port}")
-    print(f"    Phone  → http://{local_ip}:{port}  (same Wi-Fi)\n")
-    app.run(host=host, port=port, debug=debug)
-
-
-# ── Entry point ───────────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    main()
