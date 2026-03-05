@@ -611,7 +611,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             return err("start_date must be before or equal to end_date")
 
         start_iso = start_dt.strftime("%Y-%m-%dT00:00:00") if start_dt else None
-        end_iso_exclusive = (end_dt + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00") if end_dt else None
+        end_iso_exclusive = (
+            (end_dt + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00") if end_dt else None
+        )
 
         book_conditions = []
         book_params: list[Any] = []
