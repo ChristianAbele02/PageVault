@@ -413,6 +413,43 @@
   .fab-mini:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.32); }
   #export-fab { background: var(--brown); }
   #import-fab { background: var(--sage); }
+  #tools-fab { background: #4c3d2d; }
+
+  .tools-dropdown {
+    position: relative;
+  }
+  .tools-menu {
+    position: absolute;
+    right: 0;
+    bottom: 56px;
+    display: none;
+    flex-direction: column;
+    gap: .35rem;
+    min-width: 210px;
+    padding: .5rem;
+    border: 1px solid rgba(122, 92, 58, .35);
+    border-radius: 10px;
+    background: rgba(253, 248, 242, .96);
+    box-shadow: 0 8px 22px rgba(0,0,0,.22);
+  }
+  .tools-menu.open {
+    display: flex;
+  }
+  .tools-menu button {
+    width: 100%;
+    text-align: left;
+    border: 1px solid #c8b59f;
+    border-radius: 8px;
+    background: #fff;
+    color: #4f341c;
+    font-size: .78rem;
+    font-weight: 700;
+    padding: .5rem .6rem;
+    cursor: pointer;
+  }
+  .tools-menu button:hover {
+    border-color: #7a5c3a;
+  }
 
   /* ── Empty state ── */
   #empty-state {
@@ -461,6 +498,33 @@
     background: none; border: none; cursor: pointer;
     font-size: 1.4rem; color: var(--brown); line-height: 1;
   }
+
+  #tools-modal .modal { max-width: 700px; }
+  #tools-modal .modal-body { padding: .95rem 1.05rem 1.15rem; }
+  .tools-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    padding: 0 1.05rem .75rem;
+    border-bottom: 1px solid var(--tan);
+  }
+  .tools-tab {
+    border: 1.5px solid #b89f83;
+    border-radius: 999px;
+    background: #f7f1e9;
+    color: #4f341c;
+    font-size: .72rem;
+    font-weight: 700;
+    padding: .38rem .68rem;
+    cursor: pointer;
+  }
+  .tools-tab.active {
+    background: var(--ink);
+    color: var(--gold);
+    border-color: var(--ink);
+  }
+  .tools-panel { display: none; }
+  .tools-panel.active { display: block; }
 
   /* ── Add book modal ── */
   #add-modal .modal-body { padding: 1.25rem; }
@@ -804,6 +868,25 @@
     color: #f5efe6;
     border-color: #5a4531;
   }
+  .dark-mode .tools-menu {
+    background: rgba(26, 19, 10, .96);
+    border-color: rgba(255,255,255,.12);
+  }
+  .dark-mode .tools-menu button {
+    background: #211709;
+    color: #f5efe6;
+    border-color: #5a4531;
+  }
+  .dark-mode .tools-tab {
+    background: #211709;
+    color: #f5efe6;
+    border-color: #5a4531;
+  }
+  .dark-mode .tools-tab.active {
+    background: #f5efe6;
+    color: #2a1b0f;
+    border-color: #f5efe6;
+  }
   .dark-mode .about-title { color: #f4e8d0; }
   .dark-mode .about-love { color: #cfb089; }
   .dark-mode .about-block {
@@ -913,67 +996,9 @@
   <div class="about-love">Made with love for my wife Emili. ❤️</div>
 </section>
 
-<section class="io-panel" aria-label="Import export preview panel">
-  <article class="io-card">
-    <div class="io-title">Import / Export Preview</div>
-    <div class="io-line"><strong>Last import:</strong> <span id="io-last-import">No imports yet.</span></div>
-    <div class="io-line"><strong>Last export:</strong> <span id="io-last-export">No exports yet.</span></div>
-    <div class="io-note">Uses the same Goodreads-compatible CSV endpoints in your floating buttons.</div>
-  </article>
-  <article class="io-card">
-    <div class="io-title">Metadata Refresh Preview</div>
-    <div class="io-line"><strong>Last refresh:</strong> <span id="io-last-refresh">No refresh run yet.</span></div>
-    <div class="io-line"><strong>Result:</strong> <span id="io-last-refresh-result">—</span></div>
-    <div class="io-note">Preserves ratings, review notes, shelves, and custom tags.</div>
-    <div class="io-actions">
-      <button class="mini-btn" onclick="runMetadataRepair()">Repair missing metadata</button>
-      <button class="mini-btn" onclick="loadLatestMetadataJob()">Refresh job status</button>
-    </div>
-    <div class="io-line"><strong>Latest job:</strong> <span id="io-last-job">No repair job yet.</span></div>
-  </article>
-  <article class="io-card">
-    <div class="io-title">Annual Goal & Reading Sessions</div>
-    <div class="io-inline">
-      <input id="goal-year" class="io-input" type="number" min="2000" max="2100" placeholder="Year">
-      <input id="goal-books" class="io-input" type="number" min="0" placeholder="Target books">
-      <input id="goal-pages" class="io-input" type="number" min="0" placeholder="Target pages">
-      <button class="mini-btn" onclick="saveGoalSettings()">Save goal</button>
-    </div>
-    <div class="io-line"><strong>Goal progress:</strong> <span id="goal-progress">—</span></div>
-    <div class="io-note">Tracks yearly targets and estimated pace from reading sessions.</div>
-    <div class="io-inline">
-      <select id="session-book" class="io-select"></select>
-      <input id="session-date" class="io-input" type="date">
-      <input id="session-start" class="io-input" type="number" min="0" placeholder="Start page">
-      <input id="session-end" class="io-input" type="number" min="0" placeholder="End page">
-      <input id="session-minutes" class="io-input" type="number" min="1" placeholder="Minutes">
-      <button class="mini-btn" onclick="saveReadingSession()">Log session</button>
-    </div>
-    <div class="io-line"><strong>Session summary:</strong> <span id="session-summary">No sessions yet.</span></div>
-  </article>
-  <article class="io-card">
-    <div class="io-title">CSV Import Wizard</div>
-    <input id="csv-wizard-file" class="io-input" type="file" accept=".csv,text/csv">
-    <textarea id="csv-wizard-mapping" class="io-textarea" placeholder='Optional JSON mapping, e.g. {"Book Id":"isbn"}'></textarea>
-    <div class="io-actions">
-      <button class="mini-btn" onclick="runCsvWizardPreview()">Preview</button>
-      <button class="mini-btn" onclick="runCsvWizardDryRun()">Dry-run</button>
-      <button class="mini-btn" onclick="runCsvWizardImport()">Import</button>
-    </div>
-    <div class="io-line"><strong>Preview result:</strong> <span id="csv-preview-result">No preview yet.</span></div>
-  </article>
-  <article class="io-card">
-    <div class="io-title">Backup & Restore</div>
-    <div class="io-actions">
-      <button class="mini-btn" onclick="downloadBackupArchive()">Download backup</button>
-    </div>
-    <input id="restore-file" class="io-input" type="file" accept=".zip,application/zip">
-    <div class="io-actions">
-      <button class="mini-btn" onclick="validateRestoreArchive()">Validate restore</button>
-      <button class="mini-btn" onclick="applyRestoreArchive()">Apply restore</button>
-    </div>
-    <div class="io-line"><strong>Restore status:</strong> <span id="restore-result">No restore action yet.</span></div>
-  </article>
+<section class="about-panel" aria-label="Tools launcher hint">
+  <div class="about-title">Library Tools</div>
+  <div>Open advanced tools from the ⚙ button near the floating actions.</div>
 </section>
 
 <div id="book-grid">
@@ -1004,6 +1029,16 @@
 </footer>
 
 <div class="fab-stack">
+  <div class="tools-dropdown">
+    <button id="tools-fab" class="fab-mini" onclick="toggleToolsMenu()" title="Open tools">⚙</button>
+    <div id="tools-menu" class="tools-menu" role="menu" aria-label="Open tools panel">
+      <button onclick="openToolsModal('tools-panel-io')">Import / Export Preview</button>
+      <button onclick="openToolsModal('tools-panel-metadata')">Metadata Refresh</button>
+      <button onclick="openToolsModal('tools-panel-goals')">Annual Goals & Sessions</button>
+      <button onclick="openToolsModal('tools-panel-csv')">CSV Import Wizard</button>
+      <button onclick="openToolsModal('tools-panel-backup')">Backup & Restore</button>
+    </div>
+  </div>
   <button id="export-fab" class="fab-mini" onclick="exportCsvFile()" title="Export CSV">⇩</button>
   <button id="import-fab" class="fab-mini" onclick="triggerCsvImport()" title="Import CSV">⇧</button>
   <button id="fab" onclick="openAdd()" title="Add book">＋</button>
@@ -1169,6 +1204,89 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="tools-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title">Library Tools</span>
+      <button class="btn-close" onclick="closeToolsModal()">✕</button>
+    </div>
+    <div class="tools-tabs">
+      <button id="tools-tab-io" class="tools-tab" onclick="showToolsPanel('tools-panel-io')">Import/Export</button>
+      <button id="tools-tab-metadata" class="tools-tab" onclick="showToolsPanel('tools-panel-metadata')">Metadata</button>
+      <button id="tools-tab-goals" class="tools-tab" onclick="showToolsPanel('tools-panel-goals')">Goals/Sessions</button>
+      <button id="tools-tab-csv" class="tools-tab" onclick="showToolsPanel('tools-panel-csv')">CSV Wizard</button>
+      <button id="tools-tab-backup" class="tools-tab" onclick="showToolsPanel('tools-panel-backup')">Backup/Restore</button>
+    </div>
+    <div class="modal-body">
+      <article class="io-card tools-panel" id="tools-panel-io">
+        <div class="io-title">Import / Export Preview</div>
+        <div class="io-line"><strong>Last import:</strong> <span id="io-last-import">No imports yet.</span></div>
+        <div class="io-line"><strong>Last export:</strong> <span id="io-last-export">No exports yet.</span></div>
+        <div class="io-note">Uses the same Goodreads-compatible CSV endpoints in your floating buttons.</div>
+      </article>
+
+      <article class="io-card tools-panel" id="tools-panel-metadata">
+        <div class="io-title">Metadata Refresh Preview</div>
+        <div class="io-line"><strong>Last refresh:</strong> <span id="io-last-refresh">No refresh run yet.</span></div>
+        <div class="io-line"><strong>Result:</strong> <span id="io-last-refresh-result">—</span></div>
+        <div class="io-note">Preserves ratings, review notes, shelves, and custom tags.</div>
+        <div class="io-actions">
+          <button class="mini-btn" onclick="runMetadataRepair()">Repair missing metadata</button>
+          <button class="mini-btn" onclick="loadLatestMetadataJob()">Refresh job status</button>
+        </div>
+        <div class="io-line"><strong>Latest job:</strong> <span id="io-last-job">No repair job yet.</span></div>
+      </article>
+
+      <article class="io-card tools-panel" id="tools-panel-goals">
+        <div class="io-title">Annual Goal & Reading Sessions</div>
+        <div class="io-inline">
+          <input id="goal-year" class="io-input" type="number" min="2000" max="2100" placeholder="Year">
+          <input id="goal-books" class="io-input" type="number" min="0" placeholder="Target books">
+          <input id="goal-pages" class="io-input" type="number" min="0" placeholder="Target pages">
+          <button class="mini-btn" onclick="saveGoalSettings()">Save goal</button>
+        </div>
+        <div class="io-line"><strong>Goal progress:</strong> <span id="goal-progress">—</span></div>
+        <div class="io-note">Tracks yearly targets and estimated pace from reading sessions.</div>
+        <div class="io-inline">
+          <select id="session-book" class="io-select"></select>
+          <input id="session-date" class="io-input" type="date">
+          <input id="session-start" class="io-input" type="number" min="0" placeholder="Start page">
+          <input id="session-end" class="io-input" type="number" min="0" placeholder="End page">
+          <input id="session-minutes" class="io-input" type="number" min="1" placeholder="Minutes">
+          <button class="mini-btn" onclick="saveReadingSession()">Log session</button>
+        </div>
+        <div class="io-line"><strong>Session summary:</strong> <span id="session-summary">No sessions yet.</span></div>
+      </article>
+
+      <article class="io-card tools-panel" id="tools-panel-csv">
+        <div class="io-title">CSV Import Wizard</div>
+        <input id="csv-wizard-file" class="io-input" type="file" accept=".csv,text/csv">
+        <textarea id="csv-wizard-mapping" class="io-textarea" placeholder='Optional JSON mapping, e.g. {"Book Id":"isbn"}'></textarea>
+        <div class="io-actions">
+          <button class="mini-btn" onclick="runCsvWizardPreview()">Preview</button>
+          <button class="mini-btn" onclick="runCsvWizardDryRun()">Dry-run</button>
+          <button class="mini-btn" onclick="runCsvWizardImport()">Import</button>
+        </div>
+        <div class="io-line"><strong>Preview result:</strong> <span id="csv-preview-result">No preview yet.</span></div>
+      </article>
+
+      <article class="io-card tools-panel" id="tools-panel-backup">
+        <div class="io-title">Backup & Restore</div>
+        <div class="io-actions">
+          <button class="mini-btn" onclick="downloadBackupArchive()">Download backup</button>
+        </div>
+        <input id="restore-file" class="io-input" type="file" accept=".zip,application/zip">
+        <div class="io-actions">
+          <button class="mini-btn" onclick="validateRestoreArchive()">Validate restore</button>
+          <button class="mini-btn" onclick="applyRestoreArchive()">Apply restore</button>
+        </div>
+        <div class="io-line"><strong>Restore status:</strong> <span id="restore-result">No restore action yet.</span></div>
+      </article>
+    </div>
+  </div>
+</div>
+
 <script>
 // ─── State ───────────────────────────────────────────────────────────────────
 let books = [];
@@ -1224,6 +1342,55 @@ document.getElementById('genre-filter').addEventListener('change', e => {
 document.getElementById('shelf-filter').addEventListener('change', e => {
   currentShelfId = e.target.value;
   loadBooks();
+});
+
+function toggleToolsMenu() {
+  const menu = document.getElementById('tools-menu');
+  if (!menu) return;
+  menu.classList.toggle('open');
+}
+
+function closeToolsMenu() {
+  const menu = document.getElementById('tools-menu');
+  if (!menu) return;
+  menu.classList.remove('open');
+}
+
+function showToolsPanel(panelId) {
+  const allPanels = document.querySelectorAll('.tools-panel');
+  allPanels.forEach(panel => {
+    panel.classList.toggle('active', panel.id === panelId);
+  });
+
+  const tabMap = {
+    'tools-panel-io': 'tools-tab-io',
+    'tools-panel-metadata': 'tools-tab-metadata',
+    'tools-panel-goals': 'tools-tab-goals',
+    'tools-panel-csv': 'tools-tab-csv',
+    'tools-panel-backup': 'tools-tab-backup',
+  };
+  const allTabs = document.querySelectorAll('.tools-tab');
+  allTabs.forEach(tab => tab.classList.remove('active'));
+  const activeTab = document.getElementById(tabMap[panelId]);
+  if (activeTab) activeTab.classList.add('active');
+}
+
+function openToolsModal(panelId='tools-panel-io') {
+  closeToolsMenu();
+  showToolsPanel(panelId);
+  document.getElementById('tools-modal').classList.add('open');
+}
+
+function closeToolsModal() {
+  document.getElementById('tools-modal').classList.remove('open');
+}
+
+document.addEventListener('click', event => {
+  const toolsDropdown = document.querySelector('.tools-dropdown');
+  if (!toolsDropdown) return;
+  if (!toolsDropdown.contains(event.target)) {
+    closeToolsMenu();
+  }
 });
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
@@ -2426,6 +2593,10 @@ function closeDetail() {
 
 document.getElementById('detail-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('detail-modal')) closeDetail();
+});
+
+document.getElementById('tools-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('tools-modal')) closeToolsModal();
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
