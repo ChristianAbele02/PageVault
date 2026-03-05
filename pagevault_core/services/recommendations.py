@@ -76,7 +76,9 @@ def recommend_books(db: sqlite3.Connection, book_id: int, limit: int = 6) -> lis
 
         shared_genres = len(base_genres & candidate_genres)
         shared_tags = len(base_tags & candidate_tags)
-        author_match = 1 if base_author and candidate_author and base_author == candidate_author else 0
+        author_match = (
+            1 if base_author and candidate_author and base_author == candidate_author else 0
+        )
 
         score = (shared_genres * 3.0) + (shared_tags * 2.0) + (author_match * 4.0)
         score += min(float(candidate.get("avg_rating") or 0.0), 5.0) / 5.0
@@ -90,5 +92,8 @@ def recommend_books(db: sqlite3.Connection, book_id: int, limit: int = 6) -> lis
         candidate["author_match"] = bool(author_match)
         scored.append((score, candidate))
 
-    scored.sort(key=lambda item: (item[0], item[1].get("review_count", 0), item[1].get("title", "")), reverse=True)
+    scored.sort(
+        key=lambda item: (item[0], item[1].get("review_count", 0), item[1].get("title", "")),
+        reverse=True,
+    )
     return [item[1] for item in scored[: max(1, min(limit, 20))]]

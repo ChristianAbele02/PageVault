@@ -39,7 +39,16 @@ def _ensure_file_logging(log_file: str | None) -> None:
     root_logger = logging.getLogger()
     if any(isinstance(handler, logging.FileHandler) for handler in root_logger.handlers):
         return
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    try:
+        log_dir = os.path.dirname(log_file)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    except OSError as exc:
+        # Avoid crashing app boot in restricted runtimes (e.g., read-only /app in containers).
+        log.warning("File logging disabled (%s): %s", log_file, exc)
+        return
+
     file_handler.setFormatter(
         logging.Formatter(
             fmt="%(asctime)s  %(levelname)-8s  %(message)s",
@@ -246,7 +255,7 @@ def _with_book_relations(db: sqlite3.Connection, book_row: sqlite3.Row | None):
 
 
 # ── API Blueprint ─────────────────────────────────────────────────────────────
-def _api_bp_legacy():
+def _api_bp_legacy():  # pragma: no cover - retained only as migration reference
     from flask import Blueprint
 
     bp = Blueprint("api", __name__, url_prefix="/api")

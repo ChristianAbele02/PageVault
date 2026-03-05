@@ -75,10 +75,10 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             updates["location_type"] = location_type
 
         if "location_note" in payload:
-            updates["location_note"] = (str(payload.get("location_note") or "").strip() or None)
+            updates["location_note"] = str(payload.get("location_note") or "").strip() or None
 
         if "loan_person" in payload:
-            updates["loan_person"] = (str(payload.get("loan_person") or "").strip() or None)
+            updates["loan_person"] = str(payload.get("loan_person") or "").strip() or None
 
         # Keep data clean when the book is not currently loaned.
         if (
@@ -241,9 +241,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                   COUNT(CASE WHEN status='want_to_read' THEN 1 END) AS want_to_read
                FROM books"""
         ).fetchone()
-        history = db.execute(
-            "SELECT * FROM admin_events ORDER BY id DESC LIMIT 50"
-        ).fetchall()
+        history = db.execute("SELECT * FROM admin_events ORDER BY id DESC LIMIT 50").fetchall()
         restore_history = db.execute(
             "SELECT * FROM restore_history ORDER BY id DESC LIMIT 20"
         ).fetchall()
