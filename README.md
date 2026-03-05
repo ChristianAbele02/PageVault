@@ -17,7 +17,7 @@
   </a>
   &nbsp;
   <a href="https://github.com/ChristianAbele02/PageVault/releases">
-    <img src="https://img.shields.io/github/v/release/ChristianAbele02/PageVault?color=c8913a&label=release" alt="Release"/>
+    <img src="https://img.shields.io/github/v/tag/ChristianAbele02/PageVault?sort=semver&color=c8913a&label=release" alt="Release"/>
   </a>
   &nbsp;
   <img src="https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white" alt="Python"/>
