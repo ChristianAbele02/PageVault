@@ -72,6 +72,10 @@ Theme preference is remembered locally.
 **🔍 Search & filter**
 Filter by status, author, genre tag, shelf, and text search.
 
+**📊 Stats dashboard with Plotly**
+Open `/stats` for interactive analytics: books/pages by status, top genres/authors, rating distribution, and monthly activity.
+Includes preset + custom date range filters and automatic dark/light theme inheritance.
+
 **🔄 Metadata refresh**
 Reload metadata for all saved books without touching your reviews, star ratings, shelves, or manual tags.
 
@@ -157,6 +161,13 @@ Review timestamps are displayed in `DD.MM.YYYY HH:MM` format.
 - Dark mode is the default appearance.
 - The selected theme is persisted in your browser.
 
+### Stats dashboard
+
+- Open **http://localhost:5000/stats** from the main **Stats** link in the header.
+- Use quick presets (30/90/180/365 days, YTD) or a custom date range.
+- Charts are powered by Plotly and update from `/api/stats/analysis`.
+- The stats page follows your saved Light/Dark theme automatically.
+
 ### Genre tag chips
 
 - Add tags with **Enter**, **comma (,)**, or **Tab**.
@@ -227,6 +238,7 @@ All responses are JSON. The base URL is `http://localhost:5000`.
 | `POST` | `/api/books/:id/reviews` | Add review `{ rating?, comment? }` |
 | `DELETE` | `/api/books/:id/reviews/:rid` | Remove a review |
 | `GET` | `/api/stats` | Library statistics |
+| `GET` | `/api/stats/analysis` | Plot-ready analytics dataset (supports `?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`) |
 | `GET` | `/api/export` | Full library export as JSON |
 | `GET` | `/api/export/csv` | Export full library as CSV |
 | `POST` | `/api/import/csv` | Import PageVault or Goodreads-compatible CSV |

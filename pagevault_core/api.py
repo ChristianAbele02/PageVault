@@ -11,7 +11,7 @@ from __future__ import annotations
 import csv
 import io
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from flask import Blueprint, Response, jsonify, request
@@ -587,6 +587,285 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                LEFT JOIN reviews r ON r.book_id = b.id"""
         ).fetchone()
         return jsonify(dict(row))
+
+    @bp.get("/stats/analysis")
+    def api_stats_analysis():
+        db = get_db()
+
+        start_date = (request.args.get("start_date") or "").strip()
+        end_date = (request.args.get("end_date") or "").strip()
+
+        start_dt = None
+        end_dt = None
+        if start_date:
+            try:
+                start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+            except ValueError:
+                return err("start_date must be YYYY-MM-DD")
+        if end_date:
+            try:
+                end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+            except ValueError:
+                return err("end_date must be YYYY-MM-DD")
+        if start_dt and end_dt and start_dt > end_dt:
+            return err("start_date must be before or equal to end_date")
+
+        start_iso = start_dt.strftime("%Y-%m-%dT00:00:00") if start_dt else None
+        end_iso_exclusive = (end_dt + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00") if end_dt else None
+
+        book_conditions = []
+        book_params: list[Any] = []
+        if start_iso:
+            book_conditions.append("b.added_at >= ?")
+            book_params.append(start_iso)
+        if end_iso_exclusive:
+            book_conditions.append("b.added_at < ?")
+            book_params.append(end_iso_exclusive)
+        book_where = f" WHERE {' AND '.join(book_conditions)}" if book_conditions else ""
+
+        review_conditions = []
+        review_params: list[Any] = []
+        if start_iso:
+            review_conditions.append("r.created_at >= ?")
+            review_params.append(start_iso)
+        if end_iso_exclusive:
+            review_conditions.append("r.created_at < ?")
+            review_params.append(end_iso_exclusive)
+
+        review_with_books_conditions = ["b.id = r.book_id"]
+        review_with_books_params: list[Any] = []
+        if book_conditions:
+            review_with_books_conditions.extend(book_conditions)
+            review_with_books_params.extend(book_params)
+        if review_conditions:
+            review_with_books_conditions.extend(review_conditions)
+            review_with_books_params.extend(review_params)
+        review_with_books_where = " WHERE " + " AND ".join(review_with_books_conditions)
+
+        summary_books_row = db.execute(
+            f"""SELECT
+                COUNT(*) AS total_books,
+                COALESCE(SUM(COALESCE(b.pages, 0)), 0) AS total_pages,
+                COUNT(CASE WHEN b.status = 'read' THEN 1 END) AS read,
+                COUNT(CASE WHEN b.status = 'reading' THEN 1 END) AS reading,
+                COUNT(CASE WHEN b.status = 'want_to_read' THEN 1 END) AS want_to_read
+               FROM books b
+               {book_where}""",
+            book_params,
+        ).fetchone()
+        summary_reviews_row = db.execute(
+            f"""SELECT
+                COUNT(*) AS total_reviews,
+                ROUND(AVG(r.rating), 1) AS avg_rating
+               FROM reviews r
+               JOIN books b ON b.id = r.book_id
+               {review_with_books_where}""",
+            review_with_books_params,
+        ).fetchone()
+
+        progress_rows = db.execute(
+            f"""SELECT b.id,
+                      b.status,
+                      COALESCE(b.pages, 0) AS pages,
+                      (
+                        SELECT rv.current_page
+                        FROM reviews rv
+                        WHERE rv.book_id = b.id
+                          AND rv.current_page IS NOT NULL
+                        ORDER BY rv.created_at DESC, rv.id DESC
+                        LIMIT 1
+                      ) AS latest_current_page
+               FROM books b
+               {book_where}""",
+            book_params,
+        ).fetchall()
+
+        pages_completed_estimate = 0
+        for row in progress_rows:
+            pages = int(row["pages"] or 0)
+            latest_current = row["latest_current_page"]
+            if row["status"] == "read":
+                pages_completed_estimate += pages
+            elif latest_current is not None and pages > 0:
+                pages_completed_estimate += max(0, min(int(latest_current), pages))
+
+        status_rows = db.execute(
+            f"""SELECT b.status,
+                      COUNT(*) AS book_count,
+                      COALESCE(SUM(COALESCE(b.pages, 0)), 0) AS total_pages
+               FROM books b
+               {book_where}
+               GROUP BY b.status""",
+            book_params,
+        ).fetchall()
+        status_map = {
+            "want_to_read": {"label": "Want to Read", "book_count": 0, "total_pages": 0},
+            "reading": {"label": "Reading", "book_count": 0, "total_pages": 0},
+            "read": {"label": "Read", "book_count": 0, "total_pages": 0},
+        }
+        for row in status_rows:
+            if row["status"] in status_map:
+                status_map[row["status"]]["book_count"] = int(row["book_count"])
+                status_map[row["status"]]["total_pages"] = int(row["total_pages"])
+        status_breakdown = [
+            {"status": key, **status_map[key]} for key in ["want_to_read", "reading", "read"]
+        ]
+
+        genre_rows = db.execute(
+            f"""WITH filtered_books AS (
+                    SELECT *
+                    FROM books b
+                    {book_where}
+                ),
+                book_genres AS (
+                    SELECT bt.book_id, t.name AS genre
+                    FROM book_tags bt
+                    JOIN tags t ON t.id = bt.tag_id
+                    JOIN filtered_books fb ON fb.id = bt.book_id
+                    UNION ALL
+                    SELECT fb.id AS book_id, fb.genre AS genre
+                    FROM filtered_books fb
+                    WHERE fb.genre IS NOT NULL
+                      AND TRIM(fb.genre) <> ''
+                      AND NOT EXISTS (
+                        SELECT 1
+                        FROM book_tags bt2
+                        WHERE bt2.book_id = fb.id
+                      )
+                )
+                SELECT bg.genre,
+                       COUNT(DISTINCT bg.book_id) AS book_count,
+                       COALESCE(SUM(COALESCE(b.pages, 0)), 0) AS total_pages
+                FROM book_genres bg
+                JOIN books b ON b.id = bg.book_id
+                GROUP BY bg.genre
+                ORDER BY book_count DESC, total_pages DESC, bg.genre COLLATE NOCASE
+                LIMIT 12""",
+            book_params,
+        ).fetchall()
+        top_genres = [
+            {
+                "genre": row["genre"],
+                "book_count": int(row["book_count"]),
+                "total_pages": int(row["total_pages"]),
+            }
+            for row in genre_rows
+        ]
+
+        author_conditions = ["b.author IS NOT NULL", "TRIM(b.author) <> ''"]
+        if book_conditions:
+            author_conditions.extend(book_conditions)
+        author_where = " WHERE " + " AND ".join(author_conditions)
+
+        author_rows = db.execute(
+            f"""SELECT b.author,
+                      COUNT(*) AS book_count,
+                      COALESCE(SUM(COALESCE(b.pages, 0)), 0) AS total_pages,
+                      ROUND(AVG(rs.avg_rating), 2) AS avg_rating
+               FROM books b
+               LEFT JOIN (
+                 SELECT r.book_id, AVG(r.rating) AS avg_rating
+                 FROM reviews r
+                 WHERE r.rating IS NOT NULL
+                 GROUP BY r.book_id
+               ) rs ON rs.book_id = b.id
+               {author_where}
+               GROUP BY b.author
+               ORDER BY book_count DESC, total_pages DESC, b.author COLLATE NOCASE
+               LIMIT 12""",
+            book_params,
+        ).fetchall()
+        top_authors = [
+            {
+                "author": row["author"],
+                "book_count": int(row["book_count"]),
+                "total_pages": int(row["total_pages"]),
+                "avg_rating": float(row["avg_rating"]) if row["avg_rating"] is not None else None,
+            }
+            for row in author_rows
+        ]
+
+        rating_rows = db.execute(
+            f"""SELECT r.rating, COUNT(*) AS review_count
+               FROM reviews r
+               JOIN books b ON b.id = r.book_id
+               {review_with_books_where}
+                 AND r.rating IS NOT NULL
+               GROUP BY r.rating
+               ORDER BY r.rating""",
+            review_with_books_params,
+        ).fetchall()
+        rating_distribution = [
+            {"rating": int(row["rating"]), "review_count": int(row["review_count"])}
+            for row in rating_rows
+        ]
+
+        monthly_review_rows = db.execute(
+            f"""SELECT SUBSTR(r.created_at, 1, 7) AS month,
+                      COUNT(*) AS review_count,
+                      ROUND(AVG(r.rating), 2) AS avg_rating,
+                      COALESCE(SUM(COALESCE(r.current_page, 0)), 0) AS pages_logged
+               FROM reviews r
+               JOIN books b ON b.id = r.book_id
+               {review_with_books_where}
+               GROUP BY SUBSTR(r.created_at, 1, 7)
+               ORDER BY month""",
+            review_with_books_params,
+        ).fetchall()
+        monthly_reviews = [
+            {
+                "month": row["month"],
+                "review_count": int(row["review_count"]),
+                "avg_rating": float(row["avg_rating"]) if row["avg_rating"] is not None else None,
+                "pages_logged": int(row["pages_logged"]),
+            }
+            for row in monthly_review_rows
+        ]
+
+        monthly_added_rows = db.execute(
+            f"""SELECT SUBSTR(b.added_at, 1, 7) AS month,
+                      COUNT(*) AS books_added,
+                      COALESCE(SUM(COALESCE(b.pages, 0)), 0) AS pages_added
+               FROM books b
+               {book_where}
+               GROUP BY SUBSTR(b.added_at, 1, 7)
+               ORDER BY month""",
+            book_params,
+        ).fetchall()
+        monthly_additions = [
+            {
+                "month": row["month"],
+                "books_added": int(row["books_added"]),
+                "pages_added": int(row["pages_added"]),
+            }
+            for row in monthly_added_rows
+        ]
+
+        summary = dict(summary_books_row)
+        summary["total_books"] = int(summary.get("total_books") or 0)
+        summary["total_pages"] = int(summary.get("total_pages") or 0)
+        summary["total_reviews"] = int(summary_reviews_row["total_reviews"] or 0)
+        summary["avg_rating"] = summary_reviews_row["avg_rating"]
+        summary["read"] = int(summary.get("read") or 0)
+        summary["reading"] = int(summary.get("reading") or 0)
+        summary["want_to_read"] = int(summary.get("want_to_read") or 0)
+        summary["pages_completed_estimate"] = int(pages_completed_estimate)
+
+        return jsonify(
+            {
+                "range": {
+                    "start_date": start_date or None,
+                    "end_date": end_date or None,
+                },
+                "summary": summary,
+                "status_breakdown": status_breakdown,
+                "top_genres": top_genres,
+                "top_authors": top_authors,
+                "rating_distribution": rating_distribution,
+                "monthly_reviews": monthly_reviews,
+                "monthly_additions": monthly_additions,
+            }
+        )
 
     @bp.get("/export")
     def api_export():

@@ -67,6 +67,24 @@
     cursor: pointer;
   }
   .theme-toggle:hover { border-color: rgba(255,255,255,.3); color: var(--gold); }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+  }
+  .header-link {
+    border: 1.5px solid rgba(255,255,255,.18);
+    background: rgba(255,255,255,.06);
+    color: var(--tan);
+    border-radius: 999px;
+    padding: .35rem .65rem;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-decoration: none;
+    line-height: 1;
+  }
+  .header-link:hover { border-color: rgba(255,255,255,.3); color: var(--gold); }
   /* ── Stats bar ── */
   #stats-bar {
     background: var(--ink);
@@ -811,7 +829,10 @@
 
 <header>
   <div class="logo">Page<span>Vault</span></div>
-  <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()" title="Switch dark/light mode">Light</button>
+  <div class="header-actions">
+    <a class="header-link" href="/stats" title="Open reading analytics">Stats</a>
+    <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()" title="Switch dark/light mode">Light</button>
+  </div>
 </header>
 
 <div id="stats-bar">

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PageVault — Stats Demo</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      --ink: #1a1008;
+      --cream: #fdf8f2;
+      --sepia: #f5efe6;
+      --brown: #7a5c3a;
+      --amber: #c8913a;
+      --rust: #9b3a1c;
+      --sage: #5c7a5e;
+      --card: #fffdf9;
+      --line: rgba(122, 92, 58, 0.2);
+      --shadow: rgba(26, 16, 8, 0.12);
+      --header: rgba(253, 248, 242, 0.82);
+      --plot-font: #5a4430;
+      --plot-grid: rgba(122, 92, 58, 0.18);
+    }
+
+    body.dark {
+      --ink: #f5efe6;
+      --cream: #1a130a;
+      --sepia: #211709;
+      --brown: #cfb089;
+      --amber: #c8913a;
+      --rust: #9b3a1c;
+      --sage: #5c7a5e;
+      --card: rgba(15, 11, 5, 0.62);
+      --line: rgba(212, 168, 67, 0.28);
+      --shadow: rgba(0, 0, 0, 0.35);
+      --header: rgba(15, 11, 5, 0.85);
+      --plot-font: #dbc8ae;
+      --plot-grid: rgba(212, 168, 67, 0.16);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 0% 0%, rgba(200,145,58,.18), transparent 45%),
+        radial-gradient(circle at 100% 100%, rgba(92,122,94,.16), transparent 40%),
+        var(--cream);
+      line-height: 1.5;
+    }
+
+    .wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(8px);
+      background: var(--header);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .topbar-inner {
+      height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .brand {
+      font-weight: 800;
+      letter-spacing: .02em;
+      color: var(--ink);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+    }
+
+    .brand-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--amber);
+      box-shadow: 0 0 0 5px rgba(200, 145, 58, .15);
+    }
+
+    .top-links {
+      display: flex;
+      gap: .55rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: .55rem .85rem;
+      background: var(--card);
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: .9rem;
+      cursor: pointer;
+    }
+
+    .btn.primary {
+      background: var(--ink);
+      color: var(--cream);
+      border-color: var(--ink);
+    }
+
+    .hero {
+      padding: 2rem 0 1.2rem;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      line-height: 1.1;
+      letter-spacing: -.01em;
+    }
+
+    .hero p {
+      margin: .45rem 0 0;
+      color: var(--brown);
+      max-width: 70ch;
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: .65rem;
+      margin-bottom: .85rem;
+    }
+
+    .kpi {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--card);
+      box-shadow: 0 8px 18px var(--shadow);
+      padding: .7rem .8rem;
+    }
+
+    .kpi .label {
+      font-size: .72rem;
+      color: var(--brown);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-weight: 700;
+    }
+
+    .kpi .value {
+      margin-top: .1rem;
+      font-size: 1.2rem;
+      font-weight: 800;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .7rem;
+      margin-bottom: 2rem;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--card);
+      box-shadow: 0 8px 18px var(--shadow);
+      padding: .7rem;
+    }
+
+    .panel h2 {
+      margin: 0 0 .4rem;
+      font-size: .98rem;
+      letter-spacing: -.01em;
+    }
+
+    .plot {
+      width: 100%;
+      height: 310px;
+    }
+
+    @media (max-width: 920px) {
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 560px) {
+      .kpis { grid-template-columns: 1fr; }
+      .topbar-inner { height: auto; padding: .6rem 0; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body class="dark">
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="index.html" aria-label="Back to PageVault Home">
+        <span class="brand-dot" aria-hidden="true"></span>
+        PageVault Stats Demo
+      </a>
+      <nav class="top-links" aria-label="Stats Demo Actions">
+        <button class="btn" id="theme-toggle" type="button">Switch Theme</button>
+        <a class="btn primary" href="index.html">Back to Home</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>Example Reading Analytics</h1>
+      <p>This is a static, example-filled stats page for GitHub Pages. It showcases the same analytics style as the in-app <strong>/stats</strong> dashboard.</p>
+    </section>
+
+    <section class="kpis">
+      <article class="kpi"><div class="label">Total Books</div><div class="value">128</div></article>
+      <article class="kpi"><div class="label">Total Pages</div><div class="value">43,710</div></article>
+      <article class="kpi"><div class="label">Pages Completed</div><div class="value">27,940</div></article>
+      <article class="kpi"><div class="label">Average Rating</div><div class="value">4.3</div></article>
+    </section>
+
+    <section class="grid">
+      <article class="panel">
+        <h2>Books by Status</h2>
+        <div id="plot-status" class="plot"></div>
+      </article>
+      <article class="panel">
+        <h2>Top Genres</h2>
+        <div id="plot-genres" class="plot"></div>
+      </article>
+      <article class="panel">
+        <h2>Top Authors</h2>
+        <div id="plot-authors" class="plot"></div>
+      </article>
+      <article class="panel">
+        <h2>Monthly Activity</h2>
+        <div id="plot-monthly" class="plot"></div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const data = {
+      status: [
+        { label: 'Want to Read', books: 35 },
+        { label: 'Reading', books: 14 },
+        { label: 'Read', books: 79 },
+      ],
+      genres: [
+        { genre: 'Fantasy', books: 24 },
+        { genre: 'Classic', books: 19 },
+        { genre: 'Sci-Fi', books: 17 },
+        { genre: 'Thriller', books: 14 },
+        { genre: 'Mystery', books: 11 },
+        { genre: 'Non-Fiction', books: 10 },
+      ],
+      authors: [
+        { author: 'Stephen King', books: 9 },
+        { author: 'Agatha Christie', books: 7 },
+        { author: 'J.R.R. Tolkien', books: 6 },
+        { author: 'George Orwell', books: 5 },
+        { author: 'Brandon Sanderson', books: 5 },
+        { author: 'Ursula K. Le Guin', books: 4 },
+      ],
+      monthly: [
+        { month: '2025-10', added: 6, reviews: 8 },
+        { month: '2025-11', added: 9, reviews: 11 },
+        { month: '2025-12', added: 7, reviews: 9 },
+        { month: '2026-01', added: 10, reviews: 14 },
+        { month: '2026-02', added: 8, reviews: 12 },
+        { month: '2026-03', added: 5, reviews: 7 },
+      ]
+    };
+
+    function chartTheme() {
+      const dark = document.body.classList.contains('dark');
+      return dark
+        ? {
+            font: '#dbc8ae',
+            grid: 'rgba(212,168,67,.16)',
+            bg: 'rgba(0,0,0,0)',
+            colors: ['#7a5c3a', '#5c7a5e', '#c8913a'],
+            accent: '#d4a843',
+            accent2: '#5c7a5e'
+          }
+        : {
+            font: '#5a4430',
+            grid: 'rgba(122,92,58,.18)',
+            bg: 'rgba(0,0,0,0)',
+            colors: ['#7a5c3a', '#5c7a5e', '#c8913a'],
+            accent: '#c8913a',
+            accent2: '#5c7a5e'
+          };
+    }
+
+    function layout() {
+      const t = chartTheme();
+      return {
+        paper_bgcolor: t.bg,
+        plot_bgcolor: t.bg,
+        margin: { l: 54, r: 22, t: 16, b: 44 },
+        font: { color: t.font, family: 'Inter, Segoe UI, sans-serif', size: 12 },
+        xaxis: { gridcolor: t.grid, zerolinecolor: t.grid },
+        yaxis: { gridcolor: t.grid, zerolinecolor: t.grid },
+      };
+    }
+
+    const config = { responsive: true, displaylogo: false };
+
+    function renderCharts() {
+      const t = chartTheme();
+
+      Plotly.newPlot('plot-status', [{
+        type: 'bar',
+        x: data.status.map(s => s.label),
+        y: data.status.map(s => s.books),
+        marker: { color: t.colors },
+        hovertemplate: '%{x}<br>%{y} books<extra></extra>'
+      }], layout(), config);
+
+      Plotly.newPlot('plot-genres', [{
+        type: 'bar',
+        orientation: 'h',
+        y: data.genres.map(g => g.genre).reverse(),
+        x: data.genres.map(g => g.books).reverse(),
+        marker: { color: t.accent },
+        hovertemplate: '%{y}<br>%{x} books<extra></extra>'
+      }], { ...layout(), margin: { l: 120, r: 18, t: 12, b: 38 } }, config);
+
+      Plotly.newPlot('plot-authors', [{
+        type: 'bar',
+        orientation: 'h',
+        y: data.authors.map(a => a.author).reverse(),
+        x: data.authors.map(a => a.books).reverse(),
+        marker: { color: t.accent2 },
+        hovertemplate: '%{y}<br>%{x} books<extra></extra>'
+      }], { ...layout(), margin: { l: 160, r: 18, t: 12, b: 38 } }, config);
+
+      Plotly.newPlot('plot-monthly', [
+        {
+          type: 'bar',
+          name: 'Books Added',
+          x: data.monthly.map(m => m.month),
+          y: data.monthly.map(m => m.added),
+          marker: { color: '#7a5c3a' }
+        },
+        {
+          type: 'scatter',
+          mode: 'lines+markers',
+          name: 'Reviews',
+          x: data.monthly.map(m => m.month),
+          y: data.monthly.map(m => m.reviews),
+          marker: { color: t.accent, size: 7 },
+          line: { color: t.accent, width: 2 }
+        }
+      ], { ...layout(), legend: { orientation: 'h', y: 1.12, x: 0 } }, config);
+    }
+
+    function applyTheme(theme) {
+      const isDark = theme !== 'light';
+      document.body.classList.toggle('dark', isDark);
+      document.body.classList.toggle('light', !isDark);
+      localStorage.setItem('pagevault-theme', isDark ? 'dark' : 'light');
+      renderCharts();
+    }
+
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      const current = document.body.classList.contains('dark') ? 'dark' : 'light';
+      applyTheme(current === 'dark' ? 'light' : 'dark');
+    });
+
+    const savedTheme = localStorage.getItem('pagevault-theme') || 'dark';
+    applyTheme(savedTheme);
+  </script>
+</body>
+</html>

@@ -6,6 +6,7 @@ Run with: pytest -v
 from __future__ import annotations
 
 import io
+import sqlite3
 
 import app as app_module
 from pagevault_core import metadata as core_metadata
@@ -14,6 +15,11 @@ from pagevault_core import metadata as core_metadata
 
 
 class TestStats:
+    def test_stats_page_route(self, client):
+        r = client.get("/stats")
+        assert r.status_code == 200
+        assert b"Reading Analytics" in r.data
+
     def test_empty_stats(self, client):
         r = client.get("/api/stats")
         assert r.status_code == 200
@@ -21,12 +27,122 @@ class TestStats:
         assert data["total"] == 0
         assert data["read"] == 0
 
+    def test_empty_stats_analysis(self, client):
+        r = client.get("/api/stats/analysis")
+        assert r.status_code == 200
+        data = r.get_json()
+        assert data["summary"]["total_books"] == 0
+        assert data["summary"]["total_pages"] == 0
+        assert data["summary"]["pages_completed_estimate"] == 0
+        assert {item["status"] for item in data["status_breakdown"]} == {
+            "want_to_read",
+            "reading",
+            "read",
+        }
+        assert data["top_genres"] == []
+        assert data["top_authors"] == []
+        assert data["rating_distribution"] == []
+
     def test_stats_after_add(self, client, sample_book_payload):
         client.post("/api/books", json=sample_book_payload)
         r = client.get("/api/stats")
         data = r.get_json()
         assert data["total"] == 1
         assert data["read"] == 1
+
+    def test_stats_analysis_with_books_reviews_tags(self, client):
+        first = client.post(
+            "/api/books",
+            json={
+                "isbn": "9780307277671",
+                "status": "reading",
+                "genre_tags": ["Post-Apocalyptic", "Drama"],
+                "book_data": {
+                    "title": "The Road",
+                    "author": "Cormac McCarthy",
+                    "pages": 287,
+                    "genre": "Fiction",
+                },
+            },
+        ).get_json()
+        second = client.post(
+            "/api/books",
+            json={
+                "isbn": "9780451524935",
+                "status": "read",
+                "genre_tags": ["Dystopian"],
+                "book_data": {
+                    "title": "1984",
+                    "author": "George Orwell",
+                    "pages": 328,
+                    "genre": "Dystopian",
+                },
+            },
+        ).get_json()
+
+        client.post(f"/api/books/{first['id']}/reviews", json={"rating": 4, "current_page": 120})
+        client.post(f"/api/books/{second['id']}/reviews", json={"rating": 5, "comment": "Masterpiece"})
+
+        data = client.get("/api/stats/analysis").get_json()
+        assert data["summary"]["total_books"] == 2
+        assert data["summary"]["read"] == 1
+        assert data["summary"]["reading"] == 1
+        assert data["summary"]["total_reviews"] == 2
+        assert data["summary"]["pages_completed_estimate"] == 448
+
+        assert any(item["genre"] == "Dystopian" for item in data["top_genres"])
+        assert any(item["author"] == "George Orwell" for item in data["top_authors"])
+        assert any(item["rating"] == 4 for item in data["rating_distribution"])
+        assert any(item["rating"] == 5 for item in data["rating_distribution"])
+
+    def test_stats_analysis_date_filter(self, client):
+        old = client.post(
+            "/api/books",
+            json={
+                "isbn": "9780140177398",
+                "status": "read",
+                "book_data": {
+                    "title": "Of Mice and Men",
+                    "author": "John Steinbeck",
+                    "pages": 187,
+                },
+            },
+        ).get_json()
+        recent = client.post(
+            "/api/books",
+            json={
+                "isbn": "9780307277671",
+                "status": "reading",
+                "book_data": {
+                    "title": "The Road",
+                    "author": "Cormac McCarthy",
+                    "pages": 287,
+                },
+            },
+        ).get_json()
+
+        database_path = client.application.config["DATABASE"]
+        with sqlite3.connect(database_path) as connection:
+            connection.execute(
+                "UPDATE books SET added_at = ?, updated_at = ? WHERE id = ?",
+                ("2020-01-02T10:00:00", "2020-01-02T10:00:00", old["id"]),
+            )
+            connection.execute(
+                "UPDATE books SET added_at = ?, updated_at = ? WHERE id = ?",
+                ("2026-03-05T10:00:00", "2026-03-05T10:00:00", recent["id"]),
+            )
+            connection.commit()
+
+        filtered = client.get("/api/stats/analysis?start_date=2026-01-01&end_date=2026-12-31")
+        data = filtered.get_json()
+        assert filtered.status_code == 200
+        assert data["summary"]["total_books"] == 1
+        assert data["summary"]["reading"] == 1
+        assert data["summary"]["read"] == 0
+
+    def test_stats_analysis_invalid_date_filter(self, client):
+        response = client.get("/api/stats/analysis?start_date=2026-99-01")
+        assert response.status_code == 400
 
 
 # ── Books CRUD ────────────────────────────────────────────────────────────────
