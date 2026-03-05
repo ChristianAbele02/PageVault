@@ -145,6 +145,39 @@
     color: #4e3a24;
     line-height: 1.45;
   }
+
+  .io-panel {
+    margin: 0 1.25rem .9rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .55rem;
+  }
+  .io-card {
+    border: 1px solid rgba(122, 92, 58, .28);
+    border-radius: 10px;
+    background: rgba(253, 248, 242, .72);
+    padding: .7rem .85rem;
+  }
+  .io-title {
+    font-family: 'Playfair Display', serif;
+    font-size: .9rem;
+    color: var(--ink);
+    margin-bottom: .22rem;
+  }
+  .io-line {
+    font-size: .77rem;
+    color: #5a4430;
+    line-height: 1.45;
+  }
+  .io-line strong {
+    color: #7a5c3a;
+    font-weight: 700;
+  }
+  .io-note {
+    margin-top: .28rem;
+    font-size: .72rem;
+    color: #8a6a47;
+  }
   .about-title {
     font-family: 'Playfair Display', serif;
     font-size: .92rem;
@@ -701,6 +734,22 @@
     border-color: rgba(212, 168, 67, .28);
     color: #dbc8ae;
   }
+  .dark-mode .io-card {
+    background: rgba(15, 11, 5, .62);
+    border-color: rgba(212, 168, 67, .28);
+  }
+  .dark-mode .io-title {
+    color: #f4e8d0;
+  }
+  .dark-mode .io-line {
+    color: #dbc8ae;
+  }
+  .dark-mode .io-line strong {
+    color: #d4a843;
+  }
+  .dark-mode .io-note {
+    color: #cfb089;
+  }
   .dark-mode .about-title { color: #f4e8d0; }
   .dark-mode .about-love { color: #cfb089; }
   .dark-mode .about-block {
@@ -742,6 +791,9 @@
   @media (max-width: 900px) {
     .filter-bar {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .io-panel {
+      grid-template-columns: 1fr;
     }
     .about-footer {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -804,6 +856,21 @@
   <div class="about-love">Made with love for my wife Emili. ❤️</div>
 </section>
 
+<section class="io-panel" aria-label="Import export preview panel">
+  <article class="io-card">
+    <div class="io-title">Import / Export Preview</div>
+    <div class="io-line"><strong>Last import:</strong> <span id="io-last-import">No imports yet.</span></div>
+    <div class="io-line"><strong>Last export:</strong> <span id="io-last-export">No exports yet.</span></div>
+    <div class="io-note">Uses the same Goodreads-compatible CSV endpoints in your floating buttons.</div>
+  </article>
+  <article class="io-card">
+    <div class="io-title">Metadata Refresh Preview</div>
+    <div class="io-line"><strong>Last refresh:</strong> <span id="io-last-refresh">No refresh run yet.</span></div>
+    <div class="io-line"><strong>Result:</strong> <span id="io-last-refresh-result">—</span></div>
+    <div class="io-note">Preserves ratings, review notes, shelves, and custom tags.</div>
+  </article>
+</section>
+
 <div id="book-grid">
   <div id="empty-state">
     <div class="empty-icon">📚</div>
@@ -813,7 +880,7 @@
 </div>
 
 <footer class="about-footer" aria-label="About and Contact Links">
-  <a class="about-block" href="https://christianabele02.github.io" target="_blank" rel="noopener noreferrer">
+  <a class="about-block" href="https://christianabele02.github.io/PageVault/" target="_blank" rel="noopener noreferrer">
     <span class="about-k">Website</span>
     <span class="about-icon" aria-hidden="true">🌐</span>GitHub Pages
   </a>
@@ -1015,6 +1082,13 @@ let currentContinueReading = false;
 let addGenreTags = [];
 let detailGenreTags = [];
 const MAX_GENRE_TAGS = 10;
+const IO_PREVIEW_STORAGE_KEY = 'pagevault-io-preview';
+const IO_PREVIEW_DEFAULTS = {
+  lastImport: 'No imports yet.',
+  lastExport: 'No exports yet.',
+  lastRefresh: 'No refresh run yet.',
+  lastRefreshResult: '—',
+};
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.getElementById('status-filter').addEventListener('change', e => {
@@ -1057,6 +1131,47 @@ async function api(path, opts={}) {
     ...opts
   });
   return r;
+}
+
+function getStoredIoPreviewState() {
+  try {
+    const raw = localStorage.getItem(IO_PREVIEW_STORAGE_KEY);
+    if (!raw) return { ...IO_PREVIEW_DEFAULTS };
+    const parsed = JSON.parse(raw);
+    return {
+      ...IO_PREVIEW_DEFAULTS,
+      ...(parsed && typeof parsed === 'object' ? parsed : {})
+    };
+  } catch {
+    return { ...IO_PREVIEW_DEFAULTS };
+  }
+}
+
+function setStoredIoPreviewState(partial) {
+  const next = {
+    ...getStoredIoPreviewState(),
+    ...(partial && typeof partial === 'object' ? partial : {})
+  };
+  try {
+    localStorage.setItem(IO_PREVIEW_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+  }
+  applyIoPreviewState(next);
+}
+
+function applyIoPreviewState(state) {
+  const safe = {
+    ...IO_PREVIEW_DEFAULTS,
+    ...(state && typeof state === 'object' ? state : {})
+  };
+  document.getElementById('io-last-import').textContent = safe.lastImport;
+  document.getElementById('io-last-export').textContent = safe.lastExport;
+  document.getElementById('io-last-refresh').textContent = safe.lastRefresh;
+  document.getElementById('io-last-refresh-result').textContent = safe.lastRefreshResult;
+}
+
+function initIoPreviewState() {
+  applyIoPreviewState(getStoredIoPreviewState());
 }
 
 // ─── Load books ───────────────────────────────────────────────────────────────
@@ -1252,10 +1367,19 @@ async function refreshLibraryMetadata() {
   }
   const result = await r.json();
   await loadBooks();
+  const refreshedAt = formatDate(new Date().toISOString());
+  setStoredIoPreviewState({
+    lastRefresh: refreshedAt,
+    lastRefreshResult: `Updated ${result.updated}/${result.total} books`
+  });
   showToast(`Updated ${result.updated}/${result.total} books`);
 }
 
 function exportCsvFile() {
+  const exportedAt = formatDate(new Date().toISOString());
+  setStoredIoPreviewState({
+    lastExport: `${exportedAt} (manual export)`
+  });
   window.location.href = '/api/export/csv';
 }
 
@@ -1285,6 +1409,10 @@ document.getElementById('csv-import-input').addEventListener('change', async (ev
   const result = await r.json();
   await loadShelves();
   await loadBooks();
+  const importedAt = formatDate(new Date().toISOString());
+  setStoredIoPreviewState({
+    lastImport: `${importedAt} — Imported ${result.imported}, updated ${result.updated}`
+  });
   showToast(`Imported ${result.imported}, updated ${result.updated}`);
 });
 
@@ -1898,6 +2026,7 @@ function formatProgress(currentPage, totalPages, percent) {
 wireGenreInput('add');
 wireGenreInput('detail');
 initTheme();
+initIoPreviewState();
 setGenreState('add', []);
 setGenreState('detail', []);
 loadShelves();

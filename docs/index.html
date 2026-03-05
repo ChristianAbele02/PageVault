@@ -194,6 +194,97 @@
       margin-bottom: 1.6rem;
     }
 
+    .portfolio {
+      margin: .4rem 0 1.4rem;
+    }
+
+    .portfolio-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .8rem;
+    }
+
+    .showcase {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--card);
+      overflow: hidden;
+      box-shadow: 0 8px 18px rgba(26,16,8,.06);
+    }
+
+    .showcase-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .45rem .6rem;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+      font-size: .75rem;
+      color: #6c5238;
+      font-weight: 700;
+    }
+
+    .showcase-dots {
+      display: inline-flex;
+      gap: .2rem;
+    }
+
+    .showcase-dots span {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #d9c5ab;
+      display: block;
+    }
+
+    .showcase-body {
+      padding: 0;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .showcase-image {
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 7 / 4;
+      object-fit: cover;
+      background: #fff;
+    }
+
+    .showcase-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .45rem;
+      padding: .55rem;
+      background: #fff;
+    }
+
+    .showcase-pane {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .showcase-mode {
+      padding: .3rem .45rem;
+      border-bottom: 1px solid var(--line);
+      font-size: .7rem;
+      font-weight: 700;
+      color: #6c5238;
+      background: #f8f2ea;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+
+    .showcase-caption {
+      padding: .55rem .65rem .7rem;
+      border-top: 1px solid var(--line);
+      font-size: .82rem;
+      color: #5c4430;
+    }
+
     .list {
       margin: 0;
       padding-left: 1.1rem;
@@ -254,12 +345,15 @@
       .hero { grid-template-columns: 1fr; }
       .cards { grid-template-columns: 1fr 1fr; }
       .split { grid-template-columns: 1fr; }
+      .portfolio-grid { grid-template-columns: 1fr 1fr; }
       .footer-links { grid-template-columns: 1fr 1fr; }
     }
 
     @media (max-width: 560px) {
       .cards { grid-template-columns: 1fr; }
+      .portfolio-grid { grid-template-columns: 1fr; }
       .footer-links { grid-template-columns: 1fr; }
+      .showcase-pair { grid-template-columns: 1fr; }
       .topbar-inner { height: auto; padding: .6rem 0; align-items: flex-start; }
     }
   </style>
@@ -335,6 +429,71 @@
       </article>
     </section>
 
+    <section class="portfolio" aria-label="Portfolio Details">
+      <h2 class="section-title">Portfolio Value</h2>
+      <div class="cards" style="margin-top:0;">
+        <article class="card"><h3>🧩 Full-stack scope</h3><p>Design + UX, Flask API, SQLite data model, Docker deployment, and CI quality gates in one cohesive project.</p></article>
+        <article class="card"><h3>⚡ Performance thinking</h3><p>Parallel metadata fallback providers and in-memory ISBN TTL caching reduce network latency during imports and refreshes.</p></article>
+        <article class="card"><h3>🧪 Engineering quality</h3><p>Comprehensive automated tests and linting support stable iteration while shipping substantial product features quickly.</p></article>
+      </div>
+    </section>
+
+    <section aria-label="Example Renders">
+      <h2 class="section-title">Example Renders (Light + Dark)</h2>
+      <div class="portfolio-grid">
+        <article class="showcase">
+          <div class="showcase-top"><span>Library Grid</span><span class="showcase-dots"><span></span><span></span><span></span></span></div>
+          <div class="showcase-body">
+            <div class="showcase-pair">
+              <div class="showcase-pane">
+                <div class="showcase-mode">Light</div>
+                <img class="showcase-image" src="images/screenshot-library.svg" alt="PageVault light library view with The Great Gatsby progress" loading="lazy" />
+              </div>
+              <div class="showcase-pane">
+                <div class="showcase-mode">Dark</div>
+                <img class="showcase-image" src="images/screenshot-library-dark.svg" alt="PageVault dark library view with The Great Gatsby progress" loading="lazy" />
+              </div>
+            </div>
+          </div>
+          <div class="showcase-caption">Book covers, status badges, and progress bars directly in the shelf view.</div>
+        </article>
+
+        <article class="showcase">
+          <div class="showcase-top"><span>Book Detail</span><span class="showcase-dots"><span></span><span></span><span></span></span></div>
+          <div class="showcase-body">
+            <div class="showcase-pair">
+              <div class="showcase-pane">
+                <div class="showcase-mode">Light</div>
+                <img class="showcase-image" src="images/screenshot-detail.svg" alt="PageVault light detail view with multi-rating timeline and reading progress" loading="lazy" />
+              </div>
+              <div class="showcase-pane">
+                <div class="showcase-mode">Dark</div>
+                <img class="showcase-image" src="images/screenshot-detail-dark.svg" alt="PageVault dark detail view with multi-rating timeline and reading progress" loading="lazy" />
+              </div>
+            </div>
+          </div>
+          <div class="showcase-caption">Detailed view with notes, multi-review timeline, and current-page progress updates.</div>
+        </article>
+
+        <article class="showcase">
+          <div class="showcase-top"><span>Import / Export</span><span class="showcase-dots"><span></span><span></span><span></span></span></div>
+          <div class="showcase-body">
+            <div class="showcase-pair">
+              <div class="showcase-pane">
+                <div class="showcase-mode">Light</div>
+                <img class="showcase-image" src="images/screenshot-import.svg" alt="PageVault light CSV import and metadata refresh summary" loading="lazy" />
+              </div>
+              <div class="showcase-pane">
+                <div class="showcase-mode">Dark</div>
+                <img class="showcase-image" src="images/screenshot-import-dark.svg" alt="PageVault dark CSV import and metadata refresh summary" loading="lazy" />
+              </div>
+            </div>
+          </div>
+          <div class="showcase-caption">Goodreads-compatible CSV workflow and metadata refresh suited for real-world migration.</div>
+        </article>
+      </div>
+    </section>
+
     <section class="about" aria-label="About">
       <strong>About</strong><br/>
       Built and maintained by Christian Abele.
@@ -342,7 +501,7 @@
     </section>
 
     <section class="footer-links" aria-label="Project Links">
-      <a class="link-block" href="https://christianabele02.github.io" target="_blank" rel="noopener noreferrer">
+      <a class="link-block" href="https://christianabele02.github.io/PageVault/" target="_blank" rel="noopener noreferrer">
         <span class="k">Website</span>
         🌐 GitHub Pages
       </a>
