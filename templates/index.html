@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>PageVault</title>
+<link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -195,6 +196,34 @@
     margin-top: .28rem;
     font-size: .72rem;
     color: #8a6a47;
+  }
+  .io-actions {
+    margin-top: .35rem;
+    display: flex;
+    gap: .4rem;
+    flex-wrap: wrap;
+  }
+  .io-inline {
+    margin-top: .35rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .45rem;
+  }
+  .io-input,
+  .io-textarea,
+  .io-select {
+    width: 100%;
+    border: 1.5px solid #c8b59f;
+    border-radius: 8px;
+    padding: .5rem .58rem;
+    font-family: 'Lato', sans-serif;
+    font-size: .78rem;
+    color: #2e1f0e;
+    background: #fff;
+  }
+  .io-textarea {
+    min-height: 82px;
+    resize: vertical;
   }
   .about-title {
     font-family: 'Playfair Display', serif;
@@ -768,6 +797,13 @@
   .dark-mode .io-note {
     color: #cfb089;
   }
+  .dark-mode .io-input,
+  .dark-mode .io-textarea,
+  .dark-mode .io-select {
+    background: #211709;
+    color: #f5efe6;
+    border-color: #5a4531;
+  }
   .dark-mode .about-title { color: #f4e8d0; }
   .dark-mode .about-love { color: #cfb089; }
   .dark-mode .about-block {
@@ -889,6 +925,54 @@
     <div class="io-line"><strong>Last refresh:</strong> <span id="io-last-refresh">No refresh run yet.</span></div>
     <div class="io-line"><strong>Result:</strong> <span id="io-last-refresh-result">—</span></div>
     <div class="io-note">Preserves ratings, review notes, shelves, and custom tags.</div>
+    <div class="io-actions">
+      <button class="mini-btn" onclick="runMetadataRepair()">Repair missing metadata</button>
+      <button class="mini-btn" onclick="loadLatestMetadataJob()">Refresh job status</button>
+    </div>
+    <div class="io-line"><strong>Latest job:</strong> <span id="io-last-job">No repair job yet.</span></div>
+  </article>
+  <article class="io-card">
+    <div class="io-title">Annual Goal & Reading Sessions</div>
+    <div class="io-inline">
+      <input id="goal-year" class="io-input" type="number" min="2000" max="2100" placeholder="Year">
+      <input id="goal-books" class="io-input" type="number" min="0" placeholder="Target books">
+      <input id="goal-pages" class="io-input" type="number" min="0" placeholder="Target pages">
+      <button class="mini-btn" onclick="saveGoalSettings()">Save goal</button>
+    </div>
+    <div class="io-line"><strong>Goal progress:</strong> <span id="goal-progress">—</span></div>
+    <div class="io-note">Tracks yearly targets and estimated pace from reading sessions.</div>
+    <div class="io-inline">
+      <select id="session-book" class="io-select"></select>
+      <input id="session-date" class="io-input" type="date">
+      <input id="session-start" class="io-input" type="number" min="0" placeholder="Start page">
+      <input id="session-end" class="io-input" type="number" min="0" placeholder="End page">
+      <input id="session-minutes" class="io-input" type="number" min="1" placeholder="Minutes">
+      <button class="mini-btn" onclick="saveReadingSession()">Log session</button>
+    </div>
+    <div class="io-line"><strong>Session summary:</strong> <span id="session-summary">No sessions yet.</span></div>
+  </article>
+  <article class="io-card">
+    <div class="io-title">CSV Import Wizard</div>
+    <input id="csv-wizard-file" class="io-input" type="file" accept=".csv,text/csv">
+    <textarea id="csv-wizard-mapping" class="io-textarea" placeholder='Optional JSON mapping, e.g. {"Book Id":"isbn"}'></textarea>
+    <div class="io-actions">
+      <button class="mini-btn" onclick="runCsvWizardPreview()">Preview</button>
+      <button class="mini-btn" onclick="runCsvWizardDryRun()">Dry-run</button>
+      <button class="mini-btn" onclick="runCsvWizardImport()">Import</button>
+    </div>
+    <div class="io-line"><strong>Preview result:</strong> <span id="csv-preview-result">No preview yet.</span></div>
+  </article>
+  <article class="io-card">
+    <div class="io-title">Backup & Restore</div>
+    <div class="io-actions">
+      <button class="mini-btn" onclick="downloadBackupArchive()">Download backup</button>
+    </div>
+    <input id="restore-file" class="io-input" type="file" accept=".zip,application/zip">
+    <div class="io-actions">
+      <button class="mini-btn" onclick="validateRestoreArchive()">Validate restore</button>
+      <button class="mini-btn" onclick="applyRestoreArchive()">Apply restore</button>
+    </div>
+    <div class="io-line"><strong>Restore status:</strong> <span id="restore-result">No restore action yet.</span></div>
   </article>
 </section>
 
@@ -1104,6 +1188,7 @@ let addGenreTags = [];
 let detailGenreTags = [];
 const MAX_GENRE_TAGS = 10;
 const IO_PREVIEW_STORAGE_KEY = 'pagevault-io-preview';
+const OPS_DASHBOARD_STORAGE_KEY = 'pagevault-ops-dashboard';
 const IO_PREVIEW_DEFAULTS = {
   lastImport: 'No imports yet.',
   lastExport: 'No exports yet.',
@@ -1195,6 +1280,338 @@ function initIoPreviewState() {
   applyIoPreviewState(getStoredIoPreviewState());
 }
 
+function getStoredOpsDashboardState() {
+  try {
+    const raw = localStorage.getItem(OPS_DASHBOARD_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function setStoredOpsDashboardState(partial) {
+  const next = {
+    ...getStoredOpsDashboardState(),
+    ...(partial && typeof partial === 'object' ? partial : {}),
+  };
+  try {
+    localStorage.setItem(OPS_DASHBOARD_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+  }
+}
+
+function initOpsDashboardState() {
+  const state = getStoredOpsDashboardState();
+  if (state.goalYear) document.getElementById('goal-year').value = state.goalYear;
+  if (state.goalBooks != null) document.getElementById('goal-books').value = state.goalBooks;
+  if (state.goalPages != null) document.getElementById('goal-pages').value = state.goalPages;
+  if (state.csvMapping) document.getElementById('csv-wizard-mapping').value = state.csvMapping;
+  if (state.sessionDate) document.getElementById('session-date').value = state.sessionDate;
+}
+
+function defaultSessionDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function syncSessionBookOptions() {
+  const select = document.getElementById('session-book');
+  if (!select) return;
+  if (!books.length) {
+    select.innerHTML = '<option value="">No books available</option>';
+    return;
+  }
+  const currentValue = select.value;
+  select.innerHTML = books
+    .map(book => `<option value="${book.id}">${esc(book.title)} — ${esc(book.author || 'Unknown')}</option>`)
+    .join('');
+  if (currentValue && books.some(book => String(book.id) === currentValue)) {
+    select.value = currentValue;
+  }
+}
+
+async function loadGoalSettings() {
+  const yearInput = document.getElementById('goal-year');
+  const year = Number(yearInput.value) || new Date().getFullYear();
+  yearInput.value = String(year);
+  const response = await api(`/api/goals/current?year=${year}`);
+  if (!response.ok) return;
+  const data = await response.json();
+  document.getElementById('goal-books').value = data.target_books ?? 0;
+  document.getElementById('goal-pages').value = data.target_pages ?? 0;
+  const bookPart = `${data.progress_books || 0}/${data.target_books || 0} books`;
+  const pagePart = `${data.progress_pages || 0}/${data.target_pages || 0} pages`;
+  document.getElementById('goal-progress').textContent = `${bookPart} • ${pagePart}`;
+  setStoredOpsDashboardState({
+    goalYear: year,
+    goalBooks: Number(data.target_books || 0),
+    goalPages: Number(data.target_pages || 0),
+  });
+}
+
+async function saveGoalSettings() {
+  const year = Number(document.getElementById('goal-year').value) || new Date().getFullYear();
+  const targetBooks = Math.max(0, Number(document.getElementById('goal-books').value || 0));
+  const targetPages = Math.max(0, Number(document.getElementById('goal-pages').value || 0));
+  const response = await api('/api/goals/current', {
+    method: 'PUT',
+    body: JSON.stringify({
+      goal_year: year,
+      target_books: targetBooks,
+      target_pages: targetPages,
+    }),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    showToast(errorData.error || 'Could not save goal');
+    return;
+  }
+  setStoredOpsDashboardState({ goalYear: year, goalBooks: targetBooks, goalPages: targetPages });
+  await loadGoalSettings();
+  await refreshSessionSummary();
+  showToast('Goal saved ✓');
+}
+
+async function saveReadingSession() {
+  const bookId = Number(document.getElementById('session-book').value);
+  const sessionDate = document.getElementById('session-date').value || defaultSessionDate();
+  const startPage = Number(document.getElementById('session-start').value);
+  const endPage = Number(document.getElementById('session-end').value);
+  const minutesSpent = Number(document.getElementById('session-minutes').value);
+  if (!bookId) {
+    showToast('Pick a book for the session');
+    return;
+  }
+  const response = await api(`/api/books/${bookId}/sessions`, {
+    method: 'POST',
+    body: JSON.stringify({
+      start_page: startPage,
+      end_page: endPage,
+      minutes_spent: minutesSpent,
+      session_date: sessionDate,
+    }),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    showToast(errorData.error || 'Could not log session');
+    return;
+  }
+  setStoredOpsDashboardState({ sessionDate });
+  document.getElementById('session-start').value = '';
+  document.getElementById('session-end').value = '';
+  document.getElementById('session-minutes').value = '';
+  await refreshSessionSummary();
+  await loadGoalSettings();
+  showToast('Session logged ✓');
+}
+
+async function refreshSessionSummary() {
+  const response = await api('/api/stats/analysis');
+  if (!response.ok) return;
+  const data = await response.json();
+  const sessions = data.sessions_summary || {};
+  const goal = data.goal || {};
+  const summary = `${sessions.session_count || 0} sessions • ${sessions.pages_read || 0} pages • ${sessions.pages_per_day || 0} pages/day`;
+  document.getElementById('session-summary').textContent = summary;
+  if (goal.target_books || goal.target_pages) {
+    const bookPart = `${goal.progress_books || 0}/${goal.target_books || 0} books`;
+    const pagePart = `${goal.progress_pages || 0}/${goal.target_pages || 0} pages`;
+    document.getElementById('goal-progress').textContent = `${bookPart} • ${pagePart}`;
+  }
+}
+
+function parseCsvWizardMapping() {
+  const text = document.getElementById('csv-wizard-mapping').value.trim();
+  if (!text) {
+    setStoredOpsDashboardState({ csvMapping: '' });
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Mapping must be a JSON object');
+    }
+    setStoredOpsDashboardState({ csvMapping: text });
+    return parsed;
+  } catch {
+    throw new Error('Invalid mapping JSON');
+  }
+}
+
+function buildCsvWizardFormData() {
+  const file = document.getElementById('csv-wizard-file').files?.[0];
+  if (!file) throw new Error('Select a CSV file first');
+  const formData = new FormData();
+  formData.append('file', file);
+  const mapping = parseCsvWizardMapping();
+  if (Object.keys(mapping).length) {
+    formData.append('mapping', JSON.stringify(mapping));
+  }
+  return formData;
+}
+
+function renderCsvPreviewResult(payload) {
+  const line = `Import ${payload.would_import ?? payload.imported ?? 0}, update ${payload.would_update ?? payload.updated ?? 0}, skip ${payload.skipped ?? 0}`;
+  document.getElementById('csv-preview-result').textContent = line;
+}
+
+async function runCsvWizardPreview() {
+  try {
+    const formData = buildCsvWizardFormData();
+    const response = await api('/api/import/csv/preview', {
+      method: 'POST',
+      body: formData,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      showToast(payload.error || 'CSV preview failed');
+      return;
+    }
+    renderCsvPreviewResult(payload);
+    showToast('CSV preview ready');
+  } catch (error) {
+    showToast(error.message || 'CSV preview failed');
+  }
+}
+
+async function runCsvWizardDryRun() {
+  try {
+    const formData = buildCsvWizardFormData();
+    formData.append('dry_run', '1');
+    const response = await api('/api/import/csv?dry_run=1', {
+      method: 'POST',
+      body: formData,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      showToast(payload.error || 'CSV dry-run failed');
+      return;
+    }
+    renderCsvPreviewResult(payload);
+    showToast('Dry-run completed');
+  } catch (error) {
+    showToast(error.message || 'CSV dry-run failed');
+  }
+}
+
+async function runCsvWizardImport() {
+  try {
+    const formData = buildCsvWizardFormData();
+    const response = await api('/api/import/csv', {
+      method: 'POST',
+      body: formData,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      showToast(payload.error || 'CSV import failed');
+      return;
+    }
+    renderCsvPreviewResult(payload);
+    const importedAt = formatDate(new Date().toISOString());
+    setStoredIoPreviewState({
+      lastImport: `${importedAt} — Imported ${payload.imported || 0}, updated ${payload.updated || 0}`,
+    });
+    await loadShelves();
+    await loadBooks();
+    showToast('CSV import completed ✓');
+  } catch (error) {
+    showToast(error.message || 'CSV import failed');
+  }
+}
+
+async function loadLatestMetadataJob() {
+  const response = await api('/api/metadata/jobs');
+  if (!response.ok) return;
+  const jobs = await response.json();
+  if (!jobs.length) {
+    document.getElementById('io-last-job').textContent = 'No repair job yet.';
+    return;
+  }
+  const latest = jobs[0];
+  document.getElementById('io-last-job').textContent = `#${latest.id} ${latest.status} • ${latest.updated_books}/${latest.total_books} updated • ${latest.failed_books} failed`;
+}
+
+async function runMetadataRepair() {
+  showToast('Running metadata repair…');
+  const response = await api('/api/metadata/repair', {
+    method: 'POST',
+    body: JSON.stringify({ max_retries: 2 }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showToast(payload.error || 'Metadata repair failed');
+    return;
+  }
+  const refreshedAt = formatDate(new Date().toISOString());
+  setStoredIoPreviewState({
+    lastRefresh: refreshedAt,
+    lastRefreshResult: `Repair updated ${payload.updated || 0}/${payload.total || 0} books`,
+  });
+  await loadLatestMetadataJob();
+  await loadBooks();
+  showToast('Metadata repair completed ✓');
+}
+
+function downloadBackupArchive() {
+  window.location.href = '/api/backup/download';
+  showToast('Backup download started');
+}
+
+async function validateRestoreArchive() {
+  const file = document.getElementById('restore-file').files?.[0];
+  if (!file) {
+    showToast('Select a restore archive first');
+    return;
+  }
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api('/api/backup/restore/validate', {
+    method: 'POST',
+    body: formData,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showToast(payload.error || 'Restore validation failed');
+    return;
+  }
+  document.getElementById('restore-result').textContent = `Validated: ${payload.summary.books} books, ${payload.summary.reviews} reviews, missing tables ${payload.summary.missing_tables.length}`;
+  showToast('Restore validation complete');
+}
+
+async function applyRestoreArchive() {
+  const file = document.getElementById('restore-file').files?.[0];
+  if (!file) {
+    showToast('Select a restore archive first');
+    return;
+  }
+  const yes = confirm('Apply restore archive now? This replaces your current library database.');
+  if (!yes) return;
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api('/api/backup/restore/apply', {
+    method: 'POST',
+    body: formData,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showToast(payload.error || 'Restore apply failed');
+    return;
+  }
+  document.getElementById('restore-result').textContent = 'Restore applied successfully.';
+  await loadShelves();
+  await loadBooks();
+  await loadGoalSettings();
+  await refreshSessionSummary();
+  showToast('Restore applied ✓');
+}
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('/static/sw.js').catch(() => {
+  });
+}
+
 // ─── Load books ───────────────────────────────────────────────────────────────
 async function loadBooks() {
   const params = new URLSearchParams();
@@ -1207,6 +1624,7 @@ async function loadBooks() {
   const r = await api(`/api/books?${params}`);
   books = await r.json();
   updateFilterOptions();
+  syncSessionBookOptions();
   renderBooks();
   loadStats();
   updateContinueReadingButton();
@@ -2048,10 +2466,16 @@ wireGenreInput('add');
 wireGenreInput('detail');
 initTheme();
 initIoPreviewState();
+initOpsDashboardState();
+document.getElementById('session-date').value = document.getElementById('session-date').value || defaultSessionDate();
 setGenreState('add', []);
 setGenreState('detail', []);
 loadShelves();
 loadBooks();
+loadGoalSettings();
+refreshSessionSummary();
+loadLatestMetadataJob();
+registerServiceWorker();
 window.addEventListener('resize', debouncedSyncShelfLines);
 </script>
 </body>
