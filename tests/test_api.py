@@ -827,6 +827,18 @@ class TestFrontend:
         assert r.status_code == 200
         assert b"PageVault" in r.data
 
+    def test_mobile_connect_uses_lan_ip_for_localhost(self, client, monkeypatch):
+        monkeypatch.setattr(app_module, "_detect_local_ip", lambda: "192.168.1.77")
+        r = client.get("/api/mobile/connect", headers={"Host": "localhost:5000"})
+        assert r.status_code == 200
+        assert r.get_json()["url"] == "http://192.168.1.77:5000/"
+
+    def test_mobile_connect_honors_env_override(self, client, monkeypatch):
+        monkeypatch.setenv("PAGEVAULT_MOBILE_HOST", "pagevault.local:5000")
+        r = client.get("/api/mobile/connect", headers={"Host": "localhost:5000"})
+        assert r.status_code == 200
+        assert r.get_json()["url"] == "http://pagevault.local:5000/"
+
     def test_404_returns_json(self, client):
         r = client.get("/api/nonexistent")
         assert r.status_code == 404

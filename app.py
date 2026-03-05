@@ -14,6 +14,7 @@ import csv
 import io
 import logging
 import os
+import socket
 import sqlite3
 from datetime import datetime, timezone
 
@@ -81,6 +82,10 @@ def create_app(config: dict | None = None) -> Flask:
         if session.get("role") != "admin":
             return redirect(url_for("admin_login"))
         return render_template("admin.html")
+
+    @app.get("/api/mobile/connect")
+    def mobile_connect_info():
+        return jsonify({"url": _mobile_base_url()})
 
     core_db.bootstrap_database(app)
 
@@ -171,6 +176,43 @@ def _split_multi_value(value: str | None) -> list[str]:
 
 def _status_from_goodreads(value: str | None) -> str:
     return core_utils.status_from_goodreads(value)
+
+
+def _detect_local_ip() -> str:
+    """Best-effort local IP detection for same-network mobile access."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("8.8.8.8", 80))
+            detected = sock.getsockname()[0]
+            if detected:
+                return detected
+    except OSError:
+        pass
+
+    try:
+        return socket.gethostbyname(socket.gethostname())
+    except OSError:
+        return "127.0.0.1"
+
+
+def _mobile_base_url() -> str:
+    override_host = (os.getenv("PAGEVAULT_MOBILE_HOST") or "").strip()
+    host_header = request.host or ""
+    host = host_header.split(":", 1)[0].strip().lower()
+
+    if override_host:
+        public_host = override_host
+    elif host in {"", "localhost", "127.0.0.1", "::1"}:
+        public_host = _detect_local_ip()
+    else:
+        public_host = host_header
+
+    if ":" not in public_host and ":" in host_header:
+        _, port = host_header.rsplit(":", 1)
+        if port.isdigit() and port not in {"80", "443"}:
+            public_host = f"{public_host}:{port}"
+
+    return f"{request.scheme}://{public_host}/"
 
 
 def _ensure_shelf(db: sqlite3.Connection, name: str) -> int | None:
