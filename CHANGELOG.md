@@ -10,8 +10,26 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Planned
-- Reading progress tracker (current page)
 - Annual reading goal tracker
+
+---
+
+## [1.2.0] — 2026-03-05
+
+### Added
+- Dedicated `/stats` analytics page with Plotly visualizations for status, pages, genres, authors, ratings, and monthly activity.
+- New analytics API endpoint `GET /api/stats/analysis` for plot-ready aggregated dashboard datasets.
+- Date range filtering on stats analysis via `start_date` / `end_date` (`YYYY-MM-DD`) with preset and custom range support in the UI.
+- Header navigation link from the main app to the stats page.
+- GitHub Pages **Open Stats Demo** entry point and a standalone `docs/stats-demo.html` page with example chart data.
+
+### Changed
+- Stats page now follows the main design system and color palette, with automatic dark/light theme inheritance from saved browser preference.
+- README and GitHub Pages portfolio content updated to document and showcase the stats dashboard workflow.
+- Automated tests expanded for stats page routing, analysis payload shape, and date filter validation.
+
+### Fixed
+- Ruff formatting compliance for updated API and tests to keep CI format checks green.
 
 ---
 
@@ -65,6 +83,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Makefile** for developer convenience
 - Local SQLite database — data stays on your machine
 
-[Unreleased]: https://github.com/ChristianAbele02/PageVault/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/ChristianAbele02/PageVault/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.2.0
 [1.1.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ChristianAbele02/PageVault
