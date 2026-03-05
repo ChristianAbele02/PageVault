@@ -18,9 +18,10 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from flask import Blueprint, Response, current_app, jsonify, request
+from flask import Blueprint, Response, current_app, jsonify, request, session
 
 from pagevault_core.db import ensure_schema
+from pagevault_core.services import admin_service, recommendations
 
 
 def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
@@ -58,6 +59,49 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
     split_multi_value = deps["split_multi_value"]
     status_from_goodreads = deps["status_from_goodreads"]
     log = deps["log"]
+    location_types = {"shelf", "ebook", "loaned_to", "loaned_from", "other"}
+
+    def parse_location_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
+        if not payload:
+            return {}, None
+
+        updates: dict[str, Any] = {}
+        if "location_type" in payload:
+            location_type = str(payload.get("location_type") or "").strip().lower() or "shelf"
+            if location_type not in location_types:
+                return {}, (
+                    "location_type must be one of: shelf, ebook, loaned_to, loaned_from, other"
+                )
+            updates["location_type"] = location_type
+
+        if "location_note" in payload:
+            updates["location_note"] = (str(payload.get("location_note") or "").strip() or None)
+
+        if "loan_person" in payload:
+            updates["loan_person"] = (str(payload.get("loan_person") or "").strip() or None)
+
+        # Keep data clean when the book is not currently loaned.
+        if (
+            updates.get("location_type") not in {"loaned_to", "loaned_from"}
+            and "location_type" in updates
+            and "loan_person" not in updates
+        ):
+            updates["loan_person"] = None
+
+        return updates, None
+
+    def admin_required():
+        if session.get("role") != "admin":
+            return err("Admin authentication required", 403)
+        return None
+
+    def record_admin_event(event_type: str, details: dict[str, Any] | None = None) -> None:
+        db = get_db()
+        db.execute(
+            "INSERT INTO admin_events (event_type, details_json, created_at) VALUES (?, ?, ?)",
+            (event_type, json.dumps(details or {}), now()),
+        )
+        db.commit()
 
     def fetch_book_shelves(db: sqlite3.Connection, book_id: int) -> list[dict]:
         rows = db.execute(
@@ -159,6 +203,78 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         return {}
 
     bp = Blueprint("api", __name__, url_prefix="/api")
+
+    @bp.get("/admin/me")
+    def api_admin_me():
+        return jsonify({"role": session.get("role", "user")})
+
+    @bp.post("/admin/login")
+    def api_admin_login():
+        payload = request.get_json(force=True, silent=True) or {}
+        password = str(payload.get("password") or "")
+        if password != str(current_app.config.get("ADMIN_PASSWORD") or "1111"):
+            return err("Invalid admin password", 401)
+
+        session["role"] = "admin"
+        record_admin_event("admin_login", {"remote_addr": request.remote_addr})
+        return jsonify({"ok": True, "role": "admin"})
+
+    @bp.post("/admin/logout")
+    def api_admin_logout():
+        if session.get("role") == "admin":
+            record_admin_event("admin_logout", {"remote_addr": request.remote_addr})
+        session.pop("role", None)
+        return jsonify({"ok": True, "role": "user"})
+
+    @bp.get("/admin/diagnostics")
+    def api_admin_diagnostics():
+        guard = admin_required()
+        if guard:
+            return guard
+
+        db = get_db()
+        status_row = db.execute(
+            """SELECT
+                  COUNT(*) AS total,
+                  COUNT(CASE WHEN status='read' THEN 1 END) AS read,
+                  COUNT(CASE WHEN status='reading' THEN 1 END) AS reading,
+                  COUNT(CASE WHEN status='want_to_read' THEN 1 END) AS want_to_read
+               FROM books"""
+        ).fetchone()
+        history = db.execute(
+            "SELECT * FROM admin_events ORDER BY id DESC LIMIT 50"
+        ).fetchall()
+        restore_history = db.execute(
+            "SELECT * FROM restore_history ORDER BY id DESC LIMIT 20"
+        ).fetchall()
+        metadata_jobs = db.execute(
+            "SELECT * FROM metadata_jobs ORDER BY id DESC LIMIT 20"
+        ).fetchall()
+        storage = admin_service.storage_diagnostics(current_app.config["DATABASE"])
+
+        payload = {
+            "health": {"status": "ok", "time": now()},
+            "reading_status": dict(status_row),
+            "storage": storage,
+            "history": [dict(row) for row in history],
+            "restore_history": [dict(row) for row in restore_history],
+            "metadata_jobs": [dict(row) for row in metadata_jobs],
+        }
+        return jsonify(payload)
+
+    @bp.get("/admin/logs")
+    def api_admin_logs():
+        guard = admin_required()
+        if guard:
+            return guard
+
+        try:
+            lines = int(request.args.get("lines") or 200)
+        except ValueError:
+            return err("lines must be an integer", 400)
+
+        log_lines = admin_service.tail_log(current_app.config.get("LOG_FILE", ""), lines=lines)
+        return jsonify({"lines": log_lines, "count": len(log_lines)})
 
     @bp.get("/lookup/<isbn>")
     def api_lookup(isbn: str):
@@ -288,11 +404,14 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         status = payload.get("status", "want_to_read")
         genre_tags = normalize_tags(payload.get("genre_tags"))
         shelf_ids = int_list(payload.get("shelf_ids"))
+        location_updates, location_error = parse_location_payload(payload)
 
         if not isbn:
             return err("isbn is required")
         if not validate_status(status):
             return err("status must be one of: want_to_read, reading, read")
+        if location_error:
+            return err(location_error)
 
         existing = db.execute("SELECT id FROM books WHERE isbn = ?", (isbn,)).fetchone()
         if existing:
@@ -306,8 +425,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         db.execute(
             """INSERT INTO books
                (isbn, title, author, cover_url, description, publisher,
-                year, pages, genre, language, added_at, updated_at, status)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                year, pages, genre, language, location_type, location_note, loan_person,
+                added_at, updated_at, status)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 isbn,
                 book.get("title", "Unknown"),
@@ -319,6 +439,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 book.get("pages"),
                 book.get("genre"),
                 book.get("language", "en"),
+                location_updates.get("location_type", "shelf"),
+                location_updates.get("location_note"),
+                location_updates.get("loan_person"),
                 current,
                 current,
                 status,
@@ -372,6 +495,17 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         result["reviews"] = [dict(r) for r in reviews]
         return jsonify(result)
 
+    @bp.get("/books/<int:book_id>/recommendations")
+    def api_book_recommendations(book_id: int):
+        db = get_db()
+        try:
+            limit = int(request.args.get("limit") or 6)
+        except ValueError:
+            return err("limit must be an integer", 400)
+
+        items = recommendations.recommend_books(db, book_id, limit=limit)
+        return jsonify(items)
+
     @bp.patch("/books/<int:book_id>")
     def api_update_book(book_id: int):
         db = get_db()
@@ -382,11 +516,15 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         updates = {k: v for k, v in payload.items() if k in allowed}
         genre_tags = normalize_tags(payload.get("genre_tags")) if "genre_tags" in payload else None
         shelf_ids = int_list(payload.get("shelf_ids")) if "shelf_ids" in payload else None
+        location_updates, location_error = parse_location_payload(payload)
 
-        if not updates and genre_tags is None and shelf_ids is None:
+        if not updates and genre_tags is None and shelf_ids is None and not location_updates:
             return err("No valid fields to update")
         if "status" in updates and not validate_status(updates["status"]):
             return err("status must be one of: want_to_read, reading, read")
+        if location_error:
+            return err(location_error)
+        updates.update(location_updates)
         if updates:
             updates["updated_at"] = now()
             set_clause = ", ".join(f"{k} = ?" for k in updates)
@@ -641,6 +779,10 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             (finished, finished, job_id),
         )
         db.commit()
+        record_admin_event(
+            "metadata_repair",
+            {"job_id": job_id, "total": len(rows), "updated": updated, "failed": failed},
+        )
         return jsonify(
             {"ok": True, "job_id": job_id, "total": len(rows), "updated": updated, "failed": failed}
         )
@@ -779,16 +921,18 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             return err("Book not found", 404)
 
         payload = request.get_json(force=True, silent=True) or {}
-        start_page = payload.get("start_page")
-        end_page = payload.get("end_page")
-        minutes_spent = payload.get("minutes_spent")
+        start_page_raw = payload.get("start_page")
+        end_page_raw = payload.get("end_page")
+        minutes_spent_raw = payload.get("minutes_spent")
         session_date = (payload.get("session_date") or "").strip() or now()[:10]
         notes = (payload.get("notes") or "").strip() or None
 
+        if start_page_raw is None or end_page_raw is None or minutes_spent_raw is None:
+            return err("start_page, end_page and minutes_spent must be integers")
         try:
-            start_page = int(start_page)
-            end_page = int(end_page)
-            minutes_spent = int(minutes_spent)
+            start_page = int(start_page_raw)
+            end_page = int(end_page_raw)
+            minutes_spent = int(minutes_spent_raw)
         except (TypeError, ValueError):
             return err("start_page, end_page and minutes_spent must be integers")
         if start_page < 0 or end_page < 0 or minutes_spent <= 0:
@@ -1272,6 +1416,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             (json.dumps(summary), now()),
         )
         db.commit()
+        record_admin_event("restore_validate", summary)
         return jsonify({"ok": True, "summary": summary})
 
     @bp.post("/backup/restore/apply")
@@ -1309,6 +1454,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             (json.dumps({"restored": True}), now()),
         )
         db.commit()
+        record_admin_event("restore_apply", {"restored": True})
         return jsonify({"ok": True})
 
     @bp.get("/export")
@@ -1370,6 +1516,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 "genre",
                 "genre_tags",
                 "shelves",
+                "location_type",
+                "location_note",
+                "loan_person",
                 "cover_url",
                 "description",
                 "avg_rating",
@@ -1408,6 +1557,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                     row["genre"],
                     "|".join(tags),
                     "|".join(shelves),
+                    row["location_type"],
+                    row["location_note"],
+                    row["loan_person"],
                     row["cover_url"],
                     row["description"],
                     row["avg_rating"],
@@ -1555,6 +1707,11 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             description = row.get("description") or None
             language = row.get("language") or "en"
             genre = row.get("genre") or None
+            location_type = (row.get("location_type") or "shelf").strip().lower() or "shelf"
+            if location_type not in location_types:
+                location_type = "shelf"
+            location_note = (row.get("location_note") or "").strip() or None
+            loan_person = (row.get("loan_person") or "").strip() or None
 
             pages_value = row.get("pages") or row.get("Number of Pages")
             try:
@@ -1580,6 +1737,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                     "pages": pages,
                     "genre": genre,
                     "language": language,
+                    "location_type": location_type,
+                    "location_note": location_note,
+                    "loan_person": loan_person,
                 },
                 lookup_data,
             )
@@ -1630,6 +1790,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                     "pages",
                     "genre",
                     "language",
+                    "location_type",
+                    "location_note",
+                    "loan_person",
                 ]:
                     existing_value = existing[field]
                     incoming_value = metadata.get(field)
@@ -1648,8 +1811,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 db.execute(
                     """INSERT INTO books
                        (isbn, title, author, cover_url, description, publisher,
-                        year, pages, genre, language, added_at, updated_at, status)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                year, pages, genre, language, location_type, location_note, loan_person,
+                                added_at, updated_at, status)
+                              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         isbn,
                         metadata.get("title") or "Unknown",
@@ -1661,6 +1825,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                         metadata.get("pages"),
                         metadata.get("genre"),
                         metadata.get("language") or "en",
+                        metadata.get("location_type") or "shelf",
+                        metadata.get("location_note"),
+                        metadata.get("loan_person"),
                         current,
                         current,
                         status,

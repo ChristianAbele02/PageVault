@@ -14,6 +14,27 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.4.0] — 2026-03-05
+
+### Added
+- Role-aware admin area with password-protected login, diagnostics, event history, and log viewer (`/admin`, `/admin/login`, `/api/admin/*`).
+- Structured physical location tracking for books (`location_type`, `location_note`, `loan_person`) with UI and API support.
+- Local recommendations endpoint and detail view panel for similar books (`GET /api/books/:id/recommendations`) based on author/genre/tag similarity.
+- Alembic migration setup (`alembic/`) with baseline and schema revision scripts for safer schema evolution.
+- New service layer modules for admin diagnostics and recommendation scoring under `pagevault_core/services/`.
+
+### Changed
+- Configuration is now centralized in `config.py` with environment-aware defaults and admin/password settings.
+- CI now enforces lint, type checking, tests, and a dedicated coverage gate job on pull requests.
+- Dependency management is now pyproject-based (`pip install .[dev,prod]`), replacing legacy requirements files.
+- Docker/devcontainer/build docs were aligned with pyproject packaging and extras.
+
+### Fixed
+- Packaging/build backend and setuptools discovery were adjusted to support flat-layout installs reliably.
+- Admin login form alignment and main dashboard hint cleanup improved UI consistency.
+
+---
+
 ## [1.3.0] — 2026-03-05
 
 ### Added
@@ -103,7 +124,8 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Makefile** for developer convenience
 - Local SQLite database — data stays on your machine
 
-[Unreleased]: https://github.com/ChristianAbele02/PageVault/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/ChristianAbele02/PageVault/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.4.0
 [1.3.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.3.0
 [1.2.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.2.0
 [1.1.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.1.0

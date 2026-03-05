@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PageVault Admin Login</title>
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    font-family: Georgia, "Times New Roman", serif;
+    background: radial-gradient(circle at 20% 10%, #f4d7a1, transparent 45%),
+      linear-gradient(145deg, #2a1e12, #0f0a05);
+    color: #f8ecd8;
+  }
+  .card {
+    width: min(92vw, 420px);
+    border: 1px solid rgba(255, 220, 160, 0.28);
+    border-radius: 14px;
+    background: rgba(14, 10, 6, 0.8);
+    padding: 1.2rem;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 { margin: 0 0 0.8rem; font-size: 1.4rem; width: 100%; }
+  p { margin: 0 0 0.9rem; color: #e2cda9; width: 100%; }
+  input {
+    box-sizing: border-box;
+    width: min(100%, 340px);
+    border: 1px solid #8f6b3d;
+    border-radius: 8px;
+    background: #140e08;
+    color: #f8ecd8;
+    padding: 0.65rem 0.75rem;
+    margin-bottom: 0.7rem;
+    font-size: 1rem;
+  }
+  button {
+    box-sizing: border-box;
+    width: min(100%, 340px);
+    border: 0;
+    border-radius: 8px;
+    background: #d1a055;
+    color: #1f1308;
+    font-weight: 700;
+    padding: 0.65rem;
+    cursor: pointer;
+  }
+  .msg { min-height: 1.2rem; margin-top: 0.6rem; color: #f0b4a4; font-size: 0.92rem; width: min(100%, 340px); }
+  a { color: #f8d8a0; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Admin Access</h1>
+    <p>Enter the admin password to access logs, diagnostics, and history.</p>
+    <input id="password" type="password" placeholder="Admin password" autocomplete="current-password">
+    <button onclick="login()">Sign In</button>
+    <div class="msg" id="msg"></div>
+    <p><a href="/">Back to library</a></p>
+  </div>
+<script>
+async function login() {
+  const password = document.getElementById('password').value;
+  const msg = document.getElementById('msg');
+  msg.textContent = '';
+  const response = await fetch('/api/admin/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    msg.textContent = err.error || 'Login failed';
+    return;
+  }
+  window.location.href = '/admin';
+}
+</script>
+</body>
+</html>

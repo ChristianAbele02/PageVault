@@ -52,6 +52,10 @@ def ensure_schema(db: sqlite3.Connection) -> None:
             pages       INTEGER,
             genre       TEXT,
             language    TEXT    DEFAULT 'en',
+            location_type TEXT   NOT NULL DEFAULT 'shelf'
+                        CHECK(location_type IN ('shelf','ebook','loaned_to','loaned_from','other')),
+            location_note TEXT,
+            loan_person TEXT,
             added_at    TEXT    NOT NULL,
             updated_at  TEXT    NOT NULL,
             status      TEXT    NOT NULL DEFAULT 'want_to_read'
@@ -147,6 +151,13 @@ def ensure_schema(db: sqlite3.Connection) -> None:
             created_at      TEXT    NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS admin_events (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type      TEXT    NOT NULL,
+            details_json    TEXT,
+            created_at      TEXT    NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_books_status  ON books(status);
         CREATE INDEX IF NOT EXISTS idx_books_author  ON books(author COLLATE NOCASE);
         CREATE INDEX IF NOT EXISTS idx_reviews_book  ON reviews(book_id);
@@ -157,10 +168,23 @@ def ensure_schema(db: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_book_shelves_shelf ON book_shelves(shelf_id);
         CREATE INDEX IF NOT EXISTS idx_book_tags_book ON book_tags(book_id);
         CREATE INDEX IF NOT EXISTS idx_book_tags_tag ON book_tags(tag_id);
+        CREATE INDEX IF NOT EXISTS idx_admin_events_created ON admin_events(created_at DESC);
     """)
     review_cols = {row["name"] for row in db.execute("PRAGMA table_info(reviews)").fetchall()}
     if "current_page" not in review_cols:
         db.execute("ALTER TABLE reviews ADD COLUMN current_page INTEGER")
+
+    book_cols = {row["name"] for row in db.execute("PRAGMA table_info(books)").fetchall()}
+    if "location_type" not in book_cols:
+        db.execute(
+            "ALTER TABLE books ADD COLUMN location_type TEXT NOT NULL DEFAULT 'shelf' "
+            "CHECK(location_type IN ('shelf','ebook','loaned_to','loaned_from','other'))"
+        )
+    if "location_note" not in book_cols:
+        db.execute("ALTER TABLE books ADD COLUMN location_note TEXT")
+    if "loan_person" not in book_cols:
+        db.execute("ALTER TABLE books ADD COLUMN loan_person TEXT")
+
     db.commit()
     log.info("Database schema verified.")
 

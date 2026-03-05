@@ -10,8 +10,6 @@ jobs:
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    env:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -30,10 +28,10 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+          pip install ".[dev,prod]"
 
-      - name: Run tests with coverage
-        run: pytest --cov=app --cov-report=xml --cov-report=term-missing
+      - name: Run tests
+        run: pytest -v
 
       - name: UI marker smoke check
         run: |
@@ -53,20 +51,34 @@ jobs:
           print('UI marker smoke check passed.')
           PY
 
+  coverage:
+    name: Coverage (Python 3.12)
+    runs-on: ubuntu-latest
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[dev,prod]"
+      - name: Run coverage gate
+        run: pytest --cov=app --cov=pagevault_core --cov-report=xml --cov-report=term-missing --cov-fail-under=75
       - name: Upload coverage to Codecov
         if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.xml
-          fail_ci_if_error: false
+          fail_ci_if_error: true
           token: ${{ env.CODECOV_TOKEN }}
 
-      - name: Skip Codecov upload (no token)
-        if: ${{ env.CODECOV_TOKEN == '' }}
-        run: echo "CODECOV_TOKEN is not set; skipping Codecov upload."
-
   lint:
-    name: Lint & Format
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,12 +86,30 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[dev]"
       - name: Check formatting
         run: ruff format --check .
       - name: Lint
         run: ruff check .
+
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[dev]"
+      - name: Run mypy
+        run: mypy app.py pagevault_core
 
   docker:
     name: Docker build
