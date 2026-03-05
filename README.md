@@ -7,6 +7,8 @@
   Scan ISBN barcodes with your phone · Fetch covers & metadata automatically · Keep your reading life private.
 </p>
 
+<p align="center"><strong>Latest release:</strong> v1.3.0</p>
+
 <br/>
 
 <p align="center">
@@ -75,6 +77,21 @@ Filter by status, author, genre tag, shelf, and text search.
 **📊 Stats dashboard with Plotly**
 Open `/stats` for interactive analytics: books/pages by status, top genres/authors, rating distribution, and monthly activity.
 Includes preset + custom date range filters and automatic dark/light theme inheritance.
+
+**🎯 Annual goals & reading sessions**
+Set yearly targets for books/pages, log reading sessions, and track pace metrics directly in analytics.
+
+**🧪 Import mapping preview + dry-run**
+Preview CSV imports with optional column mapping before writing data, then run a safe dry-run to verify import/update counts.
+
+**🛠️ Metadata repair jobs**
+Run repair jobs for missing metadata fields and inspect job history/status from the dashboard.
+
+**🧯 One-click backup/restore workflow**
+Download a ZIP backup, validate restore archives, and apply restores from inside the app.
+
+**📱 PWA-ready baseline**
+Manifest + service worker support enables install-friendly behavior and caching for core pages.
 
 **🔄 Metadata refresh**
 Reload metadata for all saved books without touching your reviews, star ratings, shelves, or manual tags.
@@ -167,6 +184,14 @@ Review timestamps are displayed in `DD.MM.YYYY HH:MM` format.
 - Use quick presets (30/90/180/365 days, YTD) or a custom date range.
 - Charts are powered by Plotly and update from `/api/stats/analysis`.
 - The stats page follows your saved Light/Dark theme automatically.
+- Saved views persist locally and can be shared via range URL parameters.
+
+### Goal, session, and operations panel
+
+- Use the dashboard operation cards to set annual goals and log reading sessions.
+- Run metadata repair jobs for incomplete book metadata and inspect latest job status.
+- Use the CSV wizard controls to preview mapping, dry-run, then import.
+- Use backup/restore controls to download backup ZIPs and validate/apply restore archives.
 
 ### Genre tag chips
 
@@ -239,9 +264,20 @@ All responses are JSON. The base URL is `http://localhost:5000`.
 | `DELETE` | `/api/books/:id/reviews/:rid` | Remove a review |
 | `GET` | `/api/stats` | Library statistics |
 | `GET` | `/api/stats/analysis` | Plot-ready analytics dataset (supports `?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`) |
+| `GET` | `/api/goals/current` | Fetch yearly reading goal + progress (`?year=` optional) |
+| `PUT` | `/api/goals/current` | Upsert yearly reading goal `{ goal_year, target_books, target_pages }` |
+| `POST` | `/api/books/:id/sessions` | Add reading session `{ start_page, end_page, minutes_spent, session_date?, notes? }` |
+| `GET` | `/api/sessions` | List reading sessions (supports `?start_date=&end_date=`) |
+| `POST` | `/api/metadata/repair` | Run repair job for books missing metadata |
+| `GET` | `/api/metadata/jobs` | List recent metadata jobs |
+| `GET` | `/api/metadata/jobs/:id` | Metadata job detail with per-book items |
 | `GET` | `/api/export` | Full library export as JSON |
 | `GET` | `/api/export/csv` | Export full library as CSV |
+| `POST` | `/api/import/csv/preview` | Preview CSV import result (`mapping` optional) |
 | `POST` | `/api/import/csv` | Import PageVault or Goodreads-compatible CSV |
+| `GET` | `/api/backup/download` | Download ZIP backup of current DB |
+| `POST` | `/api/backup/restore/validate` | Validate backup archive and return summary |
+| `POST` | `/api/backup/restore/apply` | Apply backup archive to current DB |
 
 **Example — add a book and review it:**
 
@@ -261,7 +297,24 @@ curl -X POST http://localhost:5000/api/books/1/reviews \
 
 ## Backup & Restore
 
-Everything is in one file.
+Everything is in one file and now also exposed via one-click API/UI workflows.
+
+### In-app/API backup workflow
+
+```bash
+# Download backup archive
+curl -L http://localhost:5000/api/backup/download -o pagevault_backup.zip
+
+# Validate restore archive
+curl -X POST http://localhost:5000/api/backup/restore/validate \
+  -F "file=@pagevault_backup.zip"
+
+# Apply restore archive
+curl -X POST http://localhost:5000/api/backup/restore/apply \
+  -F "file=@pagevault_backup.zip"
+```
+
+### Manual file backup
 
 ```bash
 # Backup

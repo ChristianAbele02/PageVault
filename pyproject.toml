@@ -4,7 +4,7 @@ build-backend = "setuptools.backends.legacy:build"
 
 [project]
 name = "pagevault"
-version = "1.1.0"
+version = "1.3.0"
 description = "A self-hosted, personal book catalog with ISBN barcode scanning — your local Goodreads alternative."
 readme = "README.md"
 license = { file = "LICENSE" }

@@ -10,11 +10,17 @@ from __future__ import annotations
 
 import csv
 import io
+import json
+import os
 import sqlite3
+import tempfile
+import zipfile
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, current_app, jsonify, request
+
+from pagevault_core.db import ensure_schema
 
 
 def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
@@ -134,6 +140,23 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             (clean_name, current, current),
         )
         return db.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+    def parse_yyyy_mm_dd(value: str | None) -> datetime | None:
+        text = (value or "").strip()
+        if not text:
+            return None
+        return datetime.strptime(text, "%Y-%m-%d")
+
+    def parse_mapping_payload(raw: str | None) -> dict[str, str]:
+        if not raw:
+            return {}
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return {str(k): str(v) for k, v in parsed.items() if k and v}
+        except Exception:
+            return {}
+        return {}
 
     bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -523,6 +546,123 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         db.commit()
         return jsonify({"ok": True, "total": total, "updated": updated, "skipped": skipped})
 
+    @bp.post("/metadata/repair")
+    def api_metadata_repair():
+        db = get_db()
+        max_retries = max(1, int((request.get_json(silent=True) or {}).get("max_retries") or 2))
+        rows = db.execute(
+            """SELECT * FROM books
+               WHERE cover_url IS NULL OR TRIM(COALESCE(cover_url, '')) = ''
+                  OR description IS NULL OR TRIM(COALESCE(description, '')) = ''
+               ORDER BY id"""
+        ).fetchall()
+        current = now()
+        db.execute(
+            """INSERT INTO metadata_jobs
+               (job_type, status, total_books, processed_books, updated_books, failed_books, started_at, created_at, updated_at)
+               VALUES ('repair_missing_metadata', 'running', ?, 0, 0, 0, ?, ?, ?)""",
+            (len(rows), current, current, current),
+        )
+        job_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        processed = 0
+        updated = 0
+        failed = 0
+
+        for row in rows:
+            attempts = 0
+            success = False
+            last_error = None
+            updated_fields: list[str] = []
+            while attempts < max_retries and not success:
+                attempts += 1
+                try:
+                    metadata = lookup_isbn(row["isbn"])
+                    if not metadata:
+                        last_error = "metadata not found"
+                        continue
+
+                    updates = {}
+                    for field in [
+                        "cover_url",
+                        "description",
+                        "publisher",
+                        "year",
+                        "pages",
+                        "genre",
+                        "language",
+                    ]:
+                        existing_value = row[field]
+                        incoming_value = metadata.get(field)
+                        if incoming_value and not existing_value:
+                            updates[field] = incoming_value
+                    if updates:
+                        updates["updated_at"] = now()
+                        set_clause = ", ".join(f"{k} = ?" for k in updates)
+                        db.execute(
+                            f"UPDATE books SET {set_clause} WHERE id = ?",
+                            (*updates.values(), row["id"]),
+                        )
+                        updated_fields = list(updates.keys())
+                        updated += 1
+                    success = True
+                except Exception as exc:
+                    last_error = str(exc)
+
+            processed += 1
+            if not success:
+                failed += 1
+            stamp = now()
+            db.execute(
+                """INSERT INTO metadata_job_items
+                   (job_id, book_id, status, attempts, last_error, updated_fields, updated_at, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    job_id,
+                    row["id"],
+                    "updated" if success and updated_fields else ("ok" if success else "failed"),
+                    attempts,
+                    last_error,
+                    json.dumps(updated_fields),
+                    stamp,
+                    stamp,
+                ),
+            )
+            db.execute(
+                """UPDATE metadata_jobs
+                   SET processed_books = ?, updated_books = ?, failed_books = ?, updated_at = ?
+                   WHERE id = ?""",
+                (processed, updated, failed, stamp, job_id),
+            )
+
+        finished = now()
+        db.execute(
+            "UPDATE metadata_jobs SET status = 'completed', finished_at = ?, updated_at = ? WHERE id = ?",
+            (finished, finished, job_id),
+        )
+        db.commit()
+        return jsonify(
+            {"ok": True, "job_id": job_id, "total": len(rows), "updated": updated, "failed": failed}
+        )
+
+    @bp.get("/metadata/jobs")
+    def api_list_metadata_jobs():
+        db = get_db()
+        rows = db.execute("SELECT * FROM metadata_jobs ORDER BY id DESC LIMIT 20").fetchall()
+        return jsonify([dict(r) for r in rows])
+
+    @bp.get("/metadata/jobs/<int:job_id>")
+    def api_get_metadata_job(job_id: int):
+        db = get_db()
+        job = db.execute("SELECT * FROM metadata_jobs WHERE id = ?", (job_id,)).fetchone()
+        if not job:
+            return err("Job not found", 404)
+        items = db.execute(
+            "SELECT * FROM metadata_job_items WHERE job_id = ? ORDER BY id",
+            (job_id,),
+        ).fetchall()
+        return jsonify({"job": dict(job), "items": [dict(item) for item in items]})
+
     @bp.post("/books/<int:book_id>/reviews")
     def api_add_review(book_id: int):
         db = get_db()
@@ -571,6 +711,137 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         )
         db.commit()
         return jsonify({"ok": True})
+
+    @bp.get("/goals/current")
+    def api_get_current_goal():
+        db = get_db()
+        year = int(request.args.get("year") or datetime.now(timezone.utc).year)
+        row = db.execute(
+            "SELECT * FROM reading_goals WHERE goal_year = ?",
+            (year,),
+        ).fetchone()
+        if not row:
+            return jsonify(
+                {
+                    "goal_year": year,
+                    "target_books": 0,
+                    "target_pages": 0,
+                    "progress_books": 0,
+                    "progress_pages": 0,
+                }
+            )
+
+        progress = db.execute(
+            """SELECT
+                COUNT(CASE WHEN status = 'read' THEN 1 END) AS read_books,
+                COALESCE(SUM(CASE WHEN status = 'read' THEN COALESCE(pages, 0) ELSE 0 END), 0) AS read_pages
+               FROM books
+               WHERE SUBSTR(added_at, 1, 4) = ?""",
+            (str(year),),
+        ).fetchone()
+        payload = dict(row)
+        payload["progress_books"] = int(progress["read_books"] or 0)
+        payload["progress_pages"] = int(progress["read_pages"] or 0)
+        return jsonify(payload)
+
+    @bp.put("/goals/current")
+    def api_upsert_current_goal():
+        db = get_db()
+        payload = request.get_json(force=True, silent=True) or {}
+        year = int(payload.get("goal_year") or datetime.now(timezone.utc).year)
+        target_books = int(payload.get("target_books") or 0)
+        target_pages = int(payload.get("target_pages") or 0)
+        if target_books < 0 or target_pages < 0:
+            return err("target_books and target_pages must be non-negative")
+
+        current = now()
+        existing = db.execute(
+            "SELECT id FROM reading_goals WHERE goal_year = ?",
+            (year,),
+        ).fetchone()
+        if existing:
+            db.execute(
+                "UPDATE reading_goals SET target_books = ?, target_pages = ?, updated_at = ? WHERE goal_year = ?",
+                (target_books, target_pages, current, year),
+            )
+        else:
+            db.execute(
+                "INSERT INTO reading_goals (goal_year, target_books, target_pages, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (year, target_books, target_pages, current, current),
+            )
+        db.commit()
+        return jsonify({"ok": True, "goal_year": year})
+
+    @bp.post("/books/<int:book_id>/sessions")
+    def api_add_reading_session(book_id: int):
+        db = get_db()
+        if not db.execute("SELECT 1 FROM books WHERE id = ?", (book_id,)).fetchone():
+            return err("Book not found", 404)
+
+        payload = request.get_json(force=True, silent=True) or {}
+        start_page = payload.get("start_page")
+        end_page = payload.get("end_page")
+        minutes_spent = payload.get("minutes_spent")
+        session_date = (payload.get("session_date") or "").strip() or now()[:10]
+        notes = (payload.get("notes") or "").strip() or None
+
+        try:
+            start_page = int(start_page)
+            end_page = int(end_page)
+            minutes_spent = int(minutes_spent)
+        except (TypeError, ValueError):
+            return err("start_page, end_page and minutes_spent must be integers")
+        if start_page < 0 or end_page < 0 or minutes_spent <= 0:
+            return err("Invalid reading session values")
+        if end_page < start_page:
+            return err("end_page must be greater than or equal to start_page")
+        try:
+            parse_yyyy_mm_dd(session_date)
+        except ValueError:
+            return err("session_date must be YYYY-MM-DD")
+
+        current = now()
+        db.execute(
+            """INSERT INTO reading_sessions
+               (book_id, start_page, end_page, minutes_spent, session_date, notes, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (book_id, start_page, end_page, minutes_spent, session_date, notes, current, current),
+        )
+        db.commit()
+        return jsonify({"ok": True}), 201
+
+    @bp.get("/sessions")
+    def api_list_sessions():
+        db = get_db()
+        start_date = (request.args.get("start_date") or "").strip()
+        end_date = (request.args.get("end_date") or "").strip()
+
+        conditions = []
+        params: list[Any] = []
+        if start_date:
+            try:
+                parse_yyyy_mm_dd(start_date)
+            except ValueError:
+                return err("start_date must be YYYY-MM-DD")
+            conditions.append("s.session_date >= ?")
+            params.append(start_date)
+        if end_date:
+            try:
+                parse_yyyy_mm_dd(end_date)
+            except ValueError:
+                return err("end_date must be YYYY-MM-DD")
+            conditions.append("s.session_date <= ?")
+            params.append(end_date)
+
+        sql = """SELECT s.*, b.title
+                 FROM reading_sessions s
+                 JOIN books b ON b.id = s.book_id"""
+        if conditions:
+            sql += " WHERE " + " AND ".join(conditions)
+        sql += " ORDER BY s.session_date DESC, s.id DESC"
+
+        rows = db.execute(sql, params).fetchall()
+        return jsonify([dict(r) for r in rows])
 
     @bp.get("/stats")
     def api_stats():
@@ -853,6 +1124,64 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         summary["want_to_read"] = int(summary.get("want_to_read") or 0)
         summary["pages_completed_estimate"] = int(pages_completed_estimate)
 
+        goal_year = end_dt.year if end_dt else datetime.now(timezone.utc).year
+        goal_row = db.execute(
+            "SELECT * FROM reading_goals WHERE goal_year = ?",
+            (goal_year,),
+        ).fetchone()
+        target_books = int(goal_row["target_books"] or 0) if goal_row else 0
+        target_pages = int(goal_row["target_pages"] or 0) if goal_row else 0
+
+        session_conditions = []
+        session_params: list[Any] = []
+        if start_date:
+            session_conditions.append("s.session_date >= ?")
+            session_params.append(start_date)
+        if end_date:
+            session_conditions.append("s.session_date <= ?")
+            session_params.append(end_date)
+        session_where = f" WHERE {' AND '.join(session_conditions)}" if session_conditions else ""
+        session_summary_row = db.execute(
+            f"""SELECT
+                  COALESCE(SUM(CASE WHEN s.end_page >= s.start_page THEN s.end_page - s.start_page ELSE 0 END), 0) AS pages_read,
+                  COALESCE(SUM(COALESCE(s.minutes_spent, 0)), 0) AS minutes_spent,
+                  COUNT(*) AS session_count,
+                  COUNT(DISTINCT s.session_date) AS active_days
+               FROM reading_sessions s
+               {session_where}""",
+            session_params,
+        ).fetchone()
+        session_pages = int(session_summary_row["pages_read"] or 0)
+        session_minutes = int(session_summary_row["minutes_spent"] or 0)
+        active_days = int(session_summary_row["active_days"] or 0)
+        monthly_pages_pace = int(round((session_pages / active_days) * 30)) if active_days else 0
+
+        goal_payload = {
+            "year": goal_year,
+            "target_books": target_books,
+            "target_pages": target_pages,
+            "progress_books": int(summary.get("read") or 0),
+            "progress_pages": int(summary.get("pages_completed_estimate") or 0),
+            "monthly_pages_pace": monthly_pages_pace,
+            "book_goal_percent": round(((int(summary.get("read") or 0) / target_books) * 100), 1)
+            if target_books
+            else 0,
+            "page_goal_percent": round(
+                ((int(summary.get("pages_completed_estimate") or 0) / target_pages) * 100), 1
+            )
+            if target_pages
+            else 0,
+        }
+
+        sessions_summary = {
+            "pages_read": session_pages,
+            "minutes_spent": session_minutes,
+            "session_count": int(session_summary_row["session_count"] or 0),
+            "active_days": active_days,
+            "pages_per_day": round((session_pages / active_days), 1) if active_days else 0,
+            "pages_per_week": round((session_pages / active_days) * 7, 1) if active_days else 0,
+        }
+
         return jsonify(
             {
                 "range": {
@@ -866,8 +1195,121 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 "rating_distribution": rating_distribution,
                 "monthly_reviews": monthly_reviews,
                 "monthly_additions": monthly_additions,
+                "goal": goal_payload,
+                "sessions_summary": sessions_summary,
             }
         )
+
+    @bp.get("/backup/download")
+    def api_backup_download():
+        db = get_db()
+        db.commit()
+        db_path = current_app.config["DATABASE"]
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.write(db_path, arcname="pagevault.db")
+        output.seek(0)
+        filename = f"pagevault_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.zip"
+        return Response(
+            output.getvalue(),
+            mimetype="application/zip",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+
+    @bp.post("/backup/restore/validate")
+    def api_backup_restore_validate():
+        upload = request.files.get("file")
+        if not upload:
+            return err("Backup file is required", 400)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            zip_path = os.path.join(tmp_dir, "backup.zip")
+            upload.save(zip_path)
+            try:
+                with zipfile.ZipFile(zip_path, "r") as archive:
+                    names = archive.namelist()
+                    db_name = (
+                        "pagevault.db" if "pagevault.db" in names else (names[0] if names else None)
+                    )
+                    if not db_name:
+                        return err("Backup archive is empty", 400)
+                    archive.extract(db_name, tmp_dir)
+                    db_path = os.path.join(tmp_dir, db_name)
+            except zipfile.BadZipFile:
+                return err("Invalid backup archive", 400)
+
+            try:
+                source = sqlite3.connect(db_path)
+                source.row_factory = sqlite3.Row
+                tables = {
+                    row["name"]
+                    for row in source.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    ).fetchall()
+                }
+                required_tables = {
+                    "books",
+                    "reviews",
+                    "shelves",
+                    "book_shelves",
+                    "tags",
+                    "book_tags",
+                }
+                missing = sorted(required_tables - tables)
+                summary = {
+                    "books": int(source.execute("SELECT COUNT(*) FROM books").fetchone()[0]),
+                    "reviews": int(source.execute("SELECT COUNT(*) FROM reviews").fetchone()[0]),
+                    "shelves": int(source.execute("SELECT COUNT(*) FROM shelves").fetchone()[0]),
+                    "missing_tables": missing,
+                }
+                source.close()
+            except Exception as exc:
+                return err(f"Backup validation failed: {exc}", 400)
+
+        db = get_db()
+        db.execute(
+            "INSERT INTO restore_history (status, summary_json, created_at) VALUES ('validated', ?, ?)",
+            (json.dumps(summary), now()),
+        )
+        db.commit()
+        return jsonify({"ok": True, "summary": summary})
+
+    @bp.post("/backup/restore/apply")
+    def api_backup_restore_apply():
+        upload = request.files.get("file")
+        if not upload:
+            return err("Backup file is required", 400)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            zip_path = os.path.join(tmp_dir, "backup.zip")
+            upload.save(zip_path)
+            try:
+                with zipfile.ZipFile(zip_path, "r") as archive:
+                    names = archive.namelist()
+                    db_name = (
+                        "pagevault.db" if "pagevault.db" in names else (names[0] if names else None)
+                    )
+                    if not db_name:
+                        return err("Backup archive is empty", 400)
+                    archive.extract(db_name, tmp_dir)
+                    backup_path = os.path.join(tmp_dir, db_name)
+            except zipfile.BadZipFile:
+                return err("Invalid backup archive", 400)
+
+            source = sqlite3.connect(backup_path)
+            target = get_db()
+            source.backup(target)
+            ensure_schema(target)
+            target.commit()
+            source.close()
+
+        db = get_db()
+        db.execute(
+            "INSERT INTO restore_history (status, summary_json, created_at) VALUES ('applied', ?, ?)",
+            (json.dumps({"restored": True}), now()),
+        )
+        db.commit()
+        return jsonify({"ok": True})
 
     @bp.get("/export")
     def api_export():
@@ -984,12 +1426,91 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
 
+    @bp.post("/import/csv/preview")
+    def api_import_csv_preview():
+        db = get_db()
+        upload = request.files.get("file")
+        if not upload:
+            return err("CSV file is required", 400)
+
+        mapping = parse_mapping_payload(request.form.get("mapping"))
+        try:
+            text = upload.read().decode("utf-8-sig")
+        except Exception:
+            return err("Could not read CSV file", 400)
+
+        reader = csv.DictReader(io.StringIO(text))
+        if not reader.fieldnames:
+            return err("CSV is missing a header row", 400)
+
+        would_import = 0
+        would_update = 0
+        skipped = 0
+        sample: list[dict[str, Any]] = []
+
+        for raw_row in reader:
+            normalized = {
+                str(k).strip(): (v or "").strip() for k, v in raw_row.items() if k is not None
+            }
+            row = dict(normalized)
+            for source_key, target_key in mapping.items():
+                if source_key in normalized:
+                    row[target_key] = normalized[source_key]
+
+            isbn = (
+                normalize_isbn(row.get("isbn"))
+                or normalize_isbn(row.get("ISBN13"))
+                or normalize_isbn(row.get("ISBN"))
+            )
+            if not isbn:
+                skipped += 1
+                continue
+
+            existing = db.execute("SELECT id, title FROM books WHERE isbn = ?", (isbn,)).fetchone()
+            action = "update" if existing else "import"
+            if existing:
+                would_update += 1
+            else:
+                would_import += 1
+
+            if len(sample) < 25:
+                sample.append(
+                    {
+                        "isbn": isbn,
+                        "title": row.get("title")
+                        or row.get("Title")
+                        or (existing["title"] if existing else None),
+                        "action": action,
+                    }
+                )
+
+        return jsonify(
+            {
+                "ok": True,
+                "would_import": would_import,
+                "would_update": would_update,
+                "skipped": skipped,
+                "sample": sample,
+                "mapping": mapping,
+            }
+        )
+
     @bp.post("/import/csv")
     def api_import_csv():
         db = get_db()
         upload = request.files.get("file")
         if not upload:
             return err("CSV file is required", 400)
+
+        mapping = parse_mapping_payload(request.form.get("mapping"))
+        dry_run = (
+            request.args.get("dry_run") or request.form.get("dry_run") or ""
+        ).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
 
         try:
             text = upload.read().decode("utf-8-sig")
@@ -1004,9 +1525,17 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         updated = 0
         skipped = 0
         reviews_added = 0
+        would_import = 0
+        would_update = 0
 
         for raw_row in reader:
-            row = {str(k).strip(): (v or "").strip() for k, v in raw_row.items() if k is not None}
+            normalized = {
+                str(k).strip(): (v or "").strip() for k, v in raw_row.items() if k is not None
+            }
+            row = dict(normalized)
+            for source_key, target_key in mapping.items():
+                if source_key in normalized:
+                    row[target_key] = normalized[source_key]
             isbn = (
                 normalize_isbn(row.get("isbn"))
                 or normalize_isbn(row.get("ISBN13"))
@@ -1081,6 +1610,13 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
 
             existing = db.execute("SELECT * FROM books WHERE isbn = ?", (isbn,)).fetchone()
             current = now()
+
+            if dry_run:
+                if existing:
+                    would_update += 1
+                else:
+                    would_import += 1
+                continue
 
             if existing:
                 updates = {}
@@ -1181,6 +1717,18 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                         (book_id, rating, comment, current, current),
                     )
                     reviews_added += 1
+
+        if dry_run:
+            db.rollback()
+            return jsonify(
+                {
+                    "ok": True,
+                    "dry_run": True,
+                    "would_import": would_import,
+                    "would_update": would_update,
+                    "skipped": skipped,
+                }
+            )
 
         db.commit()
         return jsonify(

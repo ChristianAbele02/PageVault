@@ -10,7 +10,27 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Planned
-- Annual reading goal tracker
+- Saved stats views
+
+---
+
+## [1.3.0] — 2026-03-05
+
+### Added
+- Annual reading goals with API support (`GET/PUT /api/goals/current`) and progress data integrated into analytics.
+- Reading session tracking (`POST /api/books/:id/sessions`, `GET /api/sessions`) with pace summaries in stats analysis.
+- CSV import wizard backend support with mapping preview and dry-run (`POST /api/import/csv/preview`, `POST /api/import/csv?dry_run=1`).
+- Metadata health repair jobs with run/list/detail endpoints (`POST /api/metadata/repair`, `GET /api/metadata/jobs`, `GET /api/metadata/jobs/:id`).
+- Backup/restore API workflow with archive download and restore validation/apply (`GET /api/backup/download`, `POST /api/backup/restore/validate`, `POST /api/backup/restore/apply`).
+- PWA baseline assets (`static/manifest.webmanifest`, `static/sw.js`) and offline cache bootstrap for core pages.
+
+### Changed
+- Main dashboard now includes operational control panels for goals, sessions, metadata jobs, CSV preview/dry-run/import, and backup/restore.
+- Stats page now supports saved views via URL/local persistence and shareable range links.
+- CI smoke coverage extended to verify library, stats, API stats, and manifest endpoints, plus critical UI marker checks.
+
+### Fixed
+- Restore apply flow now re-applies schema verification after DB replacement so newer tables remain available.
 
 ---
 
@@ -83,7 +103,8 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Makefile** for developer convenience
 - Local SQLite database — data stays on your machine
 
-[Unreleased]: https://github.com/ChristianAbele02/PageVault/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/ChristianAbele02/PageVault/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.3.0
 [1.2.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.2.0
 [1.1.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ChristianAbele02/PageVault

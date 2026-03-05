@@ -35,6 +35,24 @@ jobs:
       - name: Run tests with coverage
         run: pytest --cov=app --cov-report=xml --cov-report=term-missing
 
+      - name: UI marker smoke check
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          index_html = Path('templates/index.html').read_text(encoding='utf-8')
+          stats_html = Path('templates/stats.html').read_text(encoding='utf-8')
+
+          required_index = ['io-last-job', 'csv-wizard-file', 'restore-file', 'goal-progress', 'session-summary']
+          required_stats = ['kpi-goal-books', 'kpi-pages-day', 'copy-range-link']
+
+          missing = [marker for marker in required_index if marker not in index_html]
+          missing += [marker for marker in required_stats if marker not in stats_html]
+          if missing:
+              raise SystemExit(f'Missing required UI markers: {missing}')
+          print('UI marker smoke check passed.')
+          PY
+
       - name: Upload coverage to Codecov
         if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v5
@@ -74,5 +92,8 @@ jobs:
         run: |
           docker run -d -p 5000:5000 --name pv_test pagevault:ci
           sleep 10
+          curl -f http://localhost:5000/ || (docker logs pv_test && exit 1)
+          curl -f http://localhost:5000/stats || (docker logs pv_test && exit 1)
           curl -f http://localhost:5000/api/stats || (docker logs pv_test && exit 1)
+          curl -f http://localhost:5000/static/manifest.webmanifest || (docker logs pv_test && exit 1)
           docker stop pv_test

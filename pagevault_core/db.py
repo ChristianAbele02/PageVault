@@ -93,9 +93,66 @@ def ensure_schema(db: sqlite3.Connection) -> None:
             PRIMARY KEY (book_id, tag_id)
         );
 
+        CREATE TABLE IF NOT EXISTS reading_goals (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            goal_year       INTEGER NOT NULL UNIQUE,
+            target_books    INTEGER NOT NULL DEFAULT 0,
+            target_pages    INTEGER NOT NULL DEFAULT 0,
+            created_at      TEXT    NOT NULL,
+            updated_at      TEXT    NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS reading_sessions (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            book_id         INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+            start_page      INTEGER NOT NULL,
+            end_page        INTEGER NOT NULL,
+            minutes_spent   INTEGER NOT NULL,
+            session_date    TEXT    NOT NULL,
+            notes           TEXT,
+            created_at      TEXT    NOT NULL,
+            updated_at      TEXT    NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS metadata_jobs (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_type        TEXT    NOT NULL,
+            status          TEXT    NOT NULL,
+            total_books     INTEGER NOT NULL DEFAULT 0,
+            processed_books INTEGER NOT NULL DEFAULT 0,
+            updated_books   INTEGER NOT NULL DEFAULT 0,
+            failed_books    INTEGER NOT NULL DEFAULT 0,
+            started_at      TEXT    NOT NULL,
+            finished_at     TEXT,
+            created_at      TEXT    NOT NULL,
+            updated_at      TEXT    NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS metadata_job_items (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id          INTEGER NOT NULL REFERENCES metadata_jobs(id) ON DELETE CASCADE,
+            book_id         INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+            status          TEXT    NOT NULL,
+            attempts        INTEGER NOT NULL DEFAULT 0,
+            last_error      TEXT,
+            updated_fields  TEXT,
+            updated_at      TEXT    NOT NULL,
+            created_at      TEXT    NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS restore_history (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            status          TEXT    NOT NULL,
+            summary_json    TEXT,
+            created_at      TEXT    NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_books_status  ON books(status);
         CREATE INDEX IF NOT EXISTS idx_books_author  ON books(author COLLATE NOCASE);
         CREATE INDEX IF NOT EXISTS idx_reviews_book  ON reviews(book_id);
+        CREATE INDEX IF NOT EXISTS idx_sessions_book ON reading_sessions(book_id);
+        CREATE INDEX IF NOT EXISTS idx_sessions_date ON reading_sessions(session_date);
+        CREATE INDEX IF NOT EXISTS idx_metadata_job_items_job ON metadata_job_items(job_id);
         CREATE INDEX IF NOT EXISTS idx_book_shelves_book ON book_shelves(book_id);
         CREATE INDEX IF NOT EXISTS idx_book_shelves_shelf ON book_shelves(shelf_id);
         CREATE INDEX IF NOT EXISTS idx_book_tags_book ON book_tags(book_id);

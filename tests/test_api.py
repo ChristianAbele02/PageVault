@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import io
 import sqlite3
+import zipfile
+from pathlib import Path
 
 import app as app_module
 from pagevault_core import metadata as core_metadata
@@ -145,6 +147,205 @@ class TestStats:
     def test_stats_analysis_invalid_date_filter(self, client):
         response = client.get("/api/stats/analysis?start_date=2026-99-01")
         assert response.status_code == 400
+
+
+class TestRoadmapApis:
+    def test_goal_upsert_and_fetch(self, client):
+        save = client.put(
+            "/api/goals/current",
+            json={"goal_year": 2026, "target_books": 24, "target_pages": 8400},
+        )
+        assert save.status_code == 200
+
+        goal = client.get("/api/goals/current?year=2026")
+        assert goal.status_code == 200
+        payload = goal.get_json()
+        assert payload["goal_year"] == 2026
+        assert payload["target_books"] == 24
+        assert payload["target_pages"] == 8400
+
+    def test_reading_sessions_create_and_list(self, client):
+        book = client.post(
+            "/api/books",
+            json={
+                "isbn": "9780307277671",
+                "status": "reading",
+                "book_data": {
+                    "title": "The Road",
+                    "author": "Cormac McCarthy",
+                    "pages": 287,
+                },
+            },
+        ).get_json()
+
+        created = client.post(
+            f"/api/books/{book['id']}/sessions",
+            json={
+                "start_page": 40,
+                "end_page": 74,
+                "minutes_spent": 35,
+                "session_date": "2026-03-01",
+            },
+        )
+        assert created.status_code == 201
+
+        sessions = client.get("/api/sessions?start_date=2026-03-01&end_date=2026-03-31")
+        assert sessions.status_code == 200
+        data = sessions.get_json()
+        assert len(data) == 1
+        assert data[0]["book_id"] == book["id"]
+        assert data[0]["minutes_spent"] == 35
+
+    def test_metadata_repair_job_updates_missing_fields(self, client, monkeypatch):
+        original_lookup = app_module.lookup_isbn
+        app_module.lookup_isbn = lambda _isbn: {
+            "cover_url": "https://example.com/new-cover.jpg",
+            "description": "Recovered description",
+            "publisher": "Recovered Publisher",
+            "year": "2025",
+            "pages": 222,
+            "genre": "Fiction",
+            "language": "en",
+        }
+        try:
+            book = client.post(
+                "/api/books",
+                json={
+                    "isbn": "9780451524935",
+                    "status": "want_to_read",
+                    "book_data": {
+                        "title": "1984",
+                        "author": "George Orwell",
+                        "cover_url": None,
+                        "description": None,
+                    },
+                },
+            ).get_json()
+
+            repair = client.post("/api/metadata/repair", json={"max_retries": 1})
+            assert repair.status_code == 200
+            summary = repair.get_json()
+            assert summary["total"] >= 1
+            assert summary["updated"] >= 1
+
+            refreshed = client.get(f"/api/books/{book['id']}").get_json()
+            assert refreshed["cover_url"] == "https://example.com/new-cover.jpg"
+            assert refreshed["description"] == "Recovered description"
+        finally:
+            app_module.lookup_isbn = original_lookup
+
+    def test_backup_restore_validate_and_apply(self, client, tmp_path):
+        backup_db = Path(tmp_path) / "backup.db"
+        with sqlite3.connect(backup_db) as connection:
+            connection.executescript(
+                """
+                CREATE TABLE books (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    isbn TEXT UNIQUE NOT NULL,
+                    title TEXT NOT NULL,
+                    author TEXT,
+                    cover_url TEXT,
+                    description TEXT,
+                    publisher TEXT,
+                    year TEXT,
+                    pages INTEGER,
+                    genre TEXT,
+                    language TEXT,
+                    added_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    status TEXT NOT NULL
+                );
+                CREATE TABLE reviews (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    book_id INTEGER,
+                    rating INTEGER,
+                    comment TEXT,
+                    current_page INTEGER,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+                CREATE TABLE shelves (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, logo_url TEXT, created_at TEXT, updated_at TEXT);
+                CREATE TABLE book_shelves (book_id INTEGER, shelf_id INTEGER);
+                CREATE TABLE tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);
+                CREATE TABLE book_tags (book_id INTEGER, tag_id INTEGER);
+                """
+            )
+            connection.execute(
+                """INSERT INTO books
+                   (isbn, title, author, cover_url, description, publisher, year, pages, genre, language, added_at, updated_at, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    "9780140177398",
+                    "Of Mice and Men",
+                    "John Steinbeck",
+                    None,
+                    None,
+                    None,
+                    "1937",
+                    187,
+                    "Classic",
+                    "en",
+                    "2026-03-01T10:00:00",
+                    "2026-03-01T10:00:00",
+                    "read",
+                ),
+            )
+            connection.commit()
+
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.write(backup_db, arcname="pagevault.db")
+        archive_bytes = archive.getvalue()
+
+        validated = client.post(
+            "/api/backup/restore/validate",
+            data={"file": (io.BytesIO(archive_bytes), "backup.zip")},
+            content_type="multipart/form-data",
+        )
+        assert validated.status_code == 200
+        validation_payload = validated.get_json()
+        assert validation_payload["summary"]["books"] == 1
+
+        applied = client.post(
+            "/api/backup/restore/apply",
+            data={"file": (io.BytesIO(archive_bytes), "backup.zip")},
+            content_type="multipart/form-data",
+        )
+        assert applied.status_code == 200
+        books = client.get("/api/books").get_json()
+        assert len(books) == 1
+        assert books[0]["title"] == "Of Mice and Men"
+
+    def test_csv_preview_and_dry_run_with_mapping(self, client):
+        csv_text = "MyIsbn,Title\n9780307277671,The Road\n"
+        mapping = '{"MyIsbn":"isbn","Title":"title"}'
+
+        preview = client.post(
+            "/api/import/csv/preview",
+            data={
+                "file": (io.BytesIO(csv_text.encode("utf-8")), "import.csv"),
+                "mapping": mapping,
+            },
+            content_type="multipart/form-data",
+        )
+        assert preview.status_code == 200
+        preview_payload = preview.get_json()
+        assert preview_payload["would_import"] == 1
+        assert preview_payload["skipped"] == 0
+
+        dry_run = client.post(
+            "/api/import/csv?dry_run=1",
+            data={
+                "file": (io.BytesIO(csv_text.encode("utf-8")), "import.csv"),
+                "mapping": mapping,
+                "dry_run": "1",
+            },
+            content_type="multipart/form-data",
+        )
+        assert dry_run.status_code == 200
+        dry_run_payload = dry_run.get_json()
+        assert dry_run_payload["dry_run"] is True
+        assert dry_run_payload["would_import"] == 1
 
 
 # ── Books CRUD ────────────────────────────────────────────────────────────────

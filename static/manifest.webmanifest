@@ -1,0 +1,18 @@
+{
+  "name": "PageVault",
+  "short_name": "PageVault",
+  "description": "Private local Goodreads alternative with analytics and reading workflows.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#1a130a",
+  "theme_color": "#362213",
+  "icons": [
+    {
+      "src": "/static/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

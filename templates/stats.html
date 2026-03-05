@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>PageVault — Stats</title>
+<link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
@@ -320,6 +321,7 @@
       <div class="filter-actions">
         <button id="apply-range" class="filter-btn" type="button">Apply</button>
         <button id="reset-range" class="filter-btn" type="button">Reset</button>
+        <button id="copy-range-link" class="filter-btn" type="button">Copy Link</button>
       </div>
     </div>
     <div id="range-label" class="range-label">Range: All time</div>
@@ -334,6 +336,10 @@
     <article class="kpi"><div class="kpi-label">Read</div><div id="kpi-read" class="kpi-value">0</div></article>
     <article class="kpi"><div class="kpi-label">Reading</div><div id="kpi-reading" class="kpi-value">0</div></article>
     <article class="kpi"><div class="kpi-label">Want To Read</div><div id="kpi-want" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label">Book Goal</div><div id="kpi-goal-books" class="kpi-value">0%</div></article>
+    <article class="kpi"><div class="kpi-label">Page Goal</div><div id="kpi-goal-pages" class="kpi-value">0%</div></article>
+    <article class="kpi"><div class="kpi-label">Pages / Day</div><div id="kpi-pages-day" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label">Pages / Week</div><div id="kpi-pages-week" class="kpi-value">0</div></article>
   </section>
 
   <section class="chart-grid">
@@ -366,6 +372,7 @@
 
 <script>
 let currentStatsData = null;
+const STATS_VIEW_STORAGE_KEY = 'pagevault-stats-view';
 
 function formatNumber(value) {
   return new Intl.NumberFormat().format(Number(value || 0));
@@ -415,6 +422,13 @@ function setKpis(summary) {
   document.getElementById('kpi-read').textContent = formatNumber(summary.read);
   document.getElementById('kpi-reading').textContent = formatNumber(summary.reading);
   document.getElementById('kpi-want').textContent = formatNumber(summary.want_to_read);
+}
+
+function setExtendedKpis(goal = {}, sessions = {}) {
+  document.getElementById('kpi-goal-books').textContent = `${goal.book_goal_percent || 0}%`;
+  document.getElementById('kpi-goal-pages').textContent = `${goal.page_goal_percent || 0}%`;
+  document.getElementById('kpi-pages-day').textContent = formatNumber(sessions.pages_per_day || 0);
+  document.getElementById('kpi-pages-week').textContent = formatNumber(sessions.pages_per_week || 0);
 }
 
 function getChartTheme() {
@@ -626,6 +640,7 @@ function renderTimeline(monthlyAdditions, monthlyReviews) {
 function renderAll(data) {
   currentStatsData = data;
   setKpis(data.summary || {});
+  setExtendedKpis(data.goal || {}, data.sessions_summary || {});
   renderStatusCharts(data.status_breakdown || []);
   renderGenreChart(data.top_genres || []);
   renderAuthorChart(data.top_authors || []);
@@ -652,8 +667,91 @@ async function loadStatsAnalysis(range) {
 
 async function applyRange(range) {
   updateRangeLabel(range);
+  persistRangeState(range);
+  syncRangeUrl(range);
   const data = await loadStatsAnalysis(range);
   renderAll(data);
+}
+
+function persistRangeState(range) {
+  try {
+    localStorage.setItem(STATS_VIEW_STORAGE_KEY, JSON.stringify(range));
+  } catch {
+  }
+}
+
+function loadPersistedRangeState() {
+  try {
+    const raw = localStorage.getItem(STATS_VIEW_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return {
+      start_date: parsed.start_date || '',
+      end_date: parsed.end_date || '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function syncRangeUrl(range) {
+  const params = new URLSearchParams(window.location.search);
+  if (range.start_date) params.set('start_date', range.start_date);
+  else params.delete('start_date');
+  if (range.end_date) params.set('end_date', range.end_date);
+  else params.delete('end_date');
+  const next = params.toString();
+  const target = `${window.location.pathname}${next ? `?${next}` : ''}`;
+  window.history.replaceState({}, '', target);
+}
+
+function readRangeFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const start = (params.get('start_date') || '').trim();
+  const end = (params.get('end_date') || '').trim();
+  if (!start && !end) return null;
+  return { start_date: start, end_date: end };
+}
+
+function applyRangeToInputs(range) {
+  const startInput = document.getElementById('start-date');
+  const endInput = document.getElementById('end-date');
+  startInput.value = range.start_date || '';
+  endInput.value = range.end_date || '';
+
+  const presetSelect = document.getElementById('range-preset');
+  const allRange = presetToRange('all');
+  const presets = ['30d', '90d', '180d', '365d', 'ytd'];
+  let match = 'custom';
+  if ((range.start_date || '') === allRange.start_date && (range.end_date || '') === allRange.end_date) {
+    match = 'all';
+  } else {
+    for (const preset of presets) {
+      const candidate = presetToRange(preset);
+      if (candidate.start_date === (range.start_date || '') && candidate.end_date === (range.end_date || '')) {
+        match = preset;
+        break;
+      }
+    }
+  }
+  presetSelect.value = match;
+  onPresetChanged();
+}
+
+async function copyCurrentRangeLink() {
+  try {
+    await navigator.clipboard.writeText(window.location.href);
+    document.getElementById('range-label').textContent = `${document.getElementById('range-label').textContent} • Link copied`;
+  } catch {
+    document.getElementById('range-label').textContent = `${document.getElementById('range-label').textContent} • Could not copy link`;
+  }
+}
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('/static/sw.js').catch(() => {
+  });
 }
 
 function readCustomRange() {
@@ -729,12 +827,16 @@ function initTheme() {
 document.getElementById('range-preset').addEventListener('change', onPresetChanged);
 document.getElementById('apply-range').addEventListener('click', onApplyClicked);
 document.getElementById('reset-range').addEventListener('click', onResetClicked);
+document.getElementById('copy-range-link').addEventListener('click', copyCurrentRangeLink);
 
 (async function init() {
   initTheme();
-  onPresetChanged();
+  const fromUrl = readRangeFromUrl();
+  const fromStorage = loadPersistedRangeState();
+  const initialRange = fromUrl || fromStorage || presetToRange('all');
+  applyRangeToInputs(initialRange);
   try {
-    await onApplyClicked();
+    await applyRange(initialRange);
   } catch (error) {
     const targets = [
       'status-books-plot',
@@ -750,6 +852,7 @@ document.getElementById('reset-range').addEventListener('click', onResetClicked)
     document.getElementById('range-label').textContent = `Range error: ${error.message}`;
     console.error(error);
   }
+  registerServiceWorker();
 })();
 </script>
 </body>

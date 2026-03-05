@@ -14,7 +14,7 @@ from .utils import normalize_tags
 log = logging.getLogger(__name__)
 
 
-UA = {"User-Agent": "PageVault/1.1.0 (github.com/ChristianAbele02/PageVault)"}
+UA = {"User-Agent": "PageVault/1.3.0 (github.com/ChristianAbele02/PageVault)"}
 
 LOOKUP_CACHE_TTL_SECONDS = max(0, int(os.getenv("PAGEVAULT_LOOKUP_CACHE_TTL_SECONDS", "900")))
 LOOKUP_CACHE_MAX_ITEMS = max(1, int(os.getenv("PAGEVAULT_LOOKUP_CACHE_MAX_ITEMS", "2000")))
@@ -182,7 +182,7 @@ def fetch_crossref(isbn: str) -> dict | None:
     url = f"https://api.crossref.org/works?filter=isbn:{isbn}&rows=1"
     try:
         req = urllib.request.Request(
-            url, headers={"User-Agent": "PageVault/1.1.0 (mailto:pagevault@localhost)"}
+            url, headers={"User-Agent": "PageVault/1.3.0 (mailto:pagevault@localhost)"}
         )
         with urllib.request.urlopen(req, timeout=8) as resp:
             data = json.loads(resp.read())
