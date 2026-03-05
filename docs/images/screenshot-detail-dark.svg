@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="920" viewBox="0 0 1400 920" role="img" aria-label="PageVault dark mode detail screenshot with progress and review history">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#1a130a"/>
+      <stop offset="1" stop-color="#0f0b05"/>
+    </linearGradient>
+    <linearGradient id="cover" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#9b724b"/>
+      <stop offset="1" stop-color="#503722"/>
+    </linearGradient>
+    <linearGradient id="progress" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#c8913a"/>
+      <stop offset="1" stop-color="#5c7a5e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1400" height="920" fill="url(#bg)"/>
+
+  <rect x="220" y="44" width="960" height="832" rx="24" fill="#211709" stroke="#5a4531"/>
+  <rect x="220" y="44" width="960" height="74" rx="24" fill="#1a1209"/>
+  <text x="270" y="89" fill="#f5efe6" font-size="30" font-family="Georgia,serif" font-weight="700">Book Details</text>
+  <text x="1136" y="89" text-anchor="end" fill="#c2ac90" font-size="24" font-family="Arial,sans-serif">✕</text>
+
+  <g transform="translate(270,150)">
+    <rect width="170" height="256" rx="8" fill="url(#cover)"/>
+    <text x="20" y="192" fill="#f4e3c7" font-size="21" font-family="Georgia,serif" font-weight="700">The Great</text>
+    <text x="20" y="220" fill="#f4e3c7" font-size="21" font-family="Georgia,serif" font-weight="700">Gatsby</text>
+  </g>
+
+  <g transform="translate(470,156)">
+    <text x="0" y="32" fill="#f5efe6" font-size="38" font-family="Georgia,serif" font-weight="700">The Great Gatsby</text>
+    <text x="0" y="64" fill="#d0b998" font-size="21" font-family="Arial,sans-serif">F. Scott Fitzgerald</text>
+    <text x="0" y="92" fill="#b8a894" font-size="16" font-family="Arial,sans-serif">Scribner · 1925 · 180 pages · Classic</text>
+
+    <text x="0" y="125" fill="#d4a843" font-size="22" font-family="Arial,sans-serif">★★★★★</text>
+    <text x="128" y="125" fill="#b8a894" font-size="16" font-family="Arial,sans-serif">4.8 avg</text>
+
+    <rect x="0" y="144" width="390" height="12" rx="6" fill="#3d2e1e"/>
+    <rect x="0" y="144" width="248" height="12" rx="6" fill="url(#progress)"/>
+    <text x="0" y="178" fill="#d0b998" font-size="16" font-family="Arial,sans-serif">Current progress: Page 112 / 180 (62.2%)</text>
+
+    <rect x="0" y="200" width="280" height="40" rx="8" fill="#2b1f12" stroke="#5a4531"/>
+    <text x="14" y="226" fill="#d0b998" font-size="16" font-family="Arial,sans-serif">Status: Currently Reading</text>
+  </g>
+
+  <g transform="translate(270,452)">
+    <text x="0" y="0" fill="#f5efe6" font-size="24" font-family="Georgia,serif" font-weight="700">Your Reviews &amp; Notes</text>
+
+    <rect x="0" y="24" width="860" height="120" rx="10" fill="#2b1f12" stroke="#5a4531"/>
+    <text x="20" y="56" fill="#d4a843" font-size="20" font-family="Arial,sans-serif">★★★★☆</text>
+    <text x="20" y="86" fill="#d0b998" font-size="16" font-family="Arial,sans-serif">Current page: 112</text>
+    <text x="20" y="112" fill="#dbc8ae" font-size="15" font-family="Arial,sans-serif">"Loving the writing style and atmosphere so far."</text>
+    <text x="820" y="56" text-anchor="end" fill="#a08a71" font-size="13" font-family="Arial,sans-serif">05.03.2026 00:41</text>
+
+    <rect x="0" y="162" width="860" height="120" rx="10" fill="#2b1f12" stroke="#5a4531"/>
+    <text x="20" y="194" fill="#d4a843" font-size="20" font-family="Arial,sans-serif">★★★★★</text>
+    <text x="20" y="224" fill="#d0b998" font-size="16" font-family="Arial,sans-serif">Current page: 87</text>
+    <text x="20" y="250" fill="#dbc8ae" font-size="15" font-family="Arial,sans-serif">"Great character development. Keeps getting better."</text>
+    <text x="820" y="194" text-anchor="end" fill="#a08a71" font-size="13" font-family="Arial,sans-serif">03.03.2026 21:13</text>
+  </g>
+</svg>
