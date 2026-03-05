@@ -81,7 +81,9 @@ class TestStats:
         ).get_json()
 
         client.post(f"/api/books/{first['id']}/reviews", json={"rating": 4, "current_page": 120})
-        client.post(f"/api/books/{second['id']}/reviews", json={"rating": 5, "comment": "Masterpiece"})
+        client.post(
+            f"/api/books/{second['id']}/reviews", json={"rating": 5, "comment": "Masterpiece"}
+        )
 
         data = client.get("/api/stats/analysis").get_json()
         assert data["summary"]["total_books"] == 2
