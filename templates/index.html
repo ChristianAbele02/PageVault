@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <style>
   :root {
     --ink:    #1a1008;
@@ -614,6 +615,48 @@
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+  .mobile-connect {
+    padding: 1rem 1.25rem 1.1rem;
+  }
+  .mobile-url {
+    width: 100%;
+    border: 1.5px solid var(--tan);
+    border-radius: 8px;
+    padding: .58rem .65rem;
+    font-size: .84rem;
+    color: var(--ink);
+    background: #fff;
+    margin-bottom: .65rem;
+  }
+  .mobile-connect-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .5rem;
+  }
+  .mobile-connect-note {
+    margin-top: .75rem;
+    font-size: .74rem;
+    color: #8a6a47;
+    line-height: 1.45;
+  }
+  #mobile-qr {
+    margin: .25rem auto .7rem;
+    width: 220px;
+    min-height: 220px;
+    background: #fff;
+    border: 1.5px solid var(--tan);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: .35rem;
+  }
+  #mobile-qr img,
+  #mobile-qr canvas {
+    width: 200px !important;
+    height: 200px !important;
+  }
+
   /* ── Book detail modal ── */
   #detail-modal .modal { max-width: 560px; }
   .detail-hero {
@@ -831,6 +874,15 @@
   .dark-mode .tag-counter {
     color: #b8a894;
   }
+  .dark-mode .mobile-url,
+  .dark-mode #mobile-qr {
+    background: #211709;
+    border-color: #5a4531;
+    color: #f5efe6;
+  }
+  .dark-mode .mobile-connect-note {
+    color: #cfb089;
+  }
   .dark-mode .book-progress-track {
     background: rgba(245,239,230,.18);
   }
@@ -949,6 +1001,7 @@
 <header>
   <div class="logo">Page<span>Vault</span></div>
   <div class="header-actions">
+    <button class="theme-toggle" onclick="openMobileConnect()" title="Show mobile connection QR">Mobile</button>
     <a id="admin-link" class="header-link" href="/admin" title="Open admin dashboard" style="display:none">Admin</a>
     <a id="admin-login-link" class="header-link" href="/admin/login" title="Admin login">Admin Login</a>
     <a class="header-link" href="/stats" title="Open reading analytics">Stats</a>
@@ -1042,6 +1095,25 @@
 </div>
 <input id="csv-import-input" type="file" accept=".csv,text/csv" style="display:none" />
 <div class="toast" id="toast"></div>
+
+<div class="modal-backdrop" id="mobile-connect-modal">
+  <div class="modal" style="max-width:430px;">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title">Connect Phone</span>
+      <button class="btn-close" onclick="closeMobileConnect()">✕</button>
+    </div>
+    <div class="mobile-connect">
+      <div id="mobile-qr">Preparing QR...</div>
+      <input id="mobile-url" class="mobile-url" type="text" value="" readonly>
+      <div class="mobile-connect-actions">
+        <button class="mini-btn" onclick="copyMobileUrl()">Copy link</button>
+        <a id="mobile-open-link" class="mini-btn" href="#" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:center;text-decoration:none;">Open in browser</a>
+      </div>
+      <p class="mobile-connect-note">Scan this QR code with your phone camera while both devices are on the same Wi-Fi.</p>
+    </div>
+  </div>
+</div>
 
 <!-- ── Add Book Modal ── -->
 <div class="modal-backdrop" id="add-modal">
@@ -1338,6 +1410,7 @@ let currentContinueReading = false;
 let addGenreTags = [];
 let detailGenreTags = [];
 let currentRole = 'user';
+let mobileConnectUrl = '';
 const MAX_GENRE_TAGS = 10;
 const IO_PREVIEW_STORAGE_KEY = 'pagevault-io-preview';
 const OPS_DASHBOARD_STORAGE_KEY = 'pagevault-ops-dashboard';
@@ -2276,6 +2349,66 @@ function toggleScanner() {
   startScanner();
 }
 
+async function openMobileConnect() {
+  const modal = document.getElementById('mobile-connect-modal');
+  modal.classList.add('open');
+
+  const qrHolder = document.getElementById('mobile-qr');
+  const urlInput = document.getElementById('mobile-url');
+  qrHolder.textContent = 'Preparing QR...';
+  urlInput.value = '';
+
+  const response = await api('/api/mobile/connect');
+  if (!response.ok) {
+    qrHolder.textContent = 'Could not create mobile link right now.';
+    showToast('Mobile link unavailable');
+    return;
+  }
+
+  const payload = await response.json();
+  mobileConnectUrl = payload.url || '';
+  if (!mobileConnectUrl) {
+    qrHolder.textContent = 'No mobile URL available.';
+    return;
+  }
+
+  urlInput.value = mobileConnectUrl;
+  document.getElementById('mobile-open-link').href = mobileConnectUrl;
+  renderMobileQr(mobileConnectUrl);
+}
+
+function renderMobileQr(url) {
+  const qrHolder = document.getElementById('mobile-qr');
+  qrHolder.innerHTML = '';
+  if (!window.QRCode) {
+    qrHolder.textContent = 'QR library not available.';
+    return;
+  }
+  new QRCode(qrHolder, {
+    text: url,
+    width: 200,
+    height: 200,
+    correctLevel: QRCode.CorrectLevel.M,
+  });
+}
+
+function closeMobileConnect() {
+  document.getElementById('mobile-connect-modal').classList.remove('open');
+}
+
+async function copyMobileUrl() {
+  if (!mobileConnectUrl) {
+    showToast('No mobile link available');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(mobileConnectUrl);
+    showToast('Mobile link copied ✓');
+  } catch (_) {
+    showToast('Copy failed - copy from the field');
+  }
+}
+
 function startScanner() {
   const container = document.getElementById('scanner-container');
   container.classList.add('active');
@@ -2689,6 +2822,10 @@ document.getElementById('detail-modal').addEventListener('click', e => {
 
 document.getElementById('tools-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('tools-modal')) closeToolsModal();
+});
+
+document.getElementById('mobile-connect-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('mobile-connect-modal')) closeMobileConnect();
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
