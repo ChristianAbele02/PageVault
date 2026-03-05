@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>PageVault — Stats</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  :root {
+    --ink: #f5efe6;
+    --cream: #1a130a;
+    --sepia: #211709;
+    --tan: #3d2e1e;
+    --brown: #7a5c3a;
+    --amber: #c8913a;
+    --rust: #9b3a1c;
+    --sage: #5c7a5e;
+    --gold: #d4a843;
+    --line: rgba(212,168,67,.28);
+    --soft: #dbc8ae;
+    --panel-bg: rgba(15,11,5,.62);
+    --header-bg: #0f0b05;
+    --button-bg: rgba(255,255,255,.06);
+    --button-fg: #e8d9c4;
+    --chart-grid: rgba(212,168,67,.14);
+  }
+
+  .light-mode {
+    --ink: #1a1008;
+    --cream: #fdf8f2;
+    --sepia: #f5efe6;
+    --tan: #dfcdb8;
+    --brown: #7a5c3a;
+    --amber: #c8913a;
+    --rust: #9b3a1c;
+    --sage: #5c7a5e;
+    --gold: #d4a843;
+    --line: rgba(122,92,58,.24);
+    --soft: #5a4430;
+    --panel-bg: rgba(253,248,242,.72);
+    --header-bg: #362213;
+    --button-bg: rgba(255,255,255,.74);
+    --button-fg: #4f341c;
+    --chart-grid: rgba(122,92,58,.16);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: 'Lato', sans-serif;
+    color: var(--ink);
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at 18% 0%, rgba(212,168,67,.22) 0%, transparent 48%),
+      radial-gradient(ellipse at 86% 14%, rgba(212,168,67,.16) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 100%, rgba(0,0,0,.5) 0%, transparent 62%),
+      linear-gradient(to bottom, #211508 0%, #170f07 100%);
+  }
+
+  body.light-mode {
+    background-image:
+      radial-gradient(ellipse at 20% 0%, rgba(255,232,181,.36) 0%, transparent 60%),
+      radial-gradient(ellipse at 82% 100%, rgba(180,214,247,.28) 0%, transparent 66%),
+      linear-gradient(to bottom, rgba(255,255,255,.35), rgba(255,255,255,0));
+  }
+
+  header {
+    height: 56px;
+    padding: 0 1.15rem;
+    background: var(--header-bg);
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+
+  .logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    color: var(--gold);
+    text-decoration: none;
+    letter-spacing: .02em;
+  }
+  .logo span { color: #fff; font-style: italic; font-weight: 400; }
+
+  .top-actions {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+  }
+
+  .pill-btn {
+    border: 1.5px solid rgba(255,255,255,.18);
+    background: var(--button-bg);
+    color: var(--button-fg);
+    border-radius: 999px;
+    padding: .35rem .65rem;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-decoration: none;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .pill-btn:hover { border-color: rgba(255,255,255,.3); color: var(--gold); }
+
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 1rem 1.1rem 2rem;
+  }
+
+  .hero,
+  .filter-wrap,
+  .kpi,
+  .panel {
+    border: 1px solid var(--line);
+    background: var(--panel-bg);
+    border-radius: 12px;
+  }
+
+  .hero {
+    padding: .85rem .95rem;
+    margin-bottom: .65rem;
+  }
+  .hero h1 {
+    margin: 0;
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+  }
+  .hero p {
+    margin: .3rem 0 0;
+    color: var(--soft);
+    font-size: .86rem;
+  }
+
+  .filter-wrap {
+    padding: .65rem .75rem;
+    margin-bottom: .7rem;
+  }
+
+  .filter-grid {
+    display: grid;
+    grid-template-columns: 190px 180px 180px auto;
+    gap: .5rem;
+    align-items: end;
+  }
+
+  .filter-group label {
+    display: block;
+    font-size: .66rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #b8a894;
+    margin-bottom: .22rem;
+    font-weight: 700;
+  }
+
+  .filter-input,
+  .filter-select {
+    width: 100%;
+    border: 1.5px solid var(--tan);
+    border-radius: 8px;
+    background: rgba(255,255,255,.9);
+    color: #2e1f0e;
+    padding: .5rem .62rem;
+    font-family: 'Lato', sans-serif;
+    font-size: .82rem;
+    font-weight: 700;
+  }
+
+  body.dark-mode .filter-input,
+  body.dark-mode .filter-select {
+    background: #211709;
+    color: #f5efe6;
+    border-color: #5a4531;
+  }
+
+  .filter-actions {
+    display: flex;
+    gap: .4rem;
+    justify-content: flex-end;
+  }
+
+  .filter-btn {
+    border: 1.5px solid #b89f83;
+    border-radius: 8px;
+    background: #f7f1e9;
+    color: #4f341c;
+    font-size: .78rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: .53rem .8rem;
+  }
+
+  body.dark-mode .filter-btn {
+    background: #211709;
+    color: #f5efe6;
+    border-color: #5a4531;
+  }
+
+  .range-label {
+    margin-top: .42rem;
+    color: var(--soft);
+    font-size: .76rem;
+  }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .55rem;
+    margin-bottom: .75rem;
+  }
+
+  .kpi {
+    padding: .65rem .75rem;
+  }
+  .kpi-label {
+    color: #b8a894;
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+  .kpi-value {
+    margin-top: .12rem;
+    color: var(--ink);
+    font-size: 1.2rem;
+    font-weight: 700;
+  }
+
+  .chart-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .6rem;
+  }
+
+  .panel {
+    padding: .6rem .65rem .45rem;
+  }
+  .panel h2 {
+    margin: 0 0 .35rem;
+    font-size: .9rem;
+    color: var(--ink);
+    font-family: 'Playfair Display', serif;
+  }
+
+  .plot {
+    width: 100%;
+    height: 300px;
+  }
+
+  .empty {
+    color: var(--soft);
+    font-size: .8rem;
+    padding: .6rem 0 .8rem;
+  }
+
+  @media (max-width: 980px) {
+    .filter-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+    .filter-actions {
+      grid-column: 1 / -1;
+      justify-content: flex-start;
+    }
+    .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .chart-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 560px) {
+    .filter-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body class="dark-mode">
+<header>
+  <a class="logo" href="/">Page<span>Vault</span></a>
+  <div class="top-actions">
+    <a class="pill-btn" href="/">Library</a>
+    <button id="theme-toggle" class="pill-btn" onclick="toggleTheme()" title="Switch dark/light mode">Light</button>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <h1>Reading Analytics</h1>
+    <p>Track your progress with live statistics from your local library data — pages, genres, authors, ratings, and monthly activity.</p>
+  </section>
+
+  <section class="filter-wrap" aria-label="Date range filters">
+    <div class="filter-grid">
+      <div class="filter-group">
+        <label for="range-preset">Range Preset</label>
+        <select id="range-preset" class="filter-select">
+          <option value="all">All time</option>
+          <option value="30d">Last 30 days</option>
+          <option value="90d">Last 90 days</option>
+          <option value="180d">Last 180 days</option>
+          <option value="365d">Last 365 days</option>
+          <option value="ytd">Year to date</option>
+          <option value="custom">Custom range</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="start-date">Start Date</label>
+        <input id="start-date" type="date" class="filter-input">
+      </div>
+      <div class="filter-group">
+        <label for="end-date">End Date</label>
+        <input id="end-date" type="date" class="filter-input">
+      </div>
+      <div class="filter-actions">
+        <button id="apply-range" class="filter-btn" type="button">Apply</button>
+        <button id="reset-range" class="filter-btn" type="button">Reset</button>
+      </div>
+    </div>
+    <div id="range-label" class="range-label">Range: All time</div>
+  </section>
+
+  <section class="kpi-grid">
+    <article class="kpi"><div class="kpi-label">Total Books</div><div id="kpi-total-books" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label">Total Pages</div><div id="kpi-total-pages" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label">Estimated Pages Completed</div><div id="kpi-pages-completed" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label">Average Rating</div><div id="kpi-avg-rating" class="kpi-value">—</div></article>
+    <article class="kpi"><div class="kpi-label">Reviews</div><div id="kpi-total-reviews" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label">Read</div><div id="kpi-read" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label">Reading</div><div id="kpi-reading" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label">Want To Read</div><div id="kpi-want" class="kpi-value">0</div></article>
+  </section>
+
+  <section class="chart-grid">
+    <article class="panel">
+      <h2>Books by Status</h2>
+      <div id="status-books-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Pages by Status</h2>
+      <div id="status-pages-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Top Genres</h2>
+      <div id="genres-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Top Authors</h2>
+      <div id="authors-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Rating Distribution</h2>
+      <div id="ratings-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Monthly Activity</h2>
+      <div id="timeline-plot" class="plot"></div>
+    </article>
+  </section>
+</main>
+
+<script>
+let currentStatsData = null;
+
+function formatNumber(value) {
+  return new Intl.NumberFormat().format(Number(value || 0));
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addDays(baseDate, deltaDays) {
+  const date = new Date(baseDate + 'T00:00:00');
+  date.setDate(date.getDate() + deltaDays);
+  return date.toISOString().slice(0, 10);
+}
+
+function presetToRange(preset) {
+  const today = todayIso();
+  if (preset === 'all') return { start_date: '', end_date: '' };
+  if (preset === '30d') return { start_date: addDays(today, -29), end_date: today };
+  if (preset === '90d') return { start_date: addDays(today, -89), end_date: today };
+  if (preset === '180d') return { start_date: addDays(today, -179), end_date: today };
+  if (preset === '365d') return { start_date: addDays(today, -364), end_date: today };
+  if (preset === 'ytd') {
+    const year = new Date().getFullYear();
+    return { start_date: `${year}-01-01`, end_date: today };
+  }
+  return null;
+}
+
+function updateRangeLabel(range) {
+  const label = document.getElementById('range-label');
+  if (!range.start_date && !range.end_date) {
+    label.textContent = 'Range: All time';
+    return;
+  }
+  const from = range.start_date || '…';
+  const to = range.end_date || '…';
+  label.textContent = `Range: ${from} → ${to}`;
+}
+
+function setKpis(summary) {
+  document.getElementById('kpi-total-books').textContent = formatNumber(summary.total_books);
+  document.getElementById('kpi-total-pages').textContent = formatNumber(summary.total_pages);
+  document.getElementById('kpi-pages-completed').textContent = formatNumber(summary.pages_completed_estimate);
+  document.getElementById('kpi-avg-rating').textContent = summary.avg_rating ?? '—';
+  document.getElementById('kpi-total-reviews').textContent = formatNumber(summary.total_reviews);
+  document.getElementById('kpi-read').textContent = formatNumber(summary.read);
+  document.getElementById('kpi-reading').textContent = formatNumber(summary.reading);
+  document.getElementById('kpi-want').textContent = formatNumber(summary.want_to_read);
+}
+
+function getChartTheme() {
+  const dark = document.body.classList.contains('dark-mode');
+  return dark
+    ? {
+      font: '#dbc8ae',
+      grid: 'rgba(212,168,67,.14)',
+      statusBooks: ['#7a5c3a', '#5c7a5e', '#c8913a'],
+      statusPages: ['#9b3a1c', '#5c7a5e', '#d4a843'],
+      genre: '#c8913a',
+      author: '#5c7a5e',
+      rating: '#d4a843',
+      added: '#7a5c3a',
+      reviews: '#d4a843',
+      pagesLogged: '#5c7a5e',
+    }
+    : {
+      font: '#4f341c',
+      grid: 'rgba(122,92,58,.16)',
+      statusBooks: ['#7a5c3a', '#5c7a5e', '#c8913a'],
+      statusPages: ['#9b3a1c', '#5c7a5e', '#d4a843'],
+      genre: '#c8913a',
+      author: '#5c7a5e',
+      rating: '#d4a843',
+      added: '#7a5c3a',
+      reviews: '#d4a843',
+      pagesLogged: '#5c7a5e',
+    };
+}
+
+function chartLayout(overrides = {}) {
+  const theme = getChartTheme();
+  return {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    margin: { l: 54, r: 22, t: 18, b: 44 },
+    font: { color: theme.font, family: 'Lato, sans-serif', size: 12 },
+    xaxis: { gridcolor: theme.grid, zerolinecolor: theme.grid },
+    yaxis: { gridcolor: theme.grid, zerolinecolor: theme.grid },
+    ...overrides,
+  };
+}
+
+const plotConfig = { responsive: true, displaylogo: false };
+
+function emptyPlot(id, message) {
+  document.getElementById(id).innerHTML = `<div class="empty">${message}</div>`;
+}
+
+function renderStatusCharts(statusBreakdown) {
+  if (!statusBreakdown.length) {
+    emptyPlot('status-books-plot', 'No status data yet.');
+    emptyPlot('status-pages-plot', 'No status page totals yet.');
+    return;
+  }
+
+  const labels = statusBreakdown.map(item => item.label);
+  const bookCounts = statusBreakdown.map(item => item.book_count);
+  const pageCounts = statusBreakdown.map(item => item.total_pages);
+  const theme = getChartTheme();
+
+  Plotly.newPlot('status-books-plot', [{
+    type: 'bar',
+    x: labels,
+    y: bookCounts,
+    marker: { color: theme.statusBooks },
+    hovertemplate: '%{x}<br>%{y} books<extra></extra>'
+  }], chartLayout({ yaxis: { ...chartLayout().yaxis, title: 'Books' } }), plotConfig);
+
+  Plotly.newPlot('status-pages-plot', [{
+    type: 'bar',
+    x: labels,
+    y: pageCounts,
+    marker: { color: theme.statusPages },
+    hovertemplate: '%{x}<br>%{y} pages<extra></extra>'
+  }], chartLayout({ yaxis: { ...chartLayout().yaxis, title: 'Pages' } }), plotConfig);
+}
+
+function renderGenreChart(topGenres) {
+  if (!topGenres.length) {
+    emptyPlot('genres-plot', 'Add genre tags to see genre insights.');
+    return;
+  }
+  const theme = getChartTheme();
+  Plotly.newPlot('genres-plot', [{
+    type: 'bar',
+    orientation: 'h',
+    y: topGenres.map(item => item.genre).reverse(),
+    x: topGenres.map(item => item.book_count).reverse(),
+    marker: { color: theme.genre },
+    hovertemplate: '%{y}<br>%{x} books<extra></extra>'
+  }], chartLayout({ margin: { l: 120, r: 20, t: 10, b: 40 } }), plotConfig);
+}
+
+function renderAuthorChart(topAuthors) {
+  if (!topAuthors.length) {
+    emptyPlot('authors-plot', 'Add books with author metadata to view this chart.');
+    return;
+  }
+  const theme = getChartTheme();
+  Plotly.newPlot('authors-plot', [{
+    type: 'bar',
+    orientation: 'h',
+    y: topAuthors.map(item => item.author).reverse(),
+    x: topAuthors.map(item => item.book_count).reverse(),
+    marker: { color: theme.author },
+    hovertemplate: '%{y}<br>%{x} books<extra></extra>'
+  }], chartLayout({ margin: { l: 150, r: 20, t: 10, b: 40 } }), plotConfig);
+}
+
+function renderRatingChart(ratingDistribution) {
+  if (!ratingDistribution.length) {
+    emptyPlot('ratings-plot', 'No ratings yet. Add reviews with stars to populate this chart.');
+    return;
+  }
+  const theme = getChartTheme();
+  Plotly.newPlot('ratings-plot', [{
+    type: 'bar',
+    x: ratingDistribution.map(item => `${item.rating}★`),
+    y: ratingDistribution.map(item => item.review_count),
+    marker: { color: theme.rating },
+    hovertemplate: '%{x}<br>%{y} reviews<extra></extra>'
+  }], chartLayout({ yaxis: { ...chartLayout().yaxis, title: 'Reviews' } }), plotConfig);
+}
+
+function mergeTimeline(monthlyAdditions, monthlyReviews) {
+  const map = new Map();
+  for (const item of monthlyAdditions) {
+    map.set(item.month, {
+      month: item.month,
+      books_added: item.books_added,
+      pages_added: item.pages_added,
+      review_count: 0,
+      pages_logged: 0,
+    });
+  }
+  for (const item of monthlyReviews) {
+    const existing = map.get(item.month) || {
+      month: item.month,
+      books_added: 0,
+      pages_added: 0,
+      review_count: 0,
+      pages_logged: 0,
+    };
+    existing.review_count = item.review_count;
+    existing.pages_logged = item.pages_logged;
+    map.set(item.month, existing);
+  }
+  return [...map.values()].sort((a, b) => a.month.localeCompare(b.month));
+}
+
+function renderTimeline(monthlyAdditions, monthlyReviews) {
+  const timeline = mergeTimeline(monthlyAdditions, monthlyReviews);
+  if (!timeline.length) {
+    emptyPlot('timeline-plot', 'No monthly activity yet.');
+    return;
+  }
+
+  const months = timeline.map(item => item.month);
+  const theme = getChartTheme();
+
+  Plotly.newPlot('timeline-plot', [
+    {
+      type: 'bar',
+      name: 'Books Added',
+      x: months,
+      y: timeline.map(item => item.books_added),
+      marker: { color: theme.added },
+      yaxis: 'y',
+      hovertemplate: '%{x}<br>%{y} books added<extra></extra>',
+    },
+    {
+      type: 'scatter',
+      mode: 'lines+markers',
+      name: 'Reviews',
+      x: months,
+      y: timeline.map(item => item.review_count),
+      marker: { color: theme.reviews, size: 7 },
+      line: { color: theme.reviews, width: 2 },
+      yaxis: 'y2',
+      hovertemplate: '%{x}<br>%{y} reviews<extra></extra>',
+    },
+    {
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Pages Logged',
+      x: months,
+      y: timeline.map(item => item.pages_logged),
+      marker: { color: theme.pagesLogged },
+      line: { color: theme.pagesLogged, width: 2, shape: 'spline' },
+      yaxis: 'y2',
+      hovertemplate: '%{x}<br>%{y} pages logged<extra></extra>',
+    }
+  ], chartLayout({
+    legend: { orientation: 'h', y: 1.12, x: 0 },
+    yaxis: { ...chartLayout().yaxis, title: 'Books Added' },
+    yaxis2: {
+      overlaying: 'y',
+      side: 'right',
+      title: 'Reviews / Pages Logged',
+      gridcolor: 'rgba(0,0,0,0)',
+      tickfont: { color: theme.font },
+      titlefont: { color: theme.font },
+    },
+  }), plotConfig);
+}
+
+function renderAll(data) {
+  currentStatsData = data;
+  setKpis(data.summary || {});
+  renderStatusCharts(data.status_breakdown || []);
+  renderGenreChart(data.top_genres || []);
+  renderAuthorChart(data.top_authors || []);
+  renderRatingChart(data.rating_distribution || []);
+  renderTimeline(data.monthly_additions || [], data.monthly_reviews || []);
+}
+
+function buildQuery(range) {
+  const params = new URLSearchParams();
+  if (range.start_date) params.set('start_date', range.start_date);
+  if (range.end_date) params.set('end_date', range.end_date);
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+async function loadStatsAnalysis(range) {
+  const response = await fetch(`/api/stats/analysis${buildQuery(range)}`);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Could not load stats analysis.');
+  }
+  return response.json();
+}
+
+async function applyRange(range) {
+  updateRangeLabel(range);
+  const data = await loadStatsAnalysis(range);
+  renderAll(data);
+}
+
+function readCustomRange() {
+  return {
+    start_date: document.getElementById('start-date').value,
+    end_date: document.getElementById('end-date').value,
+  };
+}
+
+function onPresetChanged() {
+  const preset = document.getElementById('range-preset').value;
+  const range = presetToRange(preset);
+  const startInput = document.getElementById('start-date');
+  const endInput = document.getElementById('end-date');
+
+  if (preset === 'custom') {
+    startInput.disabled = false;
+    endInput.disabled = false;
+    return;
+  }
+
+  startInput.disabled = true;
+  endInput.disabled = true;
+  startInput.value = range.start_date || '';
+  endInput.value = range.end_date || '';
+}
+
+async function onApplyClicked() {
+  const preset = document.getElementById('range-preset').value;
+  const range = preset === 'custom' ? readCustomRange() : presetToRange(preset);
+
+  if (range.start_date && range.end_date && range.start_date > range.end_date) {
+    document.getElementById('range-label').textContent = 'Range: invalid (start date must be before end date)';
+    return;
+  }
+
+  try {
+    await applyRange(range);
+  } catch (error) {
+    document.getElementById('range-label').textContent = `Range error: ${error.message}`;
+  }
+}
+
+async function onResetClicked() {
+  document.getElementById('range-preset').value = 'all';
+  onPresetChanged();
+  await onApplyClicked();
+}
+
+function applyTheme(theme) {
+  const mode = theme === 'light' ? 'light' : 'dark';
+  document.body.classList.toggle('dark-mode', mode === 'dark');
+  document.body.classList.toggle('light-mode', mode === 'light');
+  const toggle = document.getElementById('theme-toggle');
+  toggle.textContent = mode === 'dark' ? 'Light' : 'Dark';
+  toggle.title = mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  localStorage.setItem('pagevault-theme', mode);
+  if (currentStatsData) {
+    renderAll(currentStatsData);
+  }
+}
+
+function toggleTheme() {
+  const current = document.body.classList.contains('dark-mode') ? 'dark' : 'light';
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('pagevault-theme');
+  applyTheme(saved || 'dark');
+}
+
+document.getElementById('range-preset').addEventListener('change', onPresetChanged);
+document.getElementById('apply-range').addEventListener('click', onApplyClicked);
+document.getElementById('reset-range').addEventListener('click', onResetClicked);
+
+(async function init() {
+  initTheme();
+  onPresetChanged();
+  try {
+    await onApplyClicked();
+  } catch (error) {
+    const targets = [
+      'status-books-plot',
+      'status-pages-plot',
+      'genres-plot',
+      'authors-plot',
+      'ratings-plot',
+      'timeline-plot',
+    ];
+    for (const id of targets) {
+      emptyPlot(id, 'Unable to load analytics right now.');
+    }
+    document.getElementById('range-label').textContent = `Range error: ${error.message}`;
+    console.error(error);
+  }
+})();
+</script>
+</body>
+</html>

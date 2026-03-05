@@ -53,6 +53,7 @@ def create_app(config: dict | None = None) -> Flask:
     _init_db_hook(app)
     app.register_blueprint(_api_bp())
     app.add_url_rule("/", "index", lambda: render_template("index.html"))
+    app.add_url_rule("/stats", "stats", lambda: render_template("stats.html"))
 
     core_db.bootstrap_database(app)
 

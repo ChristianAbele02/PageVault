@@ -366,9 +366,10 @@
         PageVault
       </a>
       <nav class="top-links" aria-label="Top Links">
+        <a class="btn primary" href="stats-demo.html">Open Stats Demo</a>
         <a class="btn" href="https://github.com/ChristianAbele02/PageVault">Repository</a>
         <a class="btn" href="https://github.com/ChristianAbele02/PageVault/releases">Releases</a>
-        <a class="btn primary" href="https://github.com/ChristianAbele02/PageVault#readme">Get Started</a>
+        <a class="btn" href="https://github.com/ChristianAbele02/PageVault#readme">Get Started</a>
       </nav>
     </div>
   </header>
@@ -379,7 +380,7 @@
         <h1>Your private book universe.<br/>No cloud required.</h1>
         <p>
           PageVault is a local, self-hosted Goodreads alternative with barcode scanning, shelves, tags, ratings, CSV portability,
-          and robust multi-provider metadata lookup — optimized for reliable cover fetching.
+          a Plotly-powered stats dashboard with date filtering, and robust multi-provider metadata lookup — optimized for reliable cover fetching.
         </p>
       </div>
       <aside class="hero-card" aria-label="Project Snapshot">
@@ -402,6 +403,7 @@
         <article class="card"><h3>📷 ISBN Scan & Add</h3><p>Scan from phone camera or enter ISBN manually with live metadata preview.</p></article>
         <article class="card"><h3>🗂️ Shelves + Tags</h3><p>Organize books with multi-shelf assignment and interactive genre chips.</p></article>
         <article class="card"><h3>🔎 Smart Filters</h3><p>Filter by status, author, shelf, genre, or full-text query.</p></article>
+        <article class="card"><h3>📊 Plotly Stats Dashboard</h3><p>Explore pages, genres, authors, ratings, and monthly trends with preset/custom date ranges.</p></article>
         <article class="card"><h3>⭐ Reviews & Ratings</h3><p>Track star ratings and notes with detailed book view.</p></article>
         <article class="card"><h3>🔄 Metadata Refresh</h3><p>Bulk refresh metadata while preserving your reviews, shelves, and custom tags.</p></article>
         <article class="card"><h3>📤📥 CSV Portability</h3><p>Export full library and import Goodreads-compatible CSVs.</p></article>
@@ -424,7 +426,8 @@
           <li><span class="small">Clone:</span> <code>git clone https://github.com/ChristianAbele02/PageVault.git</code></li>
           <li><span class="small">Install:</span> <code>pip install -r requirements.txt</code></li>
           <li><span class="small">Run:</span> <code>python app.py</code></li>
-          <li><span class="small">Open:</span> <code>http://localhost:5000</code></li>
+          <li><span class="small">Library:</span> <code>http://localhost:5000</code></li>
+          <li><span class="small">Stats:</span> <code>http://localhost:5000/stats</code></li>
         </ul>
       </article>
     </section>
@@ -433,7 +436,7 @@
       <h2 class="section-title">Portfolio Value</h2>
       <div class="cards" style="margin-top:0;">
         <article class="card"><h3>🧩 Full-stack scope</h3><p>Design + UX, Flask API, SQLite data model, Docker deployment, and CI quality gates in one cohesive project.</p></article>
-        <article class="card"><h3>⚡ Performance thinking</h3><p>Parallel metadata fallback providers and in-memory ISBN TTL caching reduce network latency during imports and refreshes.</p></article>
+        <article class="card"><h3>📈 Product analytics</h3><p>Dedicated stats page with Plotly visualizations, date-range filtering, and automatic dark/light theme inheritance.</p></article>
         <article class="card"><h3>🧪 Engineering quality</h3><p>Comprehensive automated tests and linting support stable iteration while shipping substantial product features quickly.</p></article>
       </div>
     </section>
