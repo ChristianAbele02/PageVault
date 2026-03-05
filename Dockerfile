@@ -2,9 +2,10 @@
 FROM python:3.12-slim AS builder
 
 WORKDIR /build
-COPY requirements.txt .
+COPY pyproject.toml README.md LICENSE app.py ./
+COPY pagevault_core/ pagevault_core/
 RUN pip install --upgrade pip \
- && pip install --no-cache-dir --prefix=/install -r requirements.txt
+ && pip install --no-cache-dir --prefix=/install ".[prod]"
 
 
 # ── Runtime stage ──────────────────────────────────────────────────────────────
@@ -25,6 +26,7 @@ COPY --from=builder /install /usr/local
 
 # Copy application code
 COPY app.py .
+COPY config.py .
 COPY pagevault_core/ pagevault_core/
 COPY templates/ templates/
 COPY static/ static/
@@ -32,9 +34,6 @@ COPY static/ static/
 # Data directory (SQLite database lives here — mount as a volume)
 RUN mkdir -p /data && chown pagevault:pagevault /data
 ENV PAGEVAULT_DB=/data/pagevault.db
-
-# Install gunicorn for production
-RUN pip install --no-cache-dir "gunicorn>=22.0"
 
 USER pagevault
 

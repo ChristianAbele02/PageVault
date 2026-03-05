@@ -1025,3 +1025,77 @@ class TestLookup:
         data = app_module.lookup_isbn("9780000000005")
         assert data is not None
         assert data["cover_url"].startswith("https://covers.openlibrary.org/b/isbn/")
+
+
+class TestRecommendationsAndLocation:
+    def test_book_location_fields_roundtrip(self, client):
+        created = client.post(
+            "/api/books",
+            json={
+                "isbn": "9789991234500",
+                "status": "reading",
+                "location_type": "loaned_to",
+                "location_note": "Needs return next month",
+                "loan_person": "Alex",
+                "book_data": {"title": "Borrowed Book", "author": "A. Author", "genre": "Drama"},
+            },
+        )
+        assert created.status_code == 201
+        payload = created.get_json()
+        assert payload["location_type"] == "loaned_to"
+        assert payload["loan_person"] == "Alex"
+
+        book_id = payload["id"]
+        updated = client.patch(
+            f"/api/books/{book_id}",
+            json={"location_type": "ebook", "location_note": "Kindle", "loan_person": None},
+        )
+        assert updated.status_code == 200
+        detail = client.get(f"/api/books/{book_id}").get_json()
+        assert detail["location_type"] == "ebook"
+        assert detail["location_note"] == "Kindle"
+
+    def test_recommendations_returns_similar_books(self, client):
+        first = client.post(
+            "/api/books",
+            json={
+                "isbn": "9780000001111",
+                "status": "read",
+                "genre_tags": ["Fantasy", "Epic"],
+                "book_data": {"title": "Book One", "author": "Author X", "genre": "Fantasy"},
+            },
+        ).get_json()
+        client.post(
+            "/api/books",
+            json={
+                "isbn": "9780000002222",
+                "status": "read",
+                "genre_tags": ["Fantasy"],
+                "book_data": {"title": "Book Two", "author": "Author X", "genre": "Fantasy"},
+            },
+        )
+
+        rec = client.get(f"/api/books/{first['id']}/recommendations")
+        assert rec.status_code == 200
+        items = rec.get_json()
+        assert len(items) >= 1
+        assert items[0]["title"] == "Book Two"
+
+
+class TestAdminApis:
+    def test_admin_endpoints_require_login(self, client):
+        denied = client.get("/api/admin/diagnostics")
+        assert denied.status_code == 403
+
+    def test_admin_login_and_diagnostics(self, client):
+        login = client.post("/api/admin/login", json={"password": "1111"})
+        assert login.status_code == 200
+
+        diagnostics = client.get("/api/admin/diagnostics")
+        assert diagnostics.status_code == 200
+        payload = diagnostics.get_json()
+        assert payload["health"]["status"] == "ok"
+        assert "storage" in payload
+
+        logs = client.get("/api/admin/logs")
+        assert logs.status_code == 200

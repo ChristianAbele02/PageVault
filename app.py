@@ -16,10 +16,10 @@ import logging
 import os
 import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
 
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, jsonify, redirect, render_template, request, session, url_for
 
+from config import resolve_config
 from pagevault_core import db as core_db
 from pagevault_core import metadata as core_metadata
 from pagevault_core import utils as core_utils
@@ -33,27 +33,45 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+def _ensure_file_logging(log_file: str | None) -> None:
+    if not log_file:
+        return
+    root_logger = logging.getLogger()
+    if any(isinstance(handler, logging.FileHandler) for handler in root_logger.handlers):
+        return
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setFormatter(
+        logging.Formatter(
+            fmt="%(asctime)s  %(levelname)-8s  %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    root_logger.addHandler(file_handler)
+
+
 # ── Application factory ───────────────────────────────────────────────────────
 def create_app(config: dict | None = None) -> Flask:
     app = Flask(__name__)
 
-    default_db = os.getenv("PAGEVAULT_DB") or str(Path(__file__).parent / "pagevault.db")
-    default_secret = os.getenv("SECRET_KEY") or "change-me-in-production"
-
-    # Defaults
-    app.config.update(
-        DATABASE=default_db,
-        SECRET_KEY=default_secret,
-        JSON_SORT_KEYS=False,
-    )
+    config_class = resolve_config(os.getenv("PAGEVAULT_ENV"))
+    app.config.from_object(config_class)
     if config:
         app.config.update(config)
+
+    _ensure_file_logging(app.config.get("LOG_FILE"))
 
     # Register components
     _init_db_hook(app)
     app.register_blueprint(_api_bp())
     app.add_url_rule("/", "index", lambda: render_template("index.html"))
     app.add_url_rule("/stats", "stats", lambda: render_template("stats.html"))
+    app.add_url_rule("/admin/login", "admin_login", lambda: render_template("admin_login.html"))
+
+    @app.get("/admin")
+    def admin_dashboard():
+        if session.get("role") != "admin":
+            return redirect(url_for("admin_login"))
+        return render_template("admin.html")
 
     core_db.bootstrap_database(app)
 

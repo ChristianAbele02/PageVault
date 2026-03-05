@@ -1,4 +1,4 @@
-.PHONY: help install dev test coverage lint format clean docker docker-up docker-down
+.PHONY: help install dev test coverage lint format clean docker docker-up docker-down migrate
 
 PYTHON  ?= python
 PIP     := $(PYTHON) -m pip
@@ -21,16 +21,17 @@ help:
 	@echo "  make docker      Build the Docker image"
 	@echo "  make docker-up   Start with Docker Compose"
 	@echo "  make docker-down Stop Docker Compose"
+	@echo "  make migrate     Apply Alembic migrations"
 	@echo ""
 
 # ── Setup ──────────────────────────────────────────────────────────────────────
 install:
 	$(PIP) install --upgrade pip
-	$(PIP) install -r requirements.txt
+	$(PIP) install .
 
 dev:
 	$(PIP) install --upgrade pip
-	$(PIP) install -r requirements-dev.txt
+	$(PIP) install ".[dev,prod]"
 
 # ── Run ────────────────────────────────────────────────────────────────────────
 run:
@@ -68,3 +69,6 @@ docker-up:
 
 docker-down:
 	docker compose down
+
+migrate:
+	alembic upgrade head

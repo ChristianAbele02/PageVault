@@ -949,6 +949,8 @@
 <header>
   <div class="logo">Page<span>Vault</span></div>
   <div class="header-actions">
+    <a id="admin-link" class="header-link" href="/admin" title="Open admin dashboard" style="display:none">Admin</a>
+    <a id="admin-login-link" class="header-link" href="/admin/login" title="Admin login">Admin Login</a>
     <a class="header-link" href="/stats" title="Open reading analytics">Stats</a>
     <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()" title="Switch dark/light mode">Light</button>
   </div>
@@ -994,11 +996,6 @@
     Built and maintained by Christian Abele — a private, local Goodreads alternative focused on speed and ownership.
   </div>
   <div class="about-love">Made with love for my wife Emili. ❤️</div>
-</section>
-
-<section class="about-panel" aria-label="Tools launcher hint">
-  <div class="about-title">Library Tools</div>
-  <div>Open advanced tools from the ⚙ button near the floating actions.</div>
 </section>
 
 <div id="book-grid">
@@ -1118,6 +1115,25 @@
         <select id="add-shelves" multiple size="4"></select>
       </div>
 
+      <div class="form-group">
+        <label>Physical location</label>
+        <select id="add-location-type">
+          <option value="shelf">Shelf</option>
+          <option value="ebook">E-Book</option>
+          <option value="loaned_to">Loaned to</option>
+          <option value="loaned_from">Loaned from</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Location note</label>
+        <input type="text" id="add-location-note" placeholder="e.g. Living room shelf A3">
+      </div>
+      <div class="form-group">
+        <label>Loan person (if loaned)</label>
+        <input type="text" id="add-loan-person" placeholder="Person name">
+      </div>
+
       <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.5rem;align-items:end;margin:.5rem 0 0;">
         <div class="form-group" style="margin:0;">
           <label>New shelf name</label>
@@ -1173,12 +1189,29 @@
           <small class="tag-counter" id="d-genre-count">0/10 tags</small>
           <button class="mini-btn" onclick="updateBookGenres()">Save Genre Tags</button>
         </div>
+        <div class="detail-shelves">
+          <select id="d-location-type">
+            <option value="shelf">Shelf</option>
+            <option value="ebook">E-Book</option>
+            <option value="loaned_to">Loaned to</option>
+            <option value="loaned_from">Loaned from</option>
+            <option value="other">Other</option>
+          </select>
+          <input type="text" id="d-location-note" placeholder="Location note">
+          <input type="text" id="d-loan-person" placeholder="Loan person">
+          <button class="mini-btn" onclick="updateBookLocation()">Save Location</button>
+        </div>
       </div>
     </div>
 
     <div class="detail-section" id="d-desc-section" style="display:none">
       <h3>Description</h3>
       <div class="detail-desc" id="d-desc"></div>
+    </div>
+
+    <div class="detail-section" id="d-rec-section">
+      <h3>Recommended Similar Books</h3>
+      <div id="d-recommendations" style="font-size:.84rem;color:var(--brown)">No recommendations yet.</div>
     </div>
 
     <div class="detail-section">
@@ -1304,6 +1337,7 @@ let currentShelfId = '';
 let currentContinueReading = false;
 let addGenreTags = [];
 let detailGenreTags = [];
+let currentRole = 'user';
 const MAX_GENRE_TAGS = 10;
 const IO_PREVIEW_STORAGE_KEY = 'pagevault-io-preview';
 const OPS_DASHBOARD_STORAGE_KEY = 'pagevault-ops-dashboard';
@@ -1864,6 +1898,7 @@ function renderBooks() {
         <div class="book-title">${esc(b.title)}</div>
         ${progressMarkup}
         <div class="book-author">${esc(b.author||'Unknown author')}</div>
+        <div class="book-author" style="font-size:.72rem;opacity:.9">${esc(formatLocation(b))}</div>
         ${stars ? `<div class="book-stars"><span class="stars">${stars}</span><span class="stars-count">${b.avg_rating}</span></div>` : ''}
       </div>
       <div class="status-badge ${statusMap[b.status]||''}">${statusLabel[b.status]||b.status}</div>
@@ -2218,6 +2253,9 @@ function openAdd() {
   document.getElementById('add-genre-input').value = '';
   document.getElementById('new-shelf-name').value = '';
   document.getElementById('new-shelf-logo').value = '';
+  document.getElementById('add-location-type').value = 'shelf';
+  document.getElementById('add-location-note').value = '';
+  document.getElementById('add-loan-person').value = '';
   [...document.getElementById('add-shelves').options].forEach(opt => { opt.selected = false; });
   document.getElementById('add-btn').disabled = true;
   currentBookData = null;
@@ -2316,6 +2354,9 @@ async function addBook() {
   consumePendingGenreInput('add');
   const genreTags = [...addGenreTags];
   const shelfIds = selectedInts('add-shelves');
+  const locationType = document.getElementById('add-location-type').value;
+  const locationNote = document.getElementById('add-location-note').value.trim();
+  const loanPerson = document.getElementById('add-loan-person').value.trim();
 
   // Manual overrides
   const manTitle  = document.getElementById('m-title').value.trim();
@@ -2332,7 +2373,10 @@ async function addBook() {
       book_data: currentBookData,
       status,
       genre_tags: genreTags,
-      shelf_ids: shelfIds
+      shelf_ids: shelfIds,
+      location_type: locationType,
+      location_note: locationNote || null,
+      loan_person: loanPerson || null,
     })
   });
   if (r.status === 409) { showToast('Already in your shelf!'); document.getElementById('add-btn').disabled = false; return; }
@@ -2395,6 +2439,7 @@ async function openDetail(id) {
   }
   if (b.genre_tags?.length) sub.push(`<span>${esc(b.genre_tags.join(', '))}</span>`);
   if (b.shelves?.length) sub.push(`<span>${esc(b.shelves.map(s => s.name).join(', '))}</span>`);
+  sub.push(`<span>${esc(formatLocation(b))}</span>`);
   document.getElementById('d-sub').innerHTML = sub.join('');
 
   // Cover
@@ -2409,6 +2454,9 @@ async function openDetail(id) {
 
   // Status
   document.getElementById('d-status').value = b.status;
+  document.getElementById('d-location-type').value = b.location_type || 'shelf';
+  document.getElementById('d-location-note').value = b.location_note || '';
+  document.getElementById('d-loan-person').value = b.loan_person || '';
   populateDetailShelfSelect((b.shelves || []).map(s => s.id));
   setGenreState('detail', b.genre_tags || []);
   document.getElementById('d-genre-input').value = '';
@@ -2428,8 +2476,32 @@ async function openDetail(id) {
   newRating = 0;
   buildNewStarPicker();
   document.getElementById('new-current-page').value = b.current_page ?? '';
+  await loadRecommendations(id);
 
   document.getElementById('detail-modal').classList.add('open');
+}
+
+async function loadRecommendations(bookId) {
+  const holder = document.getElementById('d-recommendations');
+  holder.textContent = 'Loading recommendations...';
+  const response = await api(`/api/books/${bookId}/recommendations?limit=6`);
+  if (!response.ok) {
+    holder.textContent = 'No recommendations available.';
+    return;
+  }
+  const items = await response.json();
+  if (!items.length) {
+    holder.textContent = 'No similar books found yet. Add more books and tags.';
+    return;
+  }
+
+  holder.innerHTML = items.map(item => {
+    const reasons = [];
+    if (item.author_match) reasons.push('same author');
+    if (item.shared_genres?.length) reasons.push(`genres: ${item.shared_genres.join(', ')}`);
+    if (item.shared_tags?.length) reasons.push(`tags: ${item.shared_tags.join(', ')}`);
+    return `<div style="margin:.3rem 0;"><strong>${esc(item.title)}</strong> by ${esc(item.author || 'Unknown')} <small>(${esc(reasons.join(' | ') || 'similar metadata')})</small></div>`;
+  }).join('');
 }
 
 function populateDetailShelfSelect(selectedIds=[]) {
@@ -2579,6 +2651,26 @@ async function updateBookGenres() {
   openDetail(currentBookId);
 }
 
+async function updateBookLocation() {
+  const payload = {
+    location_type: document.getElementById('d-location-type').value,
+    location_note: document.getElementById('d-location-note').value.trim() || null,
+    loan_person: document.getElementById('d-loan-person').value.trim() || null,
+  };
+  const response = await api(`/api/books/${currentBookId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    showToast(err.error || 'Could not update location');
+    return;
+  }
+  showToast('Location updated ✓');
+  await loadBooks();
+  await openDetail(currentBookId);
+}
+
 async function deleteBook() {
   if (!confirm('Remove this book from your shelf?')) return;
   await api(`/api/books/${currentBookId}`, { method: 'DELETE' });
@@ -2632,10 +2724,38 @@ function formatProgress(currentPage, totalPages, percent) {
   };
 }
 
+function formatLocation(book) {
+  const labels = {
+    shelf: 'Shelf',
+    ebook: 'E-Book',
+    loaned_to: 'Loaned to',
+    loaned_from: 'Loaned from',
+    other: 'Other',
+  };
+  const type = labels[book.location_type] || labels.shelf;
+  const parts = [type];
+  if (book.loan_person) parts.push(book.loan_person);
+  if (book.location_note) parts.push(book.location_note);
+  return parts.join(' - ');
+}
+
+async function loadRoleState() {
+  const response = await api('/api/admin/me');
+  if (!response.ok) return;
+  const data = await response.json();
+  currentRole = data.role || 'user';
+  const adminLink = document.getElementById('admin-link');
+  const adminLoginLink = document.getElementById('admin-login-link');
+  const isAdmin = currentRole === 'admin';
+  adminLink.style.display = isAdmin ? 'inline-block' : 'none';
+  adminLoginLink.style.display = isAdmin ? 'none' : 'inline-block';
+}
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 wireGenreInput('add');
 wireGenreInput('detail');
 initTheme();
+loadRoleState();
 initIoPreviewState();
 initOpsDashboardState();
 document.getElementById('session-date').value = document.getElementById('session-date').value || defaultSessionDate();

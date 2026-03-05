@@ -24,7 +24,7 @@ source .venv/bin/activate    # Windows: .venv\Scripts\activate
 
 ```bash
 make dev
-# or: pip install -r requirements-dev.txt
+# or: pip install .[dev,prod]
 ```
 
 ### 4. Run the app locally

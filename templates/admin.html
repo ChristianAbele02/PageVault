@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PageVault Admin</title>
+<style>
+  body {
+    margin: 0;
+    font-family: "Trebuchet MS", Verdana, sans-serif;
+    background: linear-gradient(180deg, #f8f1e5, #eadbc8);
+    color: #24160c;
+  }
+  header {
+    background: #2f1e12;
+    color: #f4d8ad;
+    padding: 0.85rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  header a, header button {
+    color: #f4d8ad;
+    background: transparent;
+    border: 1px solid rgba(244, 216, 173, 0.5);
+    border-radius: 999px;
+    padding: 0.3rem 0.7rem;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  main { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.8rem;
+  }
+  .panel {
+    border: 1px solid #cba979;
+    border-radius: 10px;
+    background: rgba(255, 248, 237, 0.78);
+    padding: 0.8rem;
+  }
+  .panel h2 { margin: 0 0 0.6rem; font-size: 1rem; }
+  pre {
+    margin: 0;
+    max-height: 320px;
+    overflow: auto;
+    background: #1d130b;
+    color: #f5e5cf;
+    border-radius: 8px;
+    padding: 0.6rem;
+    font-size: 0.79rem;
+  }
+  .kv { margin: 0.15rem 0; font-size: 0.9rem; }
+  ul { margin: 0; padding-left: 1rem; max-height: 280px; overflow: auto; }
+  li { margin: 0.25rem 0; font-size: 0.86rem; }
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <strong>PageVault Admin</strong>
+  <div style="display:flex;gap:.4rem;">
+    <a href="/">Library</a>
+    <button onclick="logout()">Logout</button>
+  </div>
+</header>
+<main>
+  <div class="grid">
+    <section class="panel">
+      <h2>Health and Storage</h2>
+      <div id="health"></div>
+      <div id="storage"></div>
+    </section>
+    <section class="panel">
+      <h2>Reading Status</h2>
+      <div id="reading-status"></div>
+    </section>
+    <section class="panel">
+      <h2>History</h2>
+      <ul id="history"></ul>
+    </section>
+    <section class="panel">
+      <h2>Restore and Metadata Jobs</h2>
+      <ul id="ops"></ul>
+    </section>
+    <section class="panel" style="grid-column:1 / -1;">
+      <h2>Application Logs</h2>
+      <pre id="logs">Loading logs...</pre>
+    </section>
+  </div>
+</main>
+<script>
+function fmtBytes(bytes) {
+  const v = Number(bytes) || 0;
+  if (v < 1024) return `${v} B`;
+  if (v < 1024 ** 2) return `${(v / 1024).toFixed(1)} KB`;
+  if (v < 1024 ** 3) return `${(v / (1024 ** 2)).toFixed(1)} MB`;
+  return `${(v / (1024 ** 3)).toFixed(2)} GB`;
+}
+
+async function loadData() {
+  const diagResp = await fetch('/api/admin/diagnostics');
+  if (diagResp.status === 403) {
+    window.location.href = '/admin/login';
+    return;
+  }
+  const diag = await diagResp.json();
+  document.getElementById('health').innerHTML =
+    `<div class="kv"><strong>Status:</strong> ${diag.health.status}</div>` +
+    `<div class="kv"><strong>Time:</strong> ${diag.health.time}</div>`;
+
+  document.getElementById('storage').innerHTML =
+    `<div class="kv"><strong>DB:</strong> ${diag.storage.database_path}</div>` +
+    `<div class="kv"><strong>DB size:</strong> ${fmtBytes(diag.storage.database_size_bytes)}</div>` +
+    `<div class="kv"><strong>Free disk:</strong> ${fmtBytes(diag.storage.disk_free_bytes)}</div>`;
+
+  const rs = diag.reading_status || {};
+  document.getElementById('reading-status').innerHTML =
+    `<div class="kv">Total: ${rs.total || 0}</div>` +
+    `<div class="kv">Read: ${rs.read || 0}</div>` +
+    `<div class="kv">Reading: ${rs.reading || 0}</div>` +
+    `<div class="kv">Want to read: ${rs.want_to_read || 0}</div>`;
+
+  const historyList = document.getElementById('history');
+  historyList.innerHTML = (diag.history || []).map(item =>
+    `<li><strong>${item.event_type}</strong> <small>${item.created_at}</small></li>`
+  ).join('') || '<li>No history yet.</li>';
+
+  const ops = [
+    ...(diag.restore_history || []).map(item => `Restore: ${item.status} (${item.created_at})`),
+    ...(diag.metadata_jobs || []).map(item => `Metadata job #${item.id}: ${item.status}`),
+  ];
+  document.getElementById('ops').innerHTML = ops.map(text => `<li>${text}</li>`).join('') || '<li>No operations yet.</li>';
+
+  const logsResp = await fetch('/api/admin/logs?lines=300');
+  const logsPayload = await logsResp.json();
+  document.getElementById('logs').textContent = (logsPayload.lines || []).join('\n') || 'No logs available.';
+}
+
+async function logout() {
+  await fetch('/api/admin/logout', { method: 'POST' });
+  window.location.href = '/';
+}
+
+loadData();
+</script>
+</body>
+</html>
