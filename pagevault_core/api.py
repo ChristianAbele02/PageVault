@@ -156,7 +156,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                     (book_id, tag_row["id"]),
                 )
 
-    def with_book_relations(db: sqlite3.Connection, book_row: sqlite3.Row | None) -> dict[str, Any] | None:  # issue #15
+    def with_book_relations(
+        db: sqlite3.Connection, book_row: sqlite3.Row | None
+    ) -> dict[str, Any] | None:  # issue #15
         if not book_row:
             return None
         result = dict(book_row)
@@ -177,13 +179,13 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             return None
         row = db.execute("SELECT id FROM shelves WHERE name = ?", (clean_name,)).fetchone()
         if row:
-            return row["id"]
+            return int(row["id"])
         current = now()
         db.execute(
             "INSERT INTO shelves (name, logo_url, created_at, updated_at) VALUES (?, NULL, ?, ?)",
             (clean_name, current, current),
         )
-        return db.execute("SELECT last_insert_rowid()").fetchone()[0]
+        return int(db.execute("SELECT last_insert_rowid()").fetchone()[0])
 
     def parse_yyyy_mm_dd(value: str | None) -> datetime | None:
         text = (value or "").strip()
@@ -203,7 +205,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         return {}
 
     # ── Helpers ───────────────────────────────────────────────────────────────
-    def parse_int_param(value: Any, default: int, min_val: int | None = None) -> tuple[int | None, str | None]:
+    def parse_int_param(
+        value: Any, default: int, min_val: int | None = None
+    ) -> tuple[int | None, str | None]:
         """Parse an integer query/body parameter.
 
         Returns ``(parsed_value, None)`` on success or ``(None, error_message)``
@@ -347,7 +351,8 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 GROUP BY book_id
             ) rs ON rs.book_id = b.id
         """
-        conditions, params = [], []
+        conditions: list[str] = []
+        params: list[str | int] = []
         if status:
             conditions.append("b.status = ?")
             params.append(status)
@@ -516,6 +521,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         if not row:
             return err("Book not found", 404)
         result = with_book_relations(db, row)
+        assert result is not None
         reviews = db.execute(
             "SELECT * FROM reviews WHERE book_id = ? ORDER BY created_at DESC",
             (book_id,),
@@ -529,6 +535,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         limit, limit_err = parse_int_param(request.args.get("limit"), default=6, min_val=1)
         if limit_err:
             return err(f"limit: {limit_err}", 400)
+        assert limit is not None
 
         items = recommendations.recommend_books(db, book_id, limit=limit)
         return jsonify(items)
@@ -887,7 +894,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
     @bp.get("/goals/current")
     def api_get_current_goal():
         db = get_db()
-        year, year_err = parse_int_param(request.args.get("year"), default=datetime.now(timezone.utc).year)
+        year, year_err = parse_int_param(
+            request.args.get("year"), default=datetime.now(timezone.utc).year
+        )
         if year_err:
             return err(f"year: {year_err}", 400)
         row = db.execute(
@@ -922,7 +931,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
     def api_upsert_current_goal():
         db = get_db()
         payload = request.get_json(force=True, silent=True) or {}
-        year, year_err = parse_int_param(payload.get("goal_year"), default=datetime.now(timezone.utc).year)
+        year, year_err = parse_int_param(
+            payload.get("goal_year"), default=datetime.now(timezone.utc).year
+        )
         if year_err:
             return err(f"goal_year: {year_err}", 400)
         target_books, tb_err = parse_int_param(payload.get("target_books"), default=0, min_val=0)

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from typing import cast
 
 from flask import Flask, g
 
@@ -23,7 +24,7 @@ def get_db() -> sqlite3.Connection:
         g._db.row_factory = sqlite3.Row
         g._db.execute("PRAGMA journal_mode=WAL")
         g._db.execute("PRAGMA foreign_keys=ON")
-    return g._db
+    return cast(sqlite3.Connection, g._db)
 
 
 def init_db_hook(app: Flask) -> None:

@@ -221,7 +221,7 @@ def _detect_local_ip() -> str:
             sock.connect(("8.8.8.8", 80))
             detected = sock.getsockname()[0]
             if detected:
-                return detected
+                return str(detected)
     except OSError:
         pass
 
