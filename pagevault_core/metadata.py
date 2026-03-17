@@ -10,6 +10,7 @@ import urllib.error
 import urllib.request
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, cast
 
 from .utils import normalize_tags
 
@@ -141,7 +142,10 @@ def fetch_openlibrary_covers(isbn: str) -> dict | None:
         with urllib.request.urlopen(req, timeout=5):
             pass
         return {"isbn": isbn, "cover_url": cover_url}
-    except (urllib.error.URLError, OSError):  # specific exceptions instead of bare except (issue #6)
+    except (
+        urllib.error.URLError,
+        OSError,
+    ):  # specific exceptions instead of bare except (issue #6)
         return None
 
 
@@ -288,7 +292,7 @@ def lookup_isbn(
     )
     if not needs_fallback:
         _set_cached_lookup(clean, openlibrary_data)
-        return openlibrary_data
+        return cast(dict[Any, Any], openlibrary_data)
 
     provider_jobs = {
         "googlebooks": fetch_googlebooks_fn,
@@ -318,4 +322,4 @@ def lookup_isbn(
             merged_data = merge_lookup_data(merged_data, results[provider_name])
 
     _set_cached_lookup(clean, merged_data)
-    return merged_data
+    return cast(dict[Any, Any], merged_data)
