@@ -84,6 +84,12 @@ skip_covered = false
 
 # ── mypy ──────────────────────────────────────────────────────────────────────
 [tool.mypy]
-python_version = "3.10"
-strict         = false
+python_version         = "3.10"
+strict                 = false          # full strict mode reserved for future work (issue #13)
 ignore_missing_imports = true
+# Enabled incrementally — these catch the most impactful issues without
+# requiring full type coverage across the whole codebase.
+warn_return_any        = true
+check_untyped_defs     = true
+warn_unused_ignores    = true
+no_implicit_optional   = true

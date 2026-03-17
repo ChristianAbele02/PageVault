@@ -5,10 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>PageVault</title>
 <link rel="manifest" href="/static/manifest.webmanifest">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin="anonymous">
+<!-- Fonts: SRI not applicable (dynamic CSS; content varies by query parameters) -->
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" crossorigin="anonymous">
+<!-- CDN scripts: crossorigin="anonymous" is required for SRI enforcement (issue #8/#26).       -->
+<!-- To compute SRI hashes, run: curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A -->
+<!-- Or use https://www.srihash.org/ and add integrity="sha384-<hash>" to each script tag.        -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
 <style>
   :root {
     --ink:    #1a1008;
@@ -24,6 +28,16 @@
     --shelf-line: rgba(122,92,58,.2);
     --toast-bg: #1a1008;
     --toast-fg: #fdf8f2;
+    /* ── Design tokens ── */
+    --radius-sm:   8px;
+    --radius-md:   12px;
+    --radius-lg:   18px;
+    --shadow-xs:   0 1px 2px rgba(26,16,8,.06);
+    --shadow-sm:   0 1px 4px rgba(26,16,8,.07), 0 3px 10px rgba(26,16,8,.08);
+    --shadow-md:   0 4px 18px rgba(26,16,8,.13), 0 2px 6px rgba(26,16,8,.08);
+    --shadow-focus: 0 0 0 3px rgba(200,145,58,.22);
+    --ease-spring: cubic-bezier(.34,1.26,.64,1);
+    --transition:  180ms ease;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -48,7 +62,8 @@
     justify-content: space-between;
     height: 56px;
     position: sticky; top: 0; z-index: 100;
-    box-shadow: 0 2px 12px rgba(0,0,0,.4);
+    box-shadow: 0 2px 12px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.05);
+    border-bottom: 1px solid rgba(255,255,255,.04);
   }
   .logo {
     font-family: 'Playfair Display', serif;
@@ -113,12 +128,19 @@
     width: 100%;
     background: #fff;
     border: 1.5px solid #c8b59f;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     padding: .52rem .65rem;
     font-family: 'Lato', sans-serif;
     font-size: .82rem;
     color: #2e1f0e;
     font-weight: 700;
+    box-shadow: var(--shadow-xs);
+    transition: border-color var(--transition), box-shadow var(--transition);
+  }
+  .filter-select:focus {
+    border-color: var(--amber);
+    box-shadow: var(--shadow-focus);
+    outline: none;
   }
 
   /* ── Search ── */
@@ -131,23 +153,33 @@
   }
   .search-input {
     width: 100%; background: #fff; border: 1.5px solid var(--tan);
-    border-radius: 8px; padding: .55rem 1rem; font-family: 'Lato', sans-serif;
+    border-radius: var(--radius-md); padding: .55rem 1rem; font-family: 'Lato', sans-serif;
     font-size: .9rem; color: var(--ink); outline: none;
-    transition: border-color .2s;
+    box-shadow: var(--shadow-sm);
+    transition: border-color var(--transition), box-shadow var(--transition);
   }
-  .search-input:focus { border-color: var(--amber); }
+  .search-input:focus {
+    border-color: var(--amber);
+    box-shadow: var(--shadow-focus);
+  }
   .search-input::placeholder { color: #bbb; }
   .mini-btn {
     border: 1.5px solid #b89f83;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     background: #f7f1e9;
     color: #4f341c;
     font-size: .78rem;
     font-weight: 700;
     cursor: pointer;
     padding: .53rem .8rem;
+    box-shadow: var(--shadow-xs);
+    transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
   }
-  .mini-btn:hover { border-color: #7a5c3a; }
+  .mini-btn:hover {
+    border-color: #7a5c3a;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+  }
   .mini-btn.active {
     background: var(--ink);
     color: var(--gold);
@@ -157,9 +189,12 @@
   /* ── About panel ── */
   .about-panel {
     margin: 0 1.25rem .9rem;
-    border: 1px solid rgba(122, 92, 58, .28);
-    border-radius: 10px;
-    background: rgba(253, 248, 242, .72);
+    border: 1px solid rgba(122, 92, 58, .22);
+    border-radius: var(--radius-md);
+    background: rgba(253, 248, 242, .82);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    box-shadow: var(--shadow-sm);
     padding: .7rem .85rem;
     font-size: .8rem;
     color: #4e3a24;
@@ -173,9 +208,12 @@
     gap: .55rem;
   }
   .io-card {
-    border: 1px solid rgba(122, 92, 58, .28);
-    border-radius: 10px;
-    background: rgba(253, 248, 242, .72);
+    border: 1px solid rgba(122, 92, 58, .22);
+    border-radius: var(--radius-md);
+    background: rgba(253, 248, 242, .82);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    box-shadow: var(--shadow-sm);
     padding: .7rem .85rem;
   }
   .io-title {
@@ -245,9 +283,10 @@
     gap: .55rem;
   }
   .about-block {
-    border: 1px solid rgba(122, 92, 58, .28);
-    border-radius: 10px;
-    background: rgba(253, 248, 242, .72);
+    border: 1px solid rgba(122, 92, 58, .22);
+    border-radius: var(--radius-md);
+    background: rgba(253, 248, 242, .82);
+    box-shadow: var(--shadow-xs);
     padding: .55rem .65rem;
     text-decoration: none;
     color: #5d4227;
@@ -255,11 +294,12 @@
     line-height: 1.35;
     font-weight: 700;
     text-align: center;
-    transition: border-color .2s, transform .15s;
+    transition: border-color var(--transition), transform .2s var(--ease-spring), box-shadow var(--transition);
   }
   .about-block:hover {
-    border-color: rgba(122, 92, 58, .55);
-    transform: translateY(-1px);
+    border-color: rgba(122, 92, 58, .5);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
   }
   .about-block .about-k {
     display: block;
@@ -371,7 +411,8 @@
   .status-badge {
     position: absolute; top: .4rem; right: .4rem;
     font-size: .5rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .1em; padding: .2rem .4rem; border-radius: 3px;
+    letter-spacing: .1em; padding: .2rem .45rem; border-radius: 999px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.18);
   }
   .badge-reading   { background: var(--sage); color: #fff; }
   .badge-read      { background: var(--rust); color: #fff; }
@@ -390,13 +431,17 @@
   #fab {
     position: static;
     width: 56px; height: 56px; border-radius: 50%;
-    background: var(--amber); border: none;
-    box-shadow: 0 4px 16px rgba(200,145,58,.5);
+    background: linear-gradient(135deg, var(--amber) 0%, var(--gold) 100%);
+    border: none;
+    box-shadow: 0 4px 18px rgba(200,145,58,.55), 0 1px 4px rgba(0,0,0,.12);
     font-size: 1.6rem; cursor: pointer; color: #fff;
     display: flex; align-items: center; justify-content: center;
-    transition: transform .2s, box-shadow .2s;
+    transition: transform .25s var(--ease-spring), box-shadow .2s;
   }
-  #fab:hover { transform: scale(1.08); box-shadow: 0 6px 22px rgba(200,145,58,.6); }
+  #fab:hover {
+    transform: scale(1.1) rotate(12deg);
+    box-shadow: 0 7px 26px rgba(200,145,58,.65), 0 2px 8px rgba(0,0,0,.15);
+  }
   .fab-mini {
     width: 46px;
     height: 46px;
@@ -422,16 +467,18 @@
   .tools-menu {
     position: absolute;
     right: 0;
-    bottom: 56px;
+    bottom: 62px;
     display: none;
     flex-direction: column;
-    gap: .35rem;
-    min-width: 210px;
-    padding: .5rem;
-    border: 1px solid rgba(122, 92, 58, .35);
-    border-radius: 10px;
-    background: rgba(253, 248, 242, .96);
-    box-shadow: 0 8px 22px rgba(0,0,0,.22);
+    gap: .3rem;
+    min-width: 218px;
+    padding: .55rem;
+    border: 1px solid rgba(122, 92, 58, .28);
+    border-radius: var(--radius-lg);
+    background: rgba(253, 248, 242, .92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: var(--shadow-md), 0 0 0 1px rgba(255,255,255,.45) inset;
   }
   .tools-menu.open {
     display: flex;
@@ -439,17 +486,19 @@
   .tools-menu button {
     width: 100%;
     text-align: left;
-    border: 1px solid #c8b59f;
-    border-radius: 8px;
-    background: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
     color: #4f341c;
     font-size: .78rem;
     font-weight: 700;
-    padding: .5rem .6rem;
+    padding: .52rem .7rem;
     cursor: pointer;
+    transition: background var(--transition), color var(--transition);
   }
   .tools-menu button:hover {
-    border-color: #7a5c3a;
+    background: rgba(122, 92, 58, .1);
+    color: var(--ink);
   }
 
   /* ── Empty state ── */
@@ -462,45 +511,122 @@
   #empty-state p { color: var(--brown); font-family: 'Playfair Display', serif; font-size: 1.1rem; }
   #empty-state small { color: #aaa; margin-top: .4rem; display: block; }
 
-  /* ── Modal backdrop ── */
-  .modal-backdrop {
-    display: none; position: fixed; inset: 0; z-index: 200;
-    background: rgba(26,16,8,.6); backdrop-filter: blur(3px);
-    align-items: flex-end; justify-content: center;
-  }
-  .modal-backdrop.open { display: flex; }
+  /* ── Modal dialog (native <dialog> element) ──
+     Renders in the browser's top layer — above all z-index stacking contexts,
+     no z-index battles, native focus trap and Escape key handling.
+     backdrop-filter intentionally removed: the GPU blur was the main source
+     of jank on mid-range devices. Opacity-only backdrop is visually clean
+     and compositor-thread-only. */
 
-  .modal {
+  .modal-dialog {
+    /* Override UA dialog geometry — do NOT set display here.
+       Closed dialogs get display:none from the UA stylesheet; overriding it
+       would make them full-screen invisible overlays that block all clicks.
+       align-items/justify-content live here (not on [open]) so they remain
+       active during the exit transition while display:flex is still held by
+       allow-discrete — without them the panel snaps to default alignment mid-close. */
+    position: fixed;
+    inset: 0;
+    width: 100%; max-width: 100%;
+    height: 100%; max-height: 100%;
+    margin: 0; padding: 0; border: none;
+    background: transparent; color: inherit;
+    overflow: hidden;
+    align-items: flex-end;
+    justify-content: center;
+    /* Exit animation: hold in top layer + delay display:none until transitions finish */
+    transition:
+      display .3s allow-discrete,
+      overlay .3s allow-discrete;
+  }
+  /* Only display:flex is gated on [open] — everything else is always set above */
+  .modal-dialog[open] {
+    display: flex;
+  }
+  /* During exit transition display is still flex but clicks must not be captured */
+  .modal-dialog:not([open]) {
+    pointer-events: none;
+  }
+
+  /* Dark warmer backdrop via the native ::backdrop pseudo-element */
+  .modal-dialog::backdrop {
+    background: rgba(18,10,3,0);
+    transition:
+      background .25s ease,
+      display .3s allow-discrete,
+      overlay .3s allow-discrete;
+  }
+  .modal-dialog[open]::backdrop {
+    background: rgba(18,10,3,.7);
+  }
+  @starting-style {
+    .modal-dialog[open]::backdrop { background: rgba(18,10,3,0); }
+  }
+
+  /* The visible panel */
+  .modal-panel {
     background: var(--cream);
-    border-radius: 20px 20px 0 0;
+    border-radius: 28px 28px 0 0;
     width: 100%; max-width: 560px;
     max-height: 92vh; overflow-y: auto;
+    scrollbar-width: none;
     padding: 0 0 2rem;
-    animation: slideUp .3s ease;
+    contain: layout paint;       /* skip rendering when closed */
+    /* Closed: shifted down, transparent */
+    transform: translateY(28px);
+    opacity: 0;
+    transition: transform .3s var(--ease-spring), opacity .2s ease;
+    box-shadow: 0 -6px 50px rgba(0,0,0,.3), 0 -1px 0 rgba(255,255,255,.4) inset;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
-  @keyframes slideUp {
-    from { transform: translateY(100%); opacity: 0; }
-    to   { transform: translateY(0);    opacity: 1; }
+  .modal-panel::-webkit-scrollbar { display: none; }
+
+  /* Open state — panel slides in */
+  .modal-dialog[open] .modal-panel {
+    transform: translateY(0);
+    opacity: 1;
+    will-change: transform, opacity;  /* GPU layer only while open */
   }
+
+  /* @starting-style: defines the state BEFORE the first paint so the
+     entrance animation fires correctly without any JS rAF tricks */
+  @starting-style {
+    .modal-dialog[open] .modal-panel {
+      transform: translateY(28px);
+      opacity: 0;
+    }
+  }
+
   .modal-handle {
-    width: 40px; height: 4px; border-radius: 2px;
-    background: var(--tan); margin: .75rem auto;
+    width: 48px; height: 5px; border-radius: 999px;
+    background: linear-gradient(90deg, transparent, var(--amber), transparent);
+    margin: .9rem auto .5rem;
+    opacity: .45;
   }
   .modal-header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: .5rem 1.25rem 1rem;
+    padding: .6rem 1.25rem 1rem;
     border-bottom: 1px solid var(--tan);
+    background: linear-gradient(to bottom, rgba(200,145,58,.06), transparent);
   }
   .modal-title {
     font-family: 'Playfair Display', serif;
     font-size: 1.15rem; font-weight: 700;
   }
   .btn-close {
-    background: none; border: none; cursor: pointer;
-    font-size: 1.4rem; color: var(--brown); line-height: 1;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: rgba(122,92,58,.1); border: none; cursor: pointer;
+    font-size: .95rem; color: var(--brown); line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    transition: background var(--transition), color var(--transition);
+  }
+  .btn-close:hover {
+    background: rgba(155,58,28,.14);
+    color: var(--rust);
   }
 
-  #tools-modal .modal { max-width: 700px; }
+  #tools-modal .modal-panel { max-width: 700px; }
   #tools-modal .modal-body { padding: .95rem 1.05rem 1.15rem; }
   .tools-tabs {
     display: flex;
@@ -516,13 +642,21 @@
     color: #4f341c;
     font-size: .72rem;
     font-weight: 700;
-    padding: .38rem .68rem;
+    padding: .38rem .72rem;
     cursor: pointer;
+    box-shadow: var(--shadow-xs);
+    transition: border-color var(--transition), background var(--transition), color var(--transition), transform var(--transition);
+  }
+  .tools-tab:hover:not(.active) {
+    border-color: var(--brown);
+    background: #ede3d6;
+    transform: translateY(-1px);
   }
   .tools-tab.active {
     background: var(--ink);
     color: var(--gold);
     border-color: var(--ink);
+    box-shadow: 0 2px 8px rgba(26,16,8,.25);
   }
   .tools-panel { display: none; }
   .tools-panel.active { display: block; }
@@ -573,19 +707,29 @@
     outline: none; transition: border-color .2s;
     appearance: none;
   }
-  input:focus, textarea:focus, select:focus { border-color: var(--amber); }
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--amber);
+    box-shadow: var(--shadow-focus);
+  }
   textarea { resize: vertical; min-height: 70px; }
 
   .btn-primary {
-    width: 100%; padding: .8rem; background: var(--rust); color: #fff;
-    border: none; border-radius: 10px; cursor: pointer;
+    width: 100%; padding: .8rem;
+    background: linear-gradient(135deg, var(--rust) 0%, #b34018 100%);
+    color: #fff;
+    border: none; border-radius: var(--radius-md); cursor: pointer;
     font-family: 'Playfair Display', serif; font-size: 1rem;
     font-weight: 700; letter-spacing: .03em;
-    transition: background .2s, transform .1s;
+    box-shadow: 0 2px 8px rgba(155,58,28,.35);
+    transition: transform var(--transition), box-shadow var(--transition), filter var(--transition);
     margin-top: .5rem;
   }
-  .btn-primary:hover { background: #7d2a12; }
-  .btn-primary:active { transform: scale(.98); }
+  .btn-primary:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(155,58,28,.45);
+  }
+  .btn-primary:active { transform: scale(.98); box-shadow: none; }
   .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 
   #preview-card {
@@ -658,7 +802,7 @@
   }
 
   /* ── Book detail modal ── */
-  #detail-modal .modal { max-width: 560px; }
+  #detail-modal .modal-panel { max-width: 560px; }
   .detail-hero {
     display: flex; gap: 1.25rem; padding: 1.25rem;
     align-items: flex-start;
@@ -697,13 +841,45 @@
   .status-select { margin-top: .6rem; }
   .status-select select { padding: .35rem .6rem; font-size: .8rem; }
   .detail-shelves { margin-top: .6rem; }
-  .detail-shelves select {
-    width: 100%;
-    padding: .35rem .6rem;
-    font-size: .8rem;
-    min-height: 86px;
-  }
   .detail-shelves .mini-btn { margin-top: .45rem; width: 100%; }
+
+  /* Shelf pill picker — replaces <select multiple> */
+  .shelf-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .38rem;
+    margin-top: .3rem;
+    min-height: 30px;
+  }
+  .shelf-pill {
+    border: 1.5px solid var(--tan);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--brown);
+    font-family: 'Lato', sans-serif;
+    font-size: .74rem;
+    font-weight: 700;
+    padding: .28rem .68rem;
+    cursor: pointer;
+    transition: background var(--transition), border-color var(--transition),
+                color var(--transition), transform var(--transition);
+  }
+  .shelf-pill:hover:not(.active) {
+    border-color: var(--brown);
+    background: rgba(122,92,58,.08);
+    transform: translateY(-1px);
+  }
+  .shelf-pill.active {
+    background: var(--ink);
+    color: var(--gold);
+    border-color: var(--ink);
+    box-shadow: 0 1px 5px rgba(26,16,8,.22);
+  }
+  .shelf-pills-empty {
+    font-size: .78rem;
+    color: #bbb;
+    font-style: italic;
+  }
   .detail-genres {
     margin-top: .6rem;
   }
@@ -725,12 +901,13 @@
     display: inline-flex;
     align-items: center;
     gap: .3rem;
-    background: var(--ink);
+    background: linear-gradient(135deg, var(--ink) 0%, #2e1f0e 100%);
     color: var(--gold);
     border-radius: 999px;
-    padding: .2rem .5rem;
+    padding: .2rem .55rem;
     font-size: .74rem;
     font-weight: 700;
+    box-shadow: 0 1px 3px rgba(26,16,8,.25);
   }
   .tag-chip button {
     background: transparent;
@@ -771,17 +948,47 @@
   .detail-section h3 {
     font-family: 'Playfair Display', serif; font-size: .95rem;
     font-weight: 700; margin-bottom: .75rem; color: var(--ink);
+    display: flex; align-items: center; gap: .5rem;
+  }
+  .detail-section h3::before {
+    content: '';
+    display: inline-block;
+    width: 3px; height: 1em;
+    border-radius: 2px;
+    background: var(--amber);
+    flex-shrink: 0;
   }
   .detail-desc {
     font-size: .85rem; color: #555; line-height: 1.6;
-    max-height: 100px; overflow: hidden; position: relative;
+    max-height: 160px; overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-right: .25rem;
   }
-  .detail-desc.expanded { max-height: none; }
+  .detail-desc-placeholder {
+    font-size: .84rem; color: #bbb; font-style: italic; margin: 0;
+  }
+  .desc-edit-form { display: none; margin-top: .6rem; }
+  .desc-edit-form.open { display: flex; flex-direction: column; gap: .45rem; }
+  .desc-edit-form textarea { min-height: 90px; resize: vertical; }
+  .btn-edit-inline {
+    background: none; border: none; cursor: pointer; padding: 0;
+    font-size: .7rem; color: var(--brown); text-decoration: underline;
+    font-family: inherit; margin-left: .5rem; vertical-align: middle;
+  }
+  .btn-edit-inline:hover { color: var(--amber); }
 
   .reviews-list { display: flex; flex-direction: column; gap: .75rem; }
   .review-item {
     background: #fff; border: 1px solid var(--tan);
-    border-radius: 8px; padding: .75rem 1rem;
+    border-left: 3px solid var(--tan);
+    border-radius: var(--radius-md); padding: .75rem 1rem;
+    box-shadow: var(--shadow-xs);
+    transition: border-left-color var(--transition), box-shadow var(--transition);
+  }
+  .review-item:hover {
+    border-left-color: var(--amber);
+    box-shadow: var(--shadow-sm);
   }
   .review-header { display: flex; align-items: center; justify-content: space-between; }
   .review-stars { color: var(--gold); font-size: .85rem; }
@@ -812,12 +1019,16 @@
   }
   .btn-danger {
     flex: 1; padding: .65rem; background: none;
-    border: 1.5px solid var(--rust); border-radius: 8px;
+    border: 1.5px solid var(--rust); border-radius: var(--radius-md);
     color: var(--rust); font-family: 'Lato', sans-serif;
     font-size: .85rem; font-weight: 700; cursor: pointer;
-    transition: background .2s, color .2s;
+    transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition);
   }
-  .btn-danger:hover { background: var(--rust); color: #fff; }
+  .btn-danger:hover {
+    background: var(--rust); color: #fff;
+    box-shadow: 0 3px 10px rgba(155,58,28,.35);
+    transform: translateY(-1px);
+  }
 
   @media (prefers-color-scheme: dark) {
     :root {
@@ -858,6 +1069,24 @@
     border-color: #5a4531;
     color: #f5efe6;
   }
+  .dark-mode .tag-chip {
+    background: linear-gradient(135deg, #3d2e1e 0%, #2a1d10 100%);
+    color: var(--gold);
+    box-shadow: 0 1px 3px rgba(0,0,0,.4);
+  }
+  .dark-mode .shelf-pill {
+    border-color: #5a4531;
+    color: #d0b998;
+  }
+  .dark-mode .shelf-pill:hover:not(.active) {
+    background: rgba(255,255,255,.07);
+    border-color: #8a6a47;
+  }
+  .dark-mode .shelf-pill.active {
+    background: var(--gold);
+    color: #1a130a;
+    border-color: var(--gold);
+  }
   .dark-mode .tag-input {
     color: #f5efe6 !important;
   }
@@ -893,13 +1122,23 @@
     color: #d0b998;
   }
   .dark-mode .about-panel {
-    background: rgba(15, 11, 5, .62);
-    border-color: rgba(212, 168, 67, .28);
+    background: rgba(15, 11, 5, .75);
+    border-color: rgba(212, 168, 67, .22);
     color: #dbc8ae;
+    box-shadow: var(--shadow-sm);
   }
   .dark-mode .io-card {
-    background: rgba(15, 11, 5, .62);
-    border-color: rgba(212, 168, 67, .28);
+    background: rgba(15, 11, 5, .75);
+    border-color: rgba(212, 168, 67, .22);
+    box-shadow: var(--shadow-sm);
+  }
+  .dark-mode .about-block {
+    background: rgba(15, 11, 5, .75);
+    border-color: rgba(212, 168, 67, .2);
+    color: #d4b98a;
+  }
+  .dark-mode .about-block:hover {
+    border-color: rgba(212, 168, 67, .45);
   }
   .dark-mode .io-title {
     color: #f4e8d0;
@@ -921,13 +1160,17 @@
     border-color: #5a4531;
   }
   .dark-mode .tools-menu {
-    background: rgba(26, 19, 10, .96);
-    border-color: rgba(255,255,255,.12);
+    background: rgba(20, 14, 7, .92);
+    border-color: rgba(255,255,255,.1);
   }
   .dark-mode .tools-menu button {
-    background: #211709;
+    background: transparent;
     color: #f5efe6;
-    border-color: #5a4531;
+    border: none;
+  }
+  .dark-mode .tools-menu button:hover {
+    background: rgba(255,255,255,.08);
+    color: var(--gold);
   }
   .dark-mode .tools-tab {
     background: #211709;
@@ -941,16 +1184,27 @@
   }
   .dark-mode .about-title { color: #f4e8d0; }
   .dark-mode .about-love { color: #cfb089; }
-  .dark-mode .about-block {
-    background: rgba(15, 11, 5, .62);
-    border-color: rgba(212, 168, 67, .28);
-    color: #f0d8b1;
+  .dark-mode .about-block .about-k { color: #c89f5f; }
+  .dark-mode .modal-panel {
+    box-shadow: 0 -6px 60px rgba(0,0,0,.6), 0 -1px 0 rgba(255,255,255,.07) inset;
   }
-  .dark-mode .about-block .about-k {
-    color: #c89f5f;
+  .dark-mode .modal-header {
+    background: linear-gradient(to bottom, rgba(212,168,67,.07), transparent);
   }
-  .dark-mode .about-block:hover {
-    border-color: rgba(255, 211, 138, .55);
+  @media (prefers-color-scheme: dark) {
+    .modal-dialog[open]::backdrop { background: rgba(0,0,0,.78); }
+    @starting-style {
+      .modal-dialog[open]::backdrop { background: rgba(0,0,0,0); }
+    }
+  }
+  .dark-mode .review-item {
+    border-left-color: #5a4531;
+  }
+  .dark-mode .review-item:hover {
+    border-left-color: var(--amber);
+  }
+  .dark-mode .detail-section h3::before {
+    background: var(--amber);
   }
 
   .light-mode {
@@ -1096,8 +1350,8 @@
 <input id="csv-import-input" type="file" accept=".csv,text/csv" style="display:none" />
 <div class="toast" id="toast"></div>
 
-<div class="modal-backdrop" id="mobile-connect-modal">
-  <div class="modal" style="max-width:430px;">
+<dialog class="modal-dialog" id="mobile-connect-modal">
+  <div class="modal-panel" style="max-width:430px;">
     <div class="modal-handle"></div>
     <div class="modal-header">
       <span class="modal-title">Connect Phone</span>
@@ -1113,11 +1367,11 @@
       <p class="mobile-connect-note">Scan this QR code with your phone camera while both devices are on the same Wi-Fi.</p>
     </div>
   </div>
-</div>
+</dialog>
 
 <!-- ── Add Book Modal ── -->
-<div class="modal-backdrop" id="add-modal">
-  <div class="modal">
+<dialog class="modal-dialog" id="add-modal">
+  <div class="modal-panel">
     <div class="modal-handle"></div>
     <div class="modal-header">
       <span class="modal-title">Add a Book</span>
@@ -1184,7 +1438,8 @@
 
       <div class="form-group">
         <label>Add to shelves</label>
-        <select id="add-shelves" multiple size="4"></select>
+        <select id="add-shelves" multiple style="display:none"></select>
+        <div id="add-shelves-pills" class="shelf-pills"></div>
       </div>
 
       <div class="form-group">
@@ -1221,11 +1476,11 @@
       <button class="btn-primary" id="add-btn" onclick="addBook()" disabled>Add to My Shelf</button>
     </div>
   </div>
-</div>
+</dialog>
 
 <!-- ── Book Detail Modal ── -->
-<div class="modal-backdrop" id="detail-modal">
-  <div class="modal">
+<dialog class="modal-dialog" id="detail-modal">
+  <div class="modal-panel">
     <div class="modal-handle"></div>
     <div class="modal-header">
       <span class="modal-title">Book Details</span>
@@ -1249,7 +1504,8 @@
           </select>
         </div>
         <div class="detail-shelves">
-          <select id="d-shelves" multiple size="4"></select>
+          <select id="d-shelves" multiple style="display:none"></select>
+          <div id="d-shelves-pills" class="shelf-pills"></div>
           <button class="mini-btn" onclick="updateBookShelves()">Save Shelves</button>
         </div>
         <div class="detail-genres">
@@ -1276,9 +1532,19 @@
       </div>
     </div>
 
-    <div class="detail-section" id="d-desc-section" style="display:none">
-      <h3>Description</h3>
+    <div class="detail-section" id="d-desc-section">
+      <h3>Description
+        <button class="btn-edit-inline" onclick="toggleDescEdit()" id="d-desc-edit-btn">Edit</button>
+      </h3>
       <div class="detail-desc" id="d-desc"></div>
+      <p class="detail-desc-placeholder" id="d-desc-placeholder">No description available.</p>
+      <div class="desc-edit-form" id="d-desc-edit-form">
+        <textarea id="d-desc-input" placeholder="Add a description…" rows="5"></textarea>
+        <div style="display:flex;gap:.5rem">
+          <button class="btn-primary" style="flex:1;margin-top:0" onclick="saveDescription()">Save</button>
+          <button class="mini-btn" onclick="toggleDescEdit()">Cancel</button>
+        </div>
+      </div>
     </div>
 
     <div class="detail-section" id="d-rec-section">
@@ -1307,10 +1573,10 @@
       <button class="btn-danger" onclick="deleteBook()">Remove from Shelf</button>
     </div>
   </div>
-</div>
+</dialog>
 
-<div class="modal-backdrop" id="tools-modal">
-  <div class="modal">
+<dialog class="modal-dialog" id="tools-modal">
+  <div class="modal-panel">
     <div class="modal-handle"></div>
     <div class="modal-header">
       <span class="modal-title">Library Tools</span>
@@ -1390,7 +1656,7 @@
       </article>
     </div>
   </div>
-</div>
+</dialog>
 
 <script>
 // ─── State ───────────────────────────────────────────────────────────────────
@@ -1485,11 +1751,11 @@ function showToolsPanel(panelId) {
 function openToolsModal(panelId='tools-panel-io') {
   closeToolsMenu();
   showToolsPanel(panelId);
-  document.getElementById('tools-modal').classList.add('open');
+  document.getElementById('tools-modal').showModal();
 }
 
 function closeToolsModal() {
-  document.getElementById('tools-modal').classList.remove('open');
+  document.getElementById('tools-modal').close();
 }
 
 document.addEventListener('click', event => {
@@ -2046,6 +2312,29 @@ function updateAddShelfSelect() {
   addShelfSelect.innerHTML = shelves.length
     ? shelves.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')
     : '<option disabled>No shelves yet</option>';
+  _buildShelfPills('add-shelves-pills', 'add-shelves', []);
+}
+
+function _buildShelfPills(pillsId, selectId, selectedIds) {
+  const pills = document.getElementById(pillsId);
+  if (!pills) return;
+  if (!shelves.length) {
+    pills.innerHTML = '<span class="shelf-pills-empty">No shelves yet</span>';
+    return;
+  }
+  const idSet = new Set(selectedIds.map(Number));
+  pills.innerHTML = shelves.map(s =>
+    `<button type="button" class="shelf-pill${idSet.has(s.id) ? ' active' : ''}"
+       data-select-id="${selectId}" data-shelf-id="${s.id}"
+       onclick="toggleShelfPill(this)">${esc(s.name)}</button>`
+  ).join('');
+}
+
+function toggleShelfPill(btn) {
+  btn.classList.toggle('active');
+  const opt = [...document.getElementById(btn.dataset.selectId).options]
+    .find(o => Number(o.value) === Number(btn.dataset.shelfId));
+  if (opt) opt.selected = btn.classList.contains('active');
 }
 
 function clearAdvancedFilters() {
@@ -2318,7 +2607,7 @@ function getBookCover(book) {
 
 // ─── Add modal ────────────────────────────────────────────────────────────────
 function openAdd() {
-  document.getElementById('add-modal').classList.add('open');
+  document.getElementById('add-modal').showModal();
   document.getElementById('isbn-input').value = '';
   document.getElementById('preview-card').classList.remove('visible');
   document.getElementById('manual-fields').style.display = 'none';
@@ -2336,11 +2625,16 @@ function openAdd() {
 
 function closeAdd() {
   stopScanner();
-  document.getElementById('add-modal').classList.remove('open');
+  document.getElementById('add-modal').close();
 }
 
 document.getElementById('add-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('add-modal')) closeAdd();
+});
+// Escape key — stop scanner before native close
+document.getElementById('add-modal').addEventListener('cancel', e => {
+  e.preventDefault();
+  closeAdd();
 });
 
 // ─── Scanner ──────────────────────────────────────────────────────────────────
@@ -2351,7 +2645,7 @@ function toggleScanner() {
 
 async function openMobileConnect() {
   const modal = document.getElementById('mobile-connect-modal');
-  modal.classList.add('open');
+  modal.showModal();
 
   const qrHolder = document.getElementById('mobile-qr');
   const urlInput = document.getElementById('mobile-url');
@@ -2393,7 +2687,7 @@ function renderMobileQr(url) {
 }
 
 function closeMobileConnect() {
-  document.getElementById('mobile-connect-modal').classList.remove('open');
+  document.getElementById('mobile-connect-modal').close();
 }
 
 async function copyMobileUrl() {
@@ -2547,18 +2841,49 @@ async function createShelfFromAdd() {
   const addSelect = document.getElementById('add-shelves');
   const option = [...addSelect.options].find(opt => Number(opt.value) === shelf.id);
   if (option) option.selected = true;
+  // Also activate the corresponding pill that was just built by loadShelves
+  const newPill = document.querySelector(`#add-shelves-pills [data-shelf-id="${shelf.id}"]`);
+  if (newPill) newPill.classList.add('active');
   document.getElementById('new-shelf-name').value = '';
   document.getElementById('new-shelf-logo').value = '';
   showToast('Shelf created ✓');
 }
 
 // ─── Detail modal ──────────────────────────────────────────────────────────────
+// Tracks whether any mutation happened while the modal was open so we can do
+// a single loadBooks() on close instead of one per action.
+let _detailNeedsRefresh = false;
+
 async function openDetail(id) {
   currentBookId = id;
-  await loadShelves();
+  _detailNeedsRefresh = false;
+
+  // 1. Open modal immediately using already-cached book data — zero network wait.
+  const detailModal = document.getElementById('detail-modal');
+  const cached = books.find(b => b.id === id);
+  if (cached) {
+    _fillDetailModal(cached);
+    if (!detailModal.open) detailModal.showModal();
+  }
+
+  // 2. Load shelves only when not already cached.
+  if (!shelves.length) loadShelves();
+
+  // 3. Fetch full book data (includes reviews, which cached entry lacks).
   const r = await api(`/api/books/${id}`);
   const b = await r.json();
+  _fillDetailModal(b);
 
+  if (!cached) {
+    if (!detailModal.open) detailModal.showModal();
+  }
+
+  // 4. Recommendations run in the background — never block the modal.
+  loadRecommendations(id);
+}
+
+// Populate the detail modal from any book object (cached or full API response).
+function _fillDetailModal(b) {
   document.getElementById('d-title').textContent  = b.title;
   document.getElementById('d-author').textContent = b.author || 'Unknown author';
 
@@ -2582,10 +2907,8 @@ async function openDetail(id) {
     ? `<img class="detail-cover" src="${esc(safeCover)}" alt="cover" onerror="this.outerHTML='<div class=&quot;detail-cover-ph&quot;>📖</div>'">`
     : `<div class="detail-cover-ph">📖</div>`;
 
-  // Star picker for quick rating
   buildStarPicker('d-star-picker', 'd-rating-label', b.avg_rating);
 
-  // Status
   document.getElementById('d-status').value = b.status;
   document.getElementById('d-location-type').value = b.location_type || 'shelf';
   document.getElementById('d-location-note').value = b.location_note || '';
@@ -2594,24 +2917,29 @@ async function openDetail(id) {
   setGenreState('detail', b.genre_tags || []);
   document.getElementById('d-genre-input').value = '';
 
-  // Description
+  // Description — section is always shown; missing description shows placeholder + Edit button
+  const descEl      = document.getElementById('d-desc');
+  const descPH      = document.getElementById('d-desc-placeholder');
+  const descInput   = document.getElementById('d-desc-input');
+  document.getElementById('d-desc-edit-form').classList.remove('open');
+  document.getElementById('d-desc-edit-btn').textContent = 'Edit';
   if (b.description) {
-    document.getElementById('d-desc').textContent = b.description;
-    document.getElementById('d-desc-section').style.display = 'block';
+    descEl.textContent  = b.description;
+    descEl.style.display  = '';
+    descPH.style.display  = 'none';
   } else {
-    document.getElementById('d-desc-section').style.display = 'none';
+    descEl.textContent  = '';
+    descEl.style.display  = 'none';
+    descPH.style.display  = '';
   }
+  descInput.value = b.description || '';
 
-  // Reviews
-  renderReviews(b.reviews || []);
+  // Reviews are only present in the full API response, not in the cached books list.
+  if (b.reviews !== undefined) renderReviews(b.reviews);
 
-  // New review star picker
   newRating = 0;
   buildNewStarPicker();
   document.getElementById('new-current-page').value = b.current_page ?? '';
-  await loadRecommendations(id);
-
-  document.getElementById('detail-modal').classList.add('open');
 }
 
 async function loadRecommendations(bookId) {
@@ -2641,6 +2969,7 @@ function populateDetailShelfSelect(selectedIds=[]) {
   const select = document.getElementById('d-shelves');
   if (!shelves.length) {
     select.innerHTML = '<option disabled>No shelves yet</option>';
+    _buildShelfPills('d-shelves-pills', 'd-shelves', []);
     return;
   }
   select.innerHTML = shelves
@@ -2650,6 +2979,7 @@ function populateDetailShelfSelect(selectedIds=[]) {
   [...select.options].forEach(opt => {
     opt.selected = idSet.has(Number(opt.value));
   });
+  _buildShelfPills('d-shelves-pills', 'd-shelves', selectedIds);
 }
 
 function buildStarPicker(containerId, labelId, currentRating) {
@@ -2665,20 +2995,37 @@ function buildStarPicker(containerId, labelId, currentRating) {
 
 function buildNewStarPicker() {
   const container = document.getElementById('new-stars');
-  const label     = document.getElementById('new-rating-label');
-  const labels = ['','Terrible','Poor','Okay','Good','Amazing'];
-  container.innerHTML = [1,2,3,4,5].map(n =>
-    `<label title="${labels[n]}" style="cursor:pointer;font-size:1.4rem;color:${n<=newRating?'var(--gold)':'#ddd'}">★
-       <input type="radio" name="new-rating" value="${n}" style="display:none">
-     </label>`
-  ).join('');
-  container.querySelectorAll('label').forEach((lbl, i) => {
-    lbl.addEventListener('click', () => {
-      newRating = i+1;
-      label.textContent = labels[i+1];
-      buildNewStarPicker();
+  const starLabels = ['','Terrible','Poor','Okay','Good','Amazing'];
+
+  // Build DOM only once — subsequent calls just update the visual state.
+  // This avoids innerHTML replacement + listener re-attachment on every star click.
+  if (!container.dataset.spInit) {
+    container.innerHTML = [1,2,3,4,5].map(n =>
+      `<label title="${starLabels[n]}" style="cursor:pointer;font-size:1.4rem">★
+         <input type="radio" name="new-rating" value="${n}" style="display:none">
+       </label>`
+    ).join('');
+    // One delegated listener instead of 5 individual ones
+    container.addEventListener('click', e => {
+      const lbl = e.target.closest('label');
+      if (!lbl) return;
+      newRating = [...container.querySelectorAll('label')].indexOf(lbl) + 1;
+      _syncNewStarDisplay();
     });
+    container.dataset.spInit = '1';
+  }
+  _syncNewStarDisplay();
+}
+
+// Update star colours and label text without touching the DOM structure.
+function _syncNewStarDisplay() {
+  const container = document.getElementById('new-stars');
+  const label = document.getElementById('new-rating-label');
+  const starLabels = ['','Terrible','Poor','Okay','Good','Amazing'];
+  container.querySelectorAll('label').forEach((lbl, i) => {
+    lbl.style.color = i < newRating ? 'var(--gold)' : '#ddd';
   });
+  label.textContent = newRating ? starLabels[newRating] : 'No rating';
 }
 
 function renderReviews(reviews) {
@@ -2729,7 +3076,7 @@ async function submitReview() {
   const b = await r.json();
   renderReviews(b.reviews || []);
   buildStarPicker('d-star-picker', 'd-rating-label', b.avg_rating);
-  loadBooks();
+  _detailNeedsRefresh = true;  // grid will refresh when modal closes
   showToast('Review saved ✓');
 }
 
@@ -2739,7 +3086,7 @@ async function deleteReview(reviewId) {
   const b = await r.json();
   renderReviews(b.reviews || []);
   buildStarPicker('d-star-picker', 'd-rating-label', b.avg_rating);
-  loadBooks();
+  _detailNeedsRefresh = true;
 }
 
 async function updateStatus() {
@@ -2748,7 +3095,7 @@ async function updateStatus() {
     method: 'PATCH',
     body: JSON.stringify({ status })
   });
-  loadBooks();
+  _detailNeedsRefresh = true;
 }
 
 async function updateBookShelves() {
@@ -2763,7 +3110,7 @@ async function updateBookShelves() {
     return;
   }
   showToast('Shelves updated ✓');
-  loadBooks();
+  _detailNeedsRefresh = true;
   openDetail(currentBookId);
 }
 
@@ -2780,7 +3127,7 @@ async function updateBookGenres() {
     return;
   }
   showToast('Genres updated ✓');
-  loadBooks();
+  _detailNeedsRefresh = true;
   openDetail(currentBookId);
 }
 
@@ -2800,8 +3147,8 @@ async function updateBookLocation() {
     return;
   }
   showToast('Location updated ✓');
-  await loadBooks();
-  await openDetail(currentBookId);
+  _detailNeedsRefresh = true;
+  openDetail(currentBookId);
 }
 
 async function deleteBook() {
@@ -2813,11 +3160,59 @@ async function deleteBook() {
 }
 
 function closeDetail() {
-  document.getElementById('detail-modal').classList.remove('open');
+  document.getElementById('detail-modal').close();
+  // Flush deferred refresh: one loadBooks() on close instead of one per action.
+  if (_detailNeedsRefresh) {
+    _detailNeedsRefresh = false;
+    loadBooks();
+  }
+}
+
+function toggleDescEdit() {
+  const form = document.getElementById('d-desc-edit-form');
+  const btn  = document.getElementById('d-desc-edit-btn');
+  const open = form.classList.toggle('open');
+  btn.textContent = open ? 'Cancel' : 'Edit';
+  if (open) document.getElementById('d-desc-input').focus();
+}
+
+async function saveDescription() {
+  const raw = document.getElementById('d-desc-input').value.trim();
+  const description = raw || null;
+  const r = await api(`/api/books/${currentBookId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ description })
+  });
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    showToast(e.error || 'Could not save description');
+    return;
+  }
+  const descEl = document.getElementById('d-desc');
+  const descPH = document.getElementById('d-desc-placeholder');
+  if (description) {
+    descEl.textContent = description;
+    descEl.style.display = '';
+    descPH.style.display = 'none';
+  } else {
+    descEl.textContent = '';
+    descEl.style.display = 'none';
+    descPH.style.display = '';
+  }
+  document.getElementById('d-desc-input').value = raw;
+  document.getElementById('d-desc-edit-form').classList.remove('open');
+  document.getElementById('d-desc-edit-btn').textContent = 'Edit';
+  _detailNeedsRefresh = true;
+  showToast('Description saved ✓');
 }
 
 document.getElementById('detail-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('detail-modal')) closeDetail();
+});
+// Escape key — flush deferred refresh via our handler
+document.getElementById('detail-modal').addEventListener('cancel', e => {
+  e.preventDefault();
+  closeDetail();
 });
 
 document.getElementById('tools-modal').addEventListener('click', e => {

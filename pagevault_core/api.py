@@ -156,7 +156,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                     (book_id, tag_row["id"]),
                 )
 
-    def with_book_relations(db: sqlite3.Connection, book_row: sqlite3.Row | None):
+    def with_book_relations(db: sqlite3.Connection, book_row: sqlite3.Row | None) -> dict[str, Any] | None:  # issue #15
         if not book_row:
             return None
         result = dict(book_row)
@@ -198,9 +198,27 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             parsed = json.loads(raw)
             if isinstance(parsed, dict):
                 return {str(k): str(v) for k, v in parsed.items() if k and v}
-        except Exception:
+        except (json.JSONDecodeError, ValueError, TypeError):  # specific exceptions (issue #6)
             return {}
         return {}
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+    def parse_int_param(value: Any, default: int, min_val: int | None = None) -> tuple[int | None, str | None]:
+        """Parse an integer query/body parameter.
+
+        Returns ``(parsed_value, None)`` on success or ``(None, error_message)``
+        on failure.  Centralises validation so all numeric parameters are
+        handled consistently (issue #9).
+        """
+        if value is None or value == "":
+            return default, None
+        try:
+            result = int(value)
+        except (TypeError, ValueError):
+            return None, f"expected an integer, got {value!r}"
+        if min_val is not None and result < min_val:
+            return None, f"value must be >= {min_val}"
+        return result, None
 
     bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -210,11 +228,16 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
 
     @bp.post("/admin/login")
     def api_admin_login():
+        """Authenticate as admin. Regenerates the session to prevent fixation (issue #3)."""
         payload = request.get_json(force=True, silent=True) or {}
         password = str(payload.get("password") or "")
-        if password != str(current_app.config.get("ADMIN_PASSWORD") or "1111"):
+        # No insecure "1111" fallback — password comes only from config (issue #1)
+        configured = str(current_app.config.get("ADMIN_PASSWORD") or "")
+        if not configured or password != configured:
             return err("Invalid admin password", 401)
 
+        # Clear existing session before elevating privileges to prevent session fixation (issue #3)
+        session.clear()
         session["role"] = "admin"
         record_admin_event("admin_login", {"remote_addr": request.remote_addr})
         return jsonify({"ok": True, "role": "admin"})
@@ -276,6 +299,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
 
     @bp.get("/lookup/<isbn>")
     def api_lookup(isbn: str):
+        """Look up book metadata by ISBN from Open Library / Google Books / Crossref."""
         data = lookup_isbn(isbn)
         if not data:
             return err("Book not found for this ISBN", 404)
@@ -396,6 +420,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
 
     @bp.post("/books")
     def api_add_book():
+        """Add a book to the library by ISBN; fetches metadata automatically."""
         db = get_db()
         payload = request.get_json(force=True, silent=True) or {}
         isbn = payload.get("isbn", "").strip().replace("-", "")
@@ -448,7 +473,12 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         new_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
         replace_book_shelves(db, new_id, shelf_ids)
         replace_book_tags(db, new_id, genre_tags)
-        db.commit()
+        try:
+            db.commit()  # issue #5: handle commit failures explicitly
+        except sqlite3.Error as exc:
+            db.rollback()
+            log.error("Failed to commit new book: %s", exc)
+            return err("Database error — book was not saved", 500)
         row = db.execute(
             """SELECT b.*, 0 AS avg_rating, 0 AS review_count
                FROM books b WHERE b.id = ?""",
@@ -496,16 +526,16 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
     @bp.get("/books/<int:book_id>/recommendations")
     def api_book_recommendations(book_id: int):
         db = get_db()
-        try:
-            limit = int(request.args.get("limit") or 6)
-        except ValueError:
-            return err("limit must be an integer", 400)
+        limit, limit_err = parse_int_param(request.args.get("limit"), default=6, min_val=1)
+        if limit_err:
+            return err(f"limit: {limit_err}", 400)
 
         items = recommendations.recommend_books(db, book_id, limit=limit)
         return jsonify(items)
 
     @bp.patch("/books/<int:book_id>")
     def api_update_book(book_id: int):
+        """Update mutable fields (status, title, author, genre, location, tags, shelves)."""
         db = get_db()
         if not db.execute("SELECT 1 FROM books WHERE id=?", (book_id,)).fetchone():
             return err("Book not found", 404)
@@ -525,6 +555,8 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         updates.update(location_updates)
         if updates:
             updates["updated_at"] = now()
+            # Column names are validated against the `allowed` allowlist above before
+            # interpolation; values are always passed as parameters (issue #14).
             set_clause = ", ".join(f"{k} = ?" for k in updates)
             db.execute(
                 f"UPDATE books SET {set_clause} WHERE id = ?",
@@ -855,7 +887,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
     @bp.get("/goals/current")
     def api_get_current_goal():
         db = get_db()
-        year = int(request.args.get("year") or datetime.now(timezone.utc).year)
+        year, year_err = parse_int_param(request.args.get("year"), default=datetime.now(timezone.utc).year)
+        if year_err:
+            return err(f"year: {year_err}", 400)
         row = db.execute(
             "SELECT * FROM reading_goals WHERE goal_year = ?",
             (year,),
@@ -888,11 +922,15 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
     def api_upsert_current_goal():
         db = get_db()
         payload = request.get_json(force=True, silent=True) or {}
-        year = int(payload.get("goal_year") or datetime.now(timezone.utc).year)
-        target_books = int(payload.get("target_books") or 0)
-        target_pages = int(payload.get("target_pages") or 0)
-        if target_books < 0 or target_pages < 0:
-            return err("target_books and target_pages must be non-negative")
+        year, year_err = parse_int_param(payload.get("goal_year"), default=datetime.now(timezone.utc).year)
+        if year_err:
+            return err(f"goal_year: {year_err}", 400)
+        target_books, tb_err = parse_int_param(payload.get("target_books"), default=0, min_val=0)
+        if tb_err:
+            return err(f"target_books: {tb_err}", 400)
+        target_pages, tp_err = parse_int_param(payload.get("target_pages"), default=0, min_val=0)
+        if tp_err:
+            return err(f"target_pages: {tp_err}", 400)
 
         current = now()
         existing = db.execute(
@@ -987,6 +1025,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
 
     @bp.get("/stats")
     def api_stats():
+        """Return high-level library counts and average rating."""
         db = get_db()
         row = db.execute(
             """SELECT
@@ -1358,11 +1397,16 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
 
+    # Maximum backup upload size: 500 MB (issue #22)
+    _MAX_BACKUP_BYTES = 500 * 1024 * 1024
+
     @bp.post("/backup/restore/validate")
     def api_backup_restore_validate():
         upload = request.files.get("file")
         if not upload:
             return err("Backup file is required", 400)
+        if upload.content_length and upload.content_length > _MAX_BACKUP_BYTES:
+            return err("Backup file too large (max 500 MB)", 413)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             zip_path = os.path.join(tmp_dir, "backup.zip")
@@ -1405,7 +1449,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                     "missing_tables": missing,
                 }
                 source.close()
-            except Exception as exc:
+            except sqlite3.Error as exc:
                 return err(f"Backup validation failed: {exc}", 400)
 
         db = get_db()
@@ -1422,6 +1466,8 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         upload = request.files.get("file")
         if not upload:
             return err("Backup file is required", 400)
+        if upload.content_length and upload.content_length > _MAX_BACKUP_BYTES:
+            return err("Backup file too large (max 500 MB)", 413)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             zip_path = os.path.join(tmp_dir, "backup.zip")
@@ -1576,8 +1622,12 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
 
+    # Maximum CSV upload size: 50 MB (issue #7)
+    _MAX_CSV_BYTES = 50 * 1024 * 1024
+
     @bp.post("/import/csv/preview")
     def api_import_csv_preview():
+        """Preview a CSV import without writing to the database."""
         db = get_db()
         upload = request.files.get("file")
         if not upload:
@@ -1585,9 +1635,14 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
 
         mapping = parse_mapping_payload(request.form.get("mapping"))
         try:
-            text = upload.read().decode("utf-8-sig")
-        except Exception:
-            return err("Could not read CSV file", 400)
+            raw = upload.read(_MAX_CSV_BYTES + 1)
+            if len(raw) > _MAX_CSV_BYTES:
+                return err("CSV file too large (max 50 MB)", 413)
+            text = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            return err("CSV file must be UTF-8 encoded", 400)
+        except OSError as exc:
+            return err(f"Could not read CSV file: {exc}", 400)
 
         reader = csv.DictReader(io.StringIO(text))
         if not reader.fieldnames:
@@ -1647,6 +1702,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
 
     @bp.post("/import/csv")
     def api_import_csv():
+        """Import books from a CSV file (Goodreads-compatible or PageVault export)."""
         db = get_db()
         upload = request.files.get("file")
         if not upload:
@@ -1663,9 +1719,14 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         }
 
         try:
-            text = upload.read().decode("utf-8-sig")
-        except Exception:
-            return err("Could not read CSV file", 400)
+            raw = upload.read(_MAX_CSV_BYTES + 1)
+            if len(raw) > _MAX_CSV_BYTES:
+                return err("CSV file too large (max 50 MB)", 413)
+            text = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            return err("CSV file must be UTF-8 encoded", 400)
+        except OSError as exc:
+            return err(f"Could not read CSV file: {exc}", 400)
 
         reader = csv.DictReader(io.StringIO(text))
         if not reader.fieldnames:
