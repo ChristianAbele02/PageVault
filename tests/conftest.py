@@ -25,6 +25,7 @@ def app(tmp_path):
             "DATABASE": str(tmp_path / "test.db"),
             "TESTING": True,
             "SECRET_KEY": "test-secret",
+            "ADMIN_PASSWORD": "test-admin-password",
         }
     )
     yield test_app

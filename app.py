@@ -65,6 +65,9 @@ def _ensure_file_logging(log_file: str | None) -> None:
 
 def _check_security_config(app: Flask) -> None:
     """Warn about insecure / default configuration values at startup (issue #1, #2)."""
+    if app.config.get("TESTING"):
+        return  # suppress warnings and banner during test runs
+
     if app.config.get("SECRET_KEY") == _FALLBACK_SECRET_KEY:
         log.warning(
             "SECRET_KEY not set — a random key is used this session. "
