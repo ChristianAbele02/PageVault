@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import importlib.metadata
 import json
 import logging
 import os
 import threading
 import time
+import urllib.error
 import urllib.request
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -13,8 +15,14 @@ from .utils import normalize_tags
 
 log = logging.getLogger(__name__)
 
+# Centralise the package version so User-Agent strings stay in sync (issue #17)
+try:
+    _VERSION = importlib.metadata.version("pagevault")
+except importlib.metadata.PackageNotFoundError:
+    _VERSION = "dev"
 
-UA = {"User-Agent": "PageVault/1.4.0 (github.com/ChristianAbele02/PageVault)"}
+UA = {"User-Agent": f"PageVault/{_VERSION} (github.com/ChristianAbele02/PageVault)"}
+_CROSSREF_UA = {"User-Agent": f"PageVault/{_VERSION} (mailto:pagevault@localhost)"}
 
 LOOKUP_CACHE_TTL_SECONDS = max(0, int(os.getenv("PAGEVAULT_LOOKUP_CACHE_TTL_SECONDS", "900")))
 LOOKUP_CACHE_MAX_ITEMS = max(1, int(os.getenv("PAGEVAULT_LOOKUP_CACHE_MAX_ITEMS", "2000")))
@@ -133,7 +141,7 @@ def fetch_openlibrary_covers(isbn: str) -> dict | None:
         with urllib.request.urlopen(req, timeout=5):
             pass
         return {"isbn": isbn, "cover_url": cover_url}
-    except Exception:
+    except (urllib.error.URLError, OSError):  # specific exceptions instead of bare except (issue #6)
         return None
 
 
@@ -181,9 +189,7 @@ def fetch_googlebooks(isbn: str) -> dict | None:
 def fetch_crossref(isbn: str) -> dict | None:
     url = f"https://api.crossref.org/works?filter=isbn:{isbn}&rows=1"
     try:
-        req = urllib.request.Request(
-            url, headers={"User-Agent": "PageVault/1.4.0 (mailto:pagevault@localhost)"}
-        )
+        req = urllib.request.Request(url, headers=_CROSSREF_UA)
         with urllib.request.urlopen(req, timeout=8) as resp:
             data = json.loads(resp.read())
 

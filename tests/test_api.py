@@ -1100,7 +1100,7 @@ class TestAdminApis:
         assert denied.status_code == 403
 
     def test_admin_login_and_diagnostics(self, client):
-        login = client.post("/api/admin/login", json={"password": "1111"})
+        login = client.post("/api/admin/login", json={"password": "test-admin-password"})
         assert login.status_code == 200
 
         diagnostics = client.get("/api/admin/diagnostics")
