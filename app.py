@@ -18,7 +18,7 @@ from logging.handlers import RotatingFileHandler
 
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 
-from config import resolve_config, _FALLBACK_SECRET_KEY, _FALLBACK_ADMIN_PASSWORD
+from config import _FALLBACK_ADMIN_PASSWORD, _FALLBACK_SECRET_KEY, resolve_config
 from pagevault_core import db as core_db
 from pagevault_core import metadata as core_metadata
 from pagevault_core import utils as core_utils
