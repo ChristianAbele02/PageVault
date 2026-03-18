@@ -135,27 +135,13 @@ PageVault starts at **http://localhost:5000**. Data persists in a named Docker v
 
 ---
 
-## Migrations
-
-Apply schema migrations with Alembic:
-
-```bash
-alembic upgrade head
-```
-
 ## Admin Panel
 
 - Visit **`/admin/login`**.
-- Default admin password: **`1111`**.
-- Change it with `PAGEVAULT_ADMIN_PASSWORD` (or in `config.py`).
+- A random one-time password is printed to the console on startup when `PAGEVAULT_ADMIN_PASSWORD` is not set.
+- Set `PAGEVAULT_ADMIN_PASSWORD` in your environment or `.env` to make it permanent.
 
 ## Core Files Explained
-
-### Alembic (`alembic/`)
-
-- Alembic is the migration system for database schema changes.
-- Revision scripts in `alembic/versions/` define step-by-step changes over time.
-- Run `alembic upgrade head` to apply all pending schema updates.
 
 ### Coverage Files (`.coverage`, `coverage.xml`)
 
@@ -432,22 +418,29 @@ Fields are merged progressively so missing values are filled without discarding 
 ```
 pagevault/
 ├── app.py                        App factory + dependency wiring + entrypoint
+├── config.py                     Config resolution + admin password bootstrap
 ├── pagevault_core/
 │   ├── __init__.py
 │   ├── api.py                    API blueprint and route handlers
 │   ├── db.py                     SQLite connection + schema bootstrap
 │   ├── metadata.py               Multi-provider lookup + parallel merge + TTL cache
-│   └── utils.py                  Shared parsing/validation helpers
+│   ├── utils.py                  Shared parsing/validation helpers
+│   └── services/
+│       ├── admin_service.py      Admin console backend
+│       └── recommendations.py   Local similarity-based recommendations
 ├── templates/
-│   └── index.html                Complete frontend (HTML + CSS + JS, single file)
+│   ├── index.html                Main library frontend
+│   └── stats.html                Stats dashboard (Plotly)
+├── static/                       PWA manifest, service worker, icons
 ├── tests/
 │   ├── conftest.py               Shared pytest fixtures
-│   └── test_api.py               API + CSV + fallback coverage (currently monolithic)
+│   └── test_api.py               API + CSV + fallback coverage
 ├── assets/
 │   ├── logo.svg                  Full wordmark logo
 │   └── icon.svg                  Square icon (GitHub avatar, favicon)
+├── docs/                         GitHub Pages site
 ├── .github/
-│   ├── workflows/ci.yml          GitHub Actions: test · lint · Docker build
+│   ├── workflows/ci.yml          GitHub Actions: test · lint · typecheck · Docker
 │   ├── ISSUE_TEMPLATE/           Bug report & feature request forms
 │   ├── PULL_REQUEST_TEMPLATE.md
 │   └── dependabot.yml
@@ -467,8 +460,10 @@ pagevault/
 ## Roadmap
 
 - [ ] Goodreads import mapping presets (regional variants)
-- [ ] Annual reading goal tracker
-- [ ] Optional password protection
+- [x] Annual reading goal tracker
+- [x] Optional password protection (admin console)
+- [x] Mobile QR connect for same-network access
+- [x] Local book recommendations
 
 Have an idea? [Open a feature request](https://github.com/ChristianAbele02/PageVault/issues/new/choose).
 
