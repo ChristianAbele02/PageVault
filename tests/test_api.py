@@ -40,6 +40,7 @@ class TestStats:
             "want_to_read",
             "reading",
             "read",
+            "dnf",
         }
         assert data["top_genres"] == []
         assert data["top_authors"] == []

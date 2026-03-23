@@ -148,7 +148,7 @@
 
   .filter-grid {
     display: grid;
-    grid-template-columns: 190px 180px 180px auto;
+    grid-template-columns: 165px 145px 145px 145px 145px auto;
     gap: .5rem;
     align-items: end;
   }
@@ -241,6 +241,58 @@
     gap: .6rem;
   }
 
+  .panel-wide {
+    grid-column: 1 / -1;
+  }
+
+  .heatmap-wrap {
+    overflow-x: auto;
+    padding: 2px 0 4px;
+    min-height: 120px;
+    display: flex;
+    align-items: flex-start;
+  }
+
+  .table-wrap {
+    overflow: auto;
+    max-height: 280px;
+  }
+
+  .stat-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .8rem;
+  }
+
+  .stat-table th {
+    text-align: left;
+    padding: .3rem .5rem;
+    color: #b8a894;
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+
+  .stat-table td {
+    padding: .35rem .5rem;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink);
+    vertical-align: middle;
+  }
+
+  .stat-table tbody tr:last-child td { border-bottom: none; }
+  .stat-table tbody tr:hover td { background: rgba(255,255,255,.03); }
+
+  .table-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--soft);
+    font-size: .76rem;
+  }
+
   .panel {
     padding: .6rem .65rem .45rem;
   }
@@ -262,13 +314,19 @@
     padding: .6rem 0 .8rem;
   }
 
-  @media (max-width: 980px) {
+  @media (max-width: 1100px) {
     .filter-grid {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
     }
     .filter-actions {
       grid-column: 1 / -1;
       justify-content: flex-start;
+    }
+  }
+
+  @media (max-width: 980px) {
+    .filter-grid {
+      grid-template-columns: 1fr 1fr;
     }
     .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .chart-grid { grid-template-columns: 1fr; }
@@ -318,6 +376,30 @@
         <label for="end-date">End Date</label>
         <input id="end-date" type="date" class="filter-input">
       </div>
+      <div class="filter-group">
+        <label for="format-filter">Format</label>
+        <select id="format-filter" class="filter-select">
+          <option value="">All formats</option>
+          <option value="physical">Physical</option>
+          <option value="ebook">E-Book</option>
+          <option value="audiobook">Audiobook</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="language-filter">Language</label>
+        <select id="language-filter" class="filter-select">
+          <option value="">All languages</option>
+          <option value="en">English</option>
+          <option value="de">German</option>
+          <option value="fr">French</option>
+          <option value="es">Spanish</option>
+          <option value="it">Italian</option>
+          <option value="nl">Dutch</option>
+          <option value="pt">Portuguese</option>
+          <option value="ja">Japanese</option>
+          <option value="zh">Chinese</option>
+        </select>
+      </div>
       <div class="filter-actions">
         <button id="apply-range" class="filter-btn" type="button">Apply</button>
         <button id="reset-range" class="filter-btn" type="button">Reset</button>
@@ -330,16 +412,24 @@
   <section class="kpi-grid">
     <article class="kpi"><div class="kpi-label">Total Books</div><div id="kpi-total-books" class="kpi-value">0</div></article>
     <article class="kpi"><div class="kpi-label">Total Pages</div><div id="kpi-total-pages" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label">Estimated Pages Completed</div><div id="kpi-pages-completed" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label">Est. Pages Completed</div><div id="kpi-pages-completed" class="kpi-value">0</div></article>
     <article class="kpi"><div class="kpi-label">Average Rating</div><div id="kpi-avg-rating" class="kpi-value">—</div></article>
     <article class="kpi"><div class="kpi-label">Reviews</div><div id="kpi-total-reviews" class="kpi-value">0</div></article>
     <article class="kpi"><div class="kpi-label">Read</div><div id="kpi-read" class="kpi-value">0</div></article>
     <article class="kpi"><div class="kpi-label">Reading</div><div id="kpi-reading" class="kpi-value">0</div></article>
     <article class="kpi"><div class="kpi-label">Want To Read</div><div id="kpi-want" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label">Did Not Finish</div><div id="kpi-dnf" class="kpi-value">0</div></article>
     <article class="kpi"><div class="kpi-label">Book Goal</div><div id="kpi-goal-books" class="kpi-value">0%</div></article>
     <article class="kpi"><div class="kpi-label">Page Goal</div><div id="kpi-goal-pages" class="kpi-value">0%</div></article>
     <article class="kpi"><div class="kpi-label">Pages / Day</div><div id="kpi-pages-day" class="kpi-value">0</div></article>
     <article class="kpi"><div class="kpi-label">Pages / Week</div><div id="kpi-pages-week" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label">Reading Speed</div><div id="kpi-speed" class="kpi-value">— pg/hr</div></article>
+    <article class="kpi"><div class="kpi-label">Current Streak</div><div id="kpi-streak" class="kpi-value">0 days</div></article>
+    <article class="kpi"><div class="kpi-label">Longest Streak</div><div id="kpi-streak-longest" class="kpi-value">0 days</div></article>
+    <article class="kpi"><div class="kpi-label">DNF Rate</div><div id="kpi-dnf-rate" class="kpi-value">0%</div></article>
+    <article class="kpi"><div class="kpi-label">Avg. Days to Finish</div><div id="kpi-days-finish" class="kpi-value">—</div></article>
+    <article class="kpi"><div class="kpi-label">Session Hours</div><div id="kpi-session-hours" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label">Custom Shelves</div><div id="kpi-shelves" class="kpi-value">0</div></article>
   </section>
 
   <section class="chart-grid">
@@ -366,6 +456,62 @@
     <article class="panel">
       <h2>Monthly Activity</h2>
       <div id="timeline-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Format Breakdown</h2>
+      <div id="format-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Published by Decade</h2>
+      <div id="decade-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Top Publishers</h2>
+      <div id="publishers-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Community vs Your Ratings</h2>
+      <div id="community-plot" class="plot"></div>
+    </article>
+    <article class="panel panel-wide">
+      <h2>Daily Reading Pace</h2>
+      <div id="pace-plot" class="plot"></div>
+    </article>
+    <article class="panel panel-wide">
+      <h2>Library Growth</h2>
+      <div id="growth-plot" class="plot"></div>
+    </article>
+    <article class="panel panel-wide">
+      <h2>Reading Activity Heatmap</h2>
+      <div id="heatmap-plot" class="heatmap-wrap"></div>
+    </article>
+    <article class="panel">
+      <h2>Rating Trend Over Time</h2>
+      <div id="rating-trend-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Time to Finish a Book</h2>
+      <div id="finish-time-plot" class="plot"></div>
+    </article>
+    <article class="panel panel-wide">
+      <h2>Genre Trends Over Time</h2>
+      <div id="genre-trends-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Reading Speed per Book</h2>
+      <div id="speed-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Shelf Breakdown</h2>
+      <div id="shelf-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Longest Unread Books</h2>
+      <div id="unread-table" class="table-wrap"></div>
+    </article>
+    <article class="panel">
+      <h2>Books Currently Loaned Out</h2>
+      <div id="loans-table" class="table-wrap"></div>
     </article>
   </section>
 </main>
@@ -422,13 +568,27 @@ function setKpis(summary) {
   document.getElementById('kpi-read').textContent = formatNumber(summary.read);
   document.getElementById('kpi-reading').textContent = formatNumber(summary.reading);
   document.getElementById('kpi-want').textContent = formatNumber(summary.want_to_read);
+  document.getElementById('kpi-dnf').textContent = formatNumber(summary.dnf || 0);
 }
 
-function setExtendedKpis(goal = {}, sessions = {}) {
+function setExtendedKpis(goal = {}, sessions = {}, data = {}) {
   document.getElementById('kpi-goal-books').textContent = `${goal.book_goal_percent || 0}%`;
   document.getElementById('kpi-goal-pages').textContent = `${goal.page_goal_percent || 0}%`;
   document.getElementById('kpi-pages-day').textContent = formatNumber(sessions.pages_per_day || 0);
   document.getElementById('kpi-pages-week').textContent = formatNumber(sessions.pages_per_week || 0);
+  const speed = sessions.avg_speed_pages_per_hour;
+  document.getElementById('kpi-speed').textContent = speed != null ? `${speed} pg/hr` : '— pg/hr';
+  document.getElementById('kpi-streak').textContent = `${sessions.current_streak_days || 0} days`;
+  document.getElementById('kpi-streak-longest').textContent = `${sessions.longest_streak_days || 0} days`;
+  const dnf = (data.summary || {}).dnf || 0;
+  const read = (data.summary || {}).read || 0;
+  const dnfRate = (dnf + read) > 0 ? Math.round((dnf / (dnf + read)) * 100) : 0;
+  document.getElementById('kpi-dnf-rate').textContent = `${dnfRate}%`;
+  const avgDays = (data.finish_time_stats || {}).avg_days;
+  document.getElementById('kpi-days-finish').textContent = avgDays != null ? `${avgDays} days` : '—';
+  const hrs = sessions.minutes_spent ? Math.round(sessions.minutes_spent / 60) : 0;
+  document.getElementById('kpi-session-hours').textContent = `${formatNumber(hrs)} hrs`;
+  document.getElementById('kpi-shelves').textContent = (data.shelf_breakdown || []).length;
 }
 
 function getChartTheme() {
@@ -437,26 +597,40 @@ function getChartTheme() {
     ? {
       font: '#dbc8ae',
       grid: 'rgba(212,168,67,.14)',
-      statusBooks: ['#7a5c3a', '#5c7a5e', '#c8913a'],
-      statusPages: ['#9b3a1c', '#5c7a5e', '#d4a843'],
+      statusBooks: ['#7a5c3a', '#5c7a5e', '#c8913a', '#9b3a1c'],
+      statusPages: ['#9b3a1c', '#5c7a5e', '#d4a843', '#7a5c3a'],
       genre: '#c8913a',
       author: '#5c7a5e',
       rating: '#d4a843',
       added: '#7a5c3a',
       reviews: '#d4a843',
       pagesLogged: '#5c7a5e',
+      format: ['#c8913a', '#5c7a5e', '#9b3a1c'],
+      decade: '#7a9bb8',
+      publisher: '#b87a9b',
+      community: '#5c7a5e',
+      personal: '#d4a843',
+      pace: '#c8913a',
+      growth: '#5c7a5e',
     }
     : {
       font: '#4f341c',
       grid: 'rgba(122,92,58,.16)',
-      statusBooks: ['#7a5c3a', '#5c7a5e', '#c8913a'],
-      statusPages: ['#9b3a1c', '#5c7a5e', '#d4a843'],
+      statusBooks: ['#7a5c3a', '#5c7a5e', '#c8913a', '#9b3a1c'],
+      statusPages: ['#9b3a1c', '#5c7a5e', '#d4a843', '#7a5c3a'],
       genre: '#c8913a',
       author: '#5c7a5e',
       rating: '#d4a843',
       added: '#7a5c3a',
       reviews: '#d4a843',
       pagesLogged: '#5c7a5e',
+      format: ['#c8913a', '#5c7a5e', '#9b3a1c'],
+      decade: '#7a9bb8',
+      publisher: '#b87a9b',
+      community: '#5c7a5e',
+      personal: '#d4a843',
+      pace: '#c8913a',
+      growth: '#5c7a5e',
     };
 }
 
@@ -637,21 +811,400 @@ function renderTimeline(monthlyAdditions, monthlyReviews) {
   }), plotConfig);
 }
 
+function renderFormatChart(formatBreakdown) {
+  if (!formatBreakdown.length) {
+    emptyPlot('format-plot', 'No format data yet.');
+    return;
+  }
+  const labelMap = { physical: 'Physical', ebook: 'E-Book', audiobook: 'Audiobook' };
+  const theme = getChartTheme();
+  Plotly.newPlot('format-plot', [{
+    type: 'pie',
+    hole: 0.52,
+    labels: formatBreakdown.map(d => labelMap[d.format] || d.format),
+    values: formatBreakdown.map(d => d.book_count),
+    marker: { colors: theme.format },
+    textinfo: 'label+percent',
+    textfont: { color: theme.font },
+    hovertemplate: '%{label}<br>%{value} books (%{percent})<extra></extra>',
+  }], {
+    ...chartLayout({ margin: { l: 20, r: 20, t: 10, b: 10 } }),
+    showlegend: false,
+  }, plotConfig);
+}
+
+function renderDecadeChart(decadeDistribution) {
+  if (!decadeDistribution.length) {
+    emptyPlot('decade-plot', 'Add books with publication year to see this chart.');
+    return;
+  }
+  const theme = getChartTheme();
+  Plotly.newPlot('decade-plot', [{
+    type: 'bar',
+    x: decadeDistribution.map(d => d.decade),
+    y: decadeDistribution.map(d => d.book_count),
+    marker: { color: theme.decade },
+    hovertemplate: '%{x}<br>%{y} books<extra></extra>',
+  }], chartLayout({ xaxis: { ...chartLayout().xaxis, type: 'category' } }), plotConfig);
+}
+
+function renderPublishersChart(topPublishers) {
+  if (!topPublishers.length) {
+    emptyPlot('publishers-plot', 'No publisher data yet.');
+    return;
+  }
+  const theme = getChartTheme();
+  Plotly.newPlot('publishers-plot', [{
+    type: 'bar',
+    orientation: 'h',
+    y: topPublishers.map(d => d.publisher).reverse(),
+    x: topPublishers.map(d => d.book_count).reverse(),
+    marker: { color: theme.publisher },
+    hovertemplate: '%{y}<br>%{x} books<extra></extra>',
+  }], chartLayout({ margin: { l: 150, r: 20, t: 10, b: 40 } }), plotConfig);
+}
+
+function renderCommunityChart(communityVsPersonal) {
+  if (!communityVsPersonal.length) {
+    emptyPlot('community-plot', 'No community rating data yet. Metadata is sourced from Google Books.');
+    return;
+  }
+  const withBoth = communityVsPersonal.filter(d => d.user_rating != null);
+  if (!withBoth.length) {
+    // Only community ratings, no personal — show a scatter of community ratings
+    const theme = getChartTheme();
+    const sorted = [...communityVsPersonal].sort((a, b) => b.community_rating - a.community_rating).slice(0, 20);
+    Plotly.newPlot('community-plot', [{
+      type: 'bar',
+      orientation: 'h',
+      y: sorted.map(d => d.title.length > 28 ? d.title.slice(0, 26) + '…' : d.title).reverse(),
+      x: sorted.map(d => d.community_rating).reverse(),
+      marker: { color: theme.community },
+      hovertemplate: '%{y}<br>Community: %{x}★<extra></extra>',
+    }], chartLayout({ margin: { l: 200, r: 20, t: 10, b: 40 }, xaxis: { ...chartLayout().xaxis, range: [0, 5] } }), plotConfig);
+    return;
+  }
+  const theme = getChartTheme();
+  const titles = withBoth.map(d => d.title.length > 30 ? d.title.slice(0, 28) + '…' : d.title);
+  Plotly.newPlot('community-plot', [
+    {
+      type: 'bar',
+      name: 'Community',
+      x: titles,
+      y: withBoth.map(d => d.community_rating),
+      marker: { color: theme.community },
+      hovertemplate: '%{x}<br>Community: %{y}★<extra></extra>',
+    },
+    {
+      type: 'bar',
+      name: 'You',
+      x: titles,
+      y: withBoth.map(d => d.user_rating),
+      marker: { color: theme.personal },
+      hovertemplate: '%{x}<br>Your rating: %{y}★<extra></extra>',
+    },
+  ], chartLayout({
+    barmode: 'group',
+    yaxis: { ...chartLayout().yaxis, range: [0, 5.5], title: 'Rating' },
+    legend: { orientation: 'h', y: 1.12, x: 0 },
+    margin: { l: 54, r: 22, t: 30, b: 80 },
+    xaxis: { ...chartLayout().xaxis, tickangle: -30 },
+  }), plotConfig);
+}
+
+function renderPaceChart(readingPaceDaily) {
+  if (!readingPaceDaily.length) {
+    emptyPlot('pace-plot', 'Log reading sessions to see your daily reading pace.');
+    return;
+  }
+  const theme = getChartTheme();
+  Plotly.newPlot('pace-plot', [{
+    type: 'scatter',
+    mode: 'lines',
+    fill: 'tozeroy',
+    fillcolor: theme.pace + '33',
+    line: { color: theme.pace, width: 2, shape: 'spline' },
+    x: readingPaceDaily.map(d => d.date),
+    y: readingPaceDaily.map(d => d.pages),
+    hovertemplate: '%{x}<br>%{y} pages read<extra></extra>',
+  }], chartLayout({
+    yaxis: { ...chartLayout().yaxis, title: 'Pages Read' },
+    margin: { l: 54, r: 22, t: 18, b: 44 },
+  }), plotConfig);
+}
+
+function renderGrowthChart(libraryGrowth) {
+  if (!libraryGrowth.length) {
+    emptyPlot('growth-plot', 'No growth data yet.');
+    return;
+  }
+  const theme = getChartTheme();
+  Plotly.newPlot('growth-plot', [{
+    type: 'scatter',
+    mode: 'lines',
+    fill: 'tozeroy',
+    fillcolor: theme.growth + '33',
+    line: { color: theme.growth, width: 2, shape: 'spline' },
+    x: libraryGrowth.map(d => d.month),
+    y: libraryGrowth.map(d => d.total_books),
+    hovertemplate: '%{x}<br>%{y} books in library<extra></extra>',
+  }], chartLayout({
+    yaxis: { ...chartLayout().yaxis, title: 'Total Books' },
+    margin: { l: 54, r: 22, t: 18, b: 44 },
+  }), plotConfig);
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderHeatmap(readingPaceDaily) {
+  const container = document.getElementById('heatmap-plot');
+  if (!readingPaceDaily.length) {
+    container.innerHTML = '<div class="empty">Log reading sessions to see your activity heatmap.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  const dateMap = new Map();
+  let maxPages = 1;
+  for (const e of readingPaceDaily) {
+    dateMap.set(e.date, e.pages);
+    if (e.pages > maxPages) maxPages = e.pages;
+  }
+  const dark = document.body.classList.contains('dark-mode');
+  const labelColor = dark ? '#6a5a48' : '#a08060';
+  const emptyColor = dark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.08)';
+
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(start.getDate() - 364);
+  start.setDate(start.getDate() - start.getDay()); // align Sunday
+
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+
+  const dayCol = document.createElement('div');
+  dayCol.style.cssText = `display:flex;flex-direction:column;gap:2px;margin-right:5px;padding-top:20px;`;
+  for (const label of dayLabels) {
+    const l = document.createElement('div');
+    l.style.cssText = `height:12px;line-height:12px;font-size:.58rem;color:${labelColor};width:20px;text-align:right;flex-shrink:0;`;
+    l.textContent = label;
+    dayCol.appendChild(l);
+  }
+
+  const monthsRow = document.createElement('div');
+  monthsRow.style.cssText = 'display:flex;gap:2px;height:18px;margin-bottom:2px;';
+  const weeksEl = document.createElement('div');
+  weeksEl.style.cssText = 'display:flex;gap:2px;';
+
+  const cur = new Date(start);
+  let lastMonth = -1;
+  while (cur <= today) {
+    const monthLabel = document.createElement('div');
+    monthLabel.style.cssText = `width:12px;height:18px;font-size:.6rem;line-height:18px;color:${labelColor};overflow:visible;white-space:nowrap;`;
+    const m = cur.getMonth();
+    if (m !== lastMonth) { monthLabel.textContent = months[m]; lastMonth = m; }
+    monthsRow.appendChild(monthLabel);
+
+    const col = document.createElement('div');
+    col.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
+    for (let d = 0; d < 7; d++) {
+      const cell = document.createElement('div');
+      const dateStr = cur.toISOString().slice(0, 10);
+      const pages = dateMap.get(dateStr) || 0;
+      const isFuture = cur > today;
+      let bg = 'transparent';
+      if (!isFuture) {
+        if (pages === 0) {
+          bg = emptyColor;
+        } else {
+          const intensity = Math.min(1, Math.pow(pages / maxPages, 0.45));
+          bg = `rgba(200,145,58,${(0.22 + intensity * 0.78).toFixed(2)})`;
+        }
+      }
+      cell.style.cssText = `width:12px;height:12px;border-radius:2px;background:${bg};flex-shrink:0;`;
+      if (!isFuture) cell.title = `${dateStr}: ${pages} pages`;
+      col.appendChild(cell);
+      cur.setDate(cur.getDate() + 1);
+    }
+    weeksEl.appendChild(col);
+    // advance past this Sunday to next (already done by inner loop)
+    if (cur > today) break;
+  }
+
+  const right = document.createElement('div');
+  right.style.cssText = 'display:flex;flex-direction:column;';
+  right.appendChild(monthsRow);
+  right.appendChild(weeksEl);
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;align-items:flex-start;min-width:max-content;';
+  wrap.appendChild(dayCol);
+  wrap.appendChild(right);
+  container.appendChild(wrap);
+}
+
+function renderRatingTrend(ratingTrend) {
+  if (!ratingTrend.length) {
+    emptyPlot('rating-trend-plot', 'No reviews yet to show rating trend.');
+    return;
+  }
+  const theme = getChartTheme();
+  Plotly.newPlot('rating-trend-plot', [{
+    type: 'scatter',
+    mode: 'lines+markers',
+    x: ratingTrend.map(d => d.month),
+    y: ratingTrend.map(d => d.avg_rating),
+    marker: { color: theme.rating, size: 7 },
+    line: { color: theme.rating, width: 2, shape: 'spline' },
+    hovertemplate: '%{x}<br>Avg: %{y}★ (%{customdata} reviews)<extra></extra>',
+    customdata: ratingTrend.map(d => d.review_count),
+  }], chartLayout({
+    yaxis: { ...chartLayout().yaxis, range: [0, 5.5], title: 'Avg Rating' },
+  }), plotConfig);
+}
+
+function renderFinishTimeChart(dist, stats) {
+  if (!stats || stats.book_count === 0) {
+    emptyPlot('finish-time-plot', 'Set start and finish dates on books to see how long they take.');
+    return;
+  }
+  const theme = getChartTheme();
+  const note = stats.avg_days != null ? `Avg: ${stats.avg_days} days  ·  n=${stats.book_count}` : '';
+  Plotly.newPlot('finish-time-plot', [{
+    type: 'bar',
+    x: dist.map(d => d.range),
+    y: dist.map(d => d.count),
+    marker: { color: theme.decade },
+    hovertemplate: '%{x}<br>%{y} books<extra></extra>',
+  }], chartLayout({
+    yaxis: { ...chartLayout().yaxis, title: 'Books' },
+    annotations: note ? [{ x: 0.5, y: 1.06, xref: 'paper', yref: 'paper', text: note, showarrow: false, font: { color: theme.font, size: 11 } }] : [],
+    margin: { l: 54, r: 22, t: 30, b: 44 },
+  }), plotConfig);
+}
+
+function renderGenreTrends(gt) {
+  if (!gt.years || !gt.years.length || !gt.series || !gt.series.length) {
+    emptyPlot('genre-trends-plot', 'Add genre tags to books across multiple years to see trends.');
+    return;
+  }
+  const theme = getChartTheme();
+  const palette = [theme.genre, theme.author, theme.rating, theme.pace, theme.growth, '#b87a9b', '#7a9bb8'];
+  Plotly.newPlot('genre-trends-plot',
+    gt.series.map((s, i) => ({
+      type: 'bar',
+      name: s.genre,
+      x: gt.years,
+      y: s.counts,
+      marker: { color: palette[i % palette.length] },
+      hovertemplate: `${escHtml(s.genre)}<br>%{x}: %{y} books<extra></extra>`,
+    })),
+    chartLayout({
+      barmode: 'stack',
+      legend: { orientation: 'h', y: 1.1, x: 0 },
+      xaxis: { ...chartLayout().xaxis, type: 'category' },
+      yaxis: { ...chartLayout().yaxis, title: 'Books' },
+      margin: { l: 54, r: 22, t: 38, b: 44 },
+    }), plotConfig);
+}
+
+function renderSpeedChart(speedData) {
+  if (!speedData.length) {
+    emptyPlot('speed-plot', 'Log reading sessions with page counts to see speed per book.');
+    return;
+  }
+  const theme = getChartTheme();
+  const top = speedData.slice(0, 12);
+  Plotly.newPlot('speed-plot', [{
+    type: 'bar',
+    orientation: 'h',
+    y: top.map(d => d.title.length > 28 ? d.title.slice(0, 26) + '…' : d.title).reverse(),
+    x: top.map(d => d.pages_per_hour).reverse(),
+    marker: { color: theme.pace },
+    hovertemplate: '%{y}<br>%{x} pg/hr<extra></extra>',
+  }], chartLayout({ margin: { l: 190, r: 20, t: 10, b: 40 },
+    xaxis: { ...chartLayout().xaxis, title: 'Pages / Hour' } }), plotConfig);
+}
+
+function renderLongestUnread(longestUnread) {
+  const el = document.getElementById('unread-table');
+  if (!longestUnread.length) {
+    el.innerHTML = '<div class="empty">No books in your want-to-read list yet.</div>';
+    return;
+  }
+  const rows = longestUnread.map(b => `<tr>
+    <td>${escHtml(b.title)}</td>
+    <td style="color:var(--soft);font-size:.76rem;">${escHtml(b.author || '—')}</td>
+    <td class="table-num">${b.days_waiting.toLocaleString()} d</td>
+  </tr>`).join('');
+  el.innerHTML = `<table class="stat-table"><thead><tr><th>Title</th><th>Author</th><th>Waiting</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderLoanStatus(loansOut) {
+  const el = document.getElementById('loans-table');
+  if (!loansOut.length) {
+    el.innerHTML = '<div class="empty">No books currently loaned out.</div>';
+    return;
+  }
+  const rows = loansOut.map(b => `<tr>
+    <td>${escHtml(b.title)}</td>
+    <td style="color:var(--soft);font-size:.76rem;">${escHtml(b.loan_person || '—')}</td>
+    <td class="table-num">${b.days_loaned.toLocaleString()} d</td>
+  </tr>`).join('');
+  el.innerHTML = `<table class="stat-table"><thead><tr><th>Title</th><th>Loaned To</th><th>Since</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderShelfChart(shelfBreakdown) {
+  if (!shelfBreakdown.length) {
+    emptyPlot('shelf-plot', 'Create custom shelves and add books to see the breakdown.');
+    return;
+  }
+  const theme = getChartTheme();
+  Plotly.newPlot('shelf-plot', [{
+    type: 'bar',
+    orientation: 'h',
+    y: shelfBreakdown.map(d => d.shelf).reverse(),
+    x: shelfBreakdown.map(d => d.book_count).reverse(),
+    marker: { color: theme.publisher },
+    hovertemplate: '%{y}<br>%{x} books<extra></extra>',
+  }], chartLayout({ margin: { l: 130, r: 20, t: 10, b: 40 } }), plotConfig);
+}
+
 function renderAll(data) {
   currentStatsData = data;
   setKpis(data.summary || {});
-  setExtendedKpis(data.goal || {}, data.sessions_summary || {});
+  setExtendedKpis(data.goal || {}, data.sessions_summary || {}, data);
   renderStatusCharts(data.status_breakdown || []);
   renderGenreChart(data.top_genres || []);
   renderAuthorChart(data.top_authors || []);
   renderRatingChart(data.rating_distribution || []);
   renderTimeline(data.monthly_additions || [], data.monthly_reviews || []);
+  renderFormatChart(data.format_breakdown || []);
+  renderDecadeChart(data.decade_distribution || []);
+  renderPublishersChart(data.top_publishers || []);
+  renderCommunityChart(data.community_vs_personal || []);
+  renderPaceChart(data.reading_pace_daily || []);
+  renderGrowthChart(data.library_growth || []);
+  renderHeatmap(data.reading_pace_daily || []);
+  renderRatingTrend(data.rating_trend || []);
+  renderFinishTimeChart(data.finish_time_distribution || [], data.finish_time_stats || {});
+  renderGenreTrends(data.genre_trends_over_time || {});
+  renderSpeedChart(data.reading_speed_per_book || []);
+  renderShelfChart(data.shelf_breakdown || []);
+  renderLongestUnread(data.longest_unread || []);
+  renderLoanStatus(data.loans_out || []);
 }
 
 function buildQuery(range) {
   const params = new URLSearchParams();
   if (range.start_date) params.set('start_date', range.start_date);
   if (range.end_date) params.set('end_date', range.end_date);
+  const fmt = document.getElementById('format-filter')?.value;
+  const lang = document.getElementById('language-filter')?.value;
+  if (fmt) params.set('format', fmt);
+  if (lang) params.set('language', lang);
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }
@@ -828,6 +1381,8 @@ document.getElementById('range-preset').addEventListener('change', onPresetChang
 document.getElementById('apply-range').addEventListener('click', onApplyClicked);
 document.getElementById('reset-range').addEventListener('click', onResetClicked);
 document.getElementById('copy-range-link').addEventListener('click', copyCurrentRangeLink);
+document.getElementById('format-filter').addEventListener('change', onApplyClicked);
+document.getElementById('language-filter').addEventListener('change', onApplyClicked);
 
 (async function init() {
   initTheme();
@@ -839,12 +1394,13 @@ document.getElementById('copy-range-link').addEventListener('click', copyCurrent
     await applyRange(initialRange);
   } catch (error) {
     const targets = [
-      'status-books-plot',
-      'status-pages-plot',
-      'genres-plot',
-      'authors-plot',
-      'ratings-plot',
-      'timeline-plot',
+      'status-books-plot', 'status-pages-plot',
+      'genres-plot', 'authors-plot', 'ratings-plot', 'timeline-plot',
+      'format-plot', 'decade-plot', 'publishers-plot',
+      'community-plot', 'pace-plot', 'growth-plot',
+      'heatmap-plot', 'rating-trend-plot', 'finish-time-plot',
+      'genre-trends-plot', 'speed-plot', 'shelf-plot',
+      'unread-table', 'loans-table',
     ];
     for (const id of targets) {
       emptyPlot(id, 'Unable to load analytics right now.');
