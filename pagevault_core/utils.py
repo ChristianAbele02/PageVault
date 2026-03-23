@@ -14,10 +14,13 @@ def now_utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+VALID_STATUSES = {"want_to_read", "reading", "read", "dnf"}
+
+
 def validate_status(value: str | None) -> bool:
     if value is None:
         return False
-    return value in {"want_to_read", "reading", "read"}
+    return value in VALID_STATUSES
 
 
 def validate_logo_url(value: str | None) -> bool:

@@ -317,6 +317,8 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         author = request.args.get("author", "").strip()
         genre = request.args.get("genre", "").strip()
         shelf_id = request.args.get("shelf_id", "").strip()
+        book_format = request.args.get("format", "").strip()
+        owned_only = request.args.get("owned", "").strip().lower() in {"1", "true", "yes"}
         continue_reading = request.args.get("continue_reading", "").strip().lower() in {
             "1",
             "true",
@@ -402,6 +404,11 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 "EXISTS (SELECT 1 FROM book_shelves bs WHERE bs.book_id = b.id AND bs.shelf_id = ?)"
             )
             params.append(shelf_id_int)
+        if book_format:
+            conditions.append("b.book_format = ?")
+            params.append(book_format)
+        if owned_only:
+            conditions.append("b.owned = 1")
         if continue_reading:
             latest_progress_sql = """COALESCE((
                 SELECT r.current_page
@@ -437,7 +444,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         if not isbn:
             return err("isbn is required")
         if not validate_status(status):
-            return err("status must be one of: want_to_read, reading, read")
+            return err("status must be one of: want_to_read, reading, read, dnf")
         if location_error:
             return err(location_error)
 
@@ -454,8 +461,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             """INSERT INTO books
                (isbn, title, author, cover_url, description, publisher,
                 year, pages, genre, language, location_type, location_note, loan_person,
-                added_at, updated_at, status)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                added_at, updated_at, status,
+                series_name, series_number, community_rating, community_rating_count)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 isbn,
                 book.get("title", "Unknown"),
@@ -473,6 +481,10 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 current,
                 current,
                 status,
+                book.get("series_name"),
+                book.get("series_number"),
+                book.get("community_rating"),
+                book.get("community_rating_count"),
             ),
         )
         new_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -527,6 +539,16 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             (book_id,),
         ).fetchall()
         result["reviews"] = [dict(r) for r in reviews]
+        quotes = db.execute(
+            "SELECT * FROM quotes WHERE book_id=? ORDER BY created_at DESC",
+            (book_id,),
+        ).fetchall()
+        result["quotes"] = [dict(q) for q in quotes]
+        reads = db.execute(
+            "SELECT * FROM reading_history WHERE book_id=? ORDER BY created_at DESC",
+            (book_id,),
+        ).fetchall()
+        result["reads"] = [dict(r) for r in reads]
         return jsonify(result)
 
     @bp.get("/books/<int:book_id>/recommendations")
@@ -547,7 +569,22 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         if not db.execute("SELECT 1 FROM books WHERE id=?", (book_id,)).fetchone():
             return err("Book not found", 404)
         payload = request.get_json(force=True, silent=True) or {}
-        allowed = {"status", "title", "author", "description", "genre", "language"}
+        allowed = {
+            "status",
+            "title",
+            "author",
+            "description",
+            "genre",
+            "language",
+            "series_name",
+            "series_number",
+            "book_format",
+            "owned",
+            "start_date",
+            "finish_date",
+            "community_rating",
+            "community_rating_count",
+        }
         updates = {k: v for k, v in payload.items() if k in allowed}
         genre_tags = normalize_tags(payload.get("genre_tags")) if "genre_tags" in payload else None
         shelf_ids = int_list(payload.get("shelf_ids")) if "shelf_ids" in payload else None
@@ -556,7 +593,15 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         if not updates and genre_tags is None and shelf_ids is None and not location_updates:
             return err("No valid fields to update")
         if "status" in updates and not validate_status(updates["status"]):
-            return err("status must be one of: want_to_read, reading, read")
+            return err("status must be one of: want_to_read, reading, read, dnf")
+        if "book_format" in updates and updates["book_format"] not in {
+            "physical",
+            "ebook",
+            "audiobook",
+        }:
+            return err("book_format must be one of: physical, ebook, audiobook")
+        if "owned" in updates:
+            updates["owned"] = 1 if updates["owned"] else 0
         if location_error:
             return err(location_error)
         updates.update(location_updates)
@@ -700,6 +745,10 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 "pages",
                 "genre",
                 "language",
+                "series_name",
+                "series_number",
+                "community_rating",
+                "community_rating_count",
             ]:
                 value = metadata.get(field)
                 if value in (None, ""):
@@ -854,11 +903,13 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         current_page = payload.get("current_page")
         if rating is not None:
             try:
-                rating = int(rating)
-            except ValueError:
-                return err("rating must be an integer 1–5")
-            if not 1 <= rating <= 5:
-                return err("rating must be an integer 1–5")
+                rating = float(rating)
+            except (ValueError, TypeError):
+                return err("rating must be a number between 0.5 and 5 (0.5 increments)")
+            # Round to nearest 0.5 and clamp to valid range
+            rating = round(rating * 2) / 2
+            if not 0.5 <= rating <= 5:
+                return err("rating must be between 0.5 and 5")
         if current_page is not None and current_page != "":
             try:
                 current_page = int(current_page)
@@ -888,6 +939,84 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             "DELETE FROM reviews WHERE id = ? AND book_id = ?",
             (review_id, book_id),
         )
+        db.commit()
+        return jsonify({"ok": True})
+
+    # ── Quotes ────────────────────────────────────────────────────────────────
+
+    @bp.get("/books/<int:book_id>/quotes")
+    def api_list_quotes(book_id: int):
+        db = get_db()
+        if not db.execute("SELECT 1 FROM books WHERE id=?", (book_id,)).fetchone():
+            return err("Book not found", 404)
+        rows = db.execute(
+            "SELECT * FROM quotes WHERE book_id=? ORDER BY created_at DESC",
+            (book_id,),
+        ).fetchall()
+        return jsonify([dict(r) for r in rows])
+
+    @bp.post("/books/<int:book_id>/quotes")
+    def api_add_quote(book_id: int):
+        db = get_db()
+        if not db.execute("SELECT 1 FROM books WHERE id=?", (book_id,)).fetchone():
+            return err("Book not found", 404)
+        payload = request.get_json(force=True, silent=True) or {}
+        text = (payload.get("text") or "").strip()
+        if not text:
+            return err("text is required")
+        page_number = payload.get("page_number")
+        if page_number is not None:
+            try:
+                page_number = int(page_number)
+            except (TypeError, ValueError):
+                return err("page_number must be an integer")
+        db.execute(
+            "INSERT INTO quotes (book_id, text, page_number, created_at) VALUES (?,?,?,?)",
+            (book_id, text, page_number, now()),
+        )
+        db.commit()
+        return jsonify({"ok": True}), 201
+
+    @bp.delete("/books/<int:book_id>/quotes/<int:quote_id>")
+    def api_delete_quote(book_id: int, quote_id: int):
+        db = get_db()
+        db.execute("DELETE FROM quotes WHERE id=? AND book_id=?", (quote_id, book_id))
+        db.commit()
+        return jsonify({"ok": True})
+
+    # ── Reading history ────────────────────────────────────────────────────────
+
+    @bp.get("/books/<int:book_id>/reads")
+    def api_list_reads(book_id: int):
+        db = get_db()
+        if not db.execute("SELECT 1 FROM books WHERE id=?", (book_id,)).fetchone():
+            return err("Book not found", 404)
+        rows = db.execute(
+            "SELECT * FROM reading_history WHERE book_id=? ORDER BY created_at DESC",
+            (book_id,),
+        ).fetchall()
+        return jsonify([dict(r) for r in rows])
+
+    @bp.post("/books/<int:book_id>/reads")
+    def api_add_read(book_id: int):
+        db = get_db()
+        if not db.execute("SELECT 1 FROM books WHERE id=?", (book_id,)).fetchone():
+            return err("Book not found", 404)
+        payload = request.get_json(force=True, silent=True) or {}
+        started_at = (payload.get("started_at") or "").strip() or None
+        finished_at = (payload.get("finished_at") or "").strip() or None
+        notes = (payload.get("notes") or "").strip() or None
+        db.execute(
+            "INSERT INTO reading_history (book_id, started_at, finished_at, notes, created_at) VALUES (?,?,?,?,?)",
+            (book_id, started_at, finished_at, notes, now()),
+        )
+        db.commit()
+        return jsonify({"ok": True}), 201
+
+    @bp.delete("/books/<int:book_id>/reads/<int:read_id>")
+    def api_delete_read(book_id: int, read_id: int):
+        db = get_db()
+        db.execute("DELETE FROM reading_history WHERE id=? AND book_id=?", (read_id, book_id))
         db.commit()
         return jsonify({"ok": True})
 
@@ -1078,6 +1207,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             (end_dt + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00") if end_dt else None
         )
 
+        filter_format = (request.args.get("format") or "").strip()
+        filter_language = (request.args.get("language") or "").strip()
+
         book_conditions = []
         book_params: list[Any] = []
         if start_iso:
@@ -1086,6 +1218,12 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         if end_iso_exclusive:
             book_conditions.append("b.added_at < ?")
             book_params.append(end_iso_exclusive)
+        if filter_format:
+            book_conditions.append("b.book_format = ?")
+            book_params.append(filter_format)
+        if filter_language:
+            book_conditions.append("b.language = ?")
+            book_params.append(filter_language)
         book_where = f" WHERE {' AND '.join(book_conditions)}" if book_conditions else ""
 
         review_conditions = []
@@ -1113,7 +1251,8 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 COALESCE(SUM(COALESCE(b.pages, 0)), 0) AS total_pages,
                 COUNT(CASE WHEN b.status = 'read' THEN 1 END) AS read,
                 COUNT(CASE WHEN b.status = 'reading' THEN 1 END) AS reading,
-                COUNT(CASE WHEN b.status = 'want_to_read' THEN 1 END) AS want_to_read
+                COUNT(CASE WHEN b.status = 'want_to_read' THEN 1 END) AS want_to_read,
+                COUNT(CASE WHEN b.status = 'dnf' THEN 1 END) AS dnf
                FROM books b
                {book_where}""",
             book_params,
@@ -1167,13 +1306,14 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             "want_to_read": {"label": "Want to Read", "book_count": 0, "total_pages": 0},
             "reading": {"label": "Reading", "book_count": 0, "total_pages": 0},
             "read": {"label": "Read", "book_count": 0, "total_pages": 0},
+            "dnf": {"label": "Did Not Finish", "book_count": 0, "total_pages": 0},
         }
         for row in status_rows:
             if row["status"] in status_map:
                 status_map[row["status"]]["book_count"] = int(row["book_count"])
                 status_map[row["status"]]["total_pages"] = int(row["total_pages"])
         status_breakdown = [
-            {"status": key, **status_map[key]} for key in ["want_to_read", "reading", "read"]
+            {"status": key, **status_map[key]} for key in ["want_to_read", "reading", "read", "dnf"]
         ]
 
         genre_rows = db.execute(
@@ -1306,6 +1446,267 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             for row in monthly_added_rows
         ]
 
+        # Format breakdown
+        format_rows = db.execute(
+            f"""SELECT COALESCE(b.book_format, 'physical') AS fmt,
+                      COUNT(*) AS book_count
+               FROM books b
+               {book_where}
+               GROUP BY fmt""",
+            book_params,
+        ).fetchall()
+        format_breakdown = [
+            {"format": row["fmt"], "book_count": int(row["book_count"])} for row in format_rows
+        ]
+
+        # Decade distribution
+        dec_conds = list(book_conditions) + [
+            "b.year IS NOT NULL",
+            "TRIM(b.year) != ''",
+            "LENGTH(TRIM(b.year)) >= 4",
+            "CAST(SUBSTR(TRIM(b.year), 1, 4) AS INTEGER) BETWEEN 1000 AND 2100",
+        ]
+        dec_where = " WHERE " + " AND ".join(dec_conds)
+        decade_rows = db.execute(
+            f"""SELECT
+                  CAST(CAST(SUBSTR(TRIM(b.year), 1, 4) AS INTEGER) / 10 * 10 AS TEXT) || 's' AS decade,
+                  COUNT(*) AS book_count
+               FROM books b
+               {dec_where}
+               GROUP BY decade
+               ORDER BY decade""",
+            book_params,
+        ).fetchall()
+        decade_distribution = [
+            {"decade": row["decade"], "book_count": int(row["book_count"])} for row in decade_rows
+        ]
+
+        # Top publishers
+        pub_conds = list(book_conditions) + [
+            "b.publisher IS NOT NULL",
+            "TRIM(b.publisher) != ''",
+        ]
+        pub_where = " WHERE " + " AND ".join(pub_conds)
+        publisher_rows = db.execute(
+            f"""SELECT b.publisher,
+                      COUNT(*) AS book_count
+               FROM books b
+               {pub_where}
+               GROUP BY b.publisher
+               ORDER BY book_count DESC, b.publisher COLLATE NOCASE
+               LIMIT 10""",
+            book_params,
+        ).fetchall()
+        top_publishers = [
+            {"publisher": row["publisher"], "book_count": int(row["book_count"])}
+            for row in publisher_rows
+        ]
+
+        # Community vs personal rating
+        comp_conds = list(book_conditions) + ["b.community_rating IS NOT NULL"]
+        comp_where = " WHERE " + " AND ".join(comp_conds)
+        comp_rows = db.execute(
+            f"""SELECT b.title,
+                      b.author,
+                      b.community_rating,
+                      ROUND(AVG(r.rating), 2) AS user_rating
+               FROM books b
+               LEFT JOIN reviews r ON r.book_id = b.id AND r.rating IS NOT NULL
+               {comp_where}
+               GROUP BY b.id
+               ORDER BY b.title COLLATE NOCASE""",
+            book_params,
+        ).fetchall()
+        community_vs_personal = [
+            {
+                "title": row["title"],
+                "author": row["author"],
+                "community_rating": float(row["community_rating"]),
+                "user_rating": float(row["user_rating"])
+                if row["user_rating"] is not None
+                else None,
+            }
+            for row in comp_rows
+        ]
+
+        # Library growth (cumulative books added per month)
+        cumulative = 0
+        library_growth = []
+        for item in monthly_additions:
+            cumulative += item["books_added"]
+            library_growth.append({"month": item["month"], "total_books": cumulative})
+
+        # Average time to finish (start_date → finish_date)
+        finish_conds = list(book_conditions) + [
+            "b.start_date IS NOT NULL",
+            "b.finish_date IS NOT NULL",
+            "b.finish_date > b.start_date",
+        ]
+        finish_where = " WHERE " + " AND ".join(finish_conds)
+        finish_rows = db.execute(
+            f"""SELECT
+                  CAST(JULIANDAY(b.finish_date) - JULIANDAY(b.start_date) AS INTEGER) AS days
+               FROM books b
+               {finish_where}""",
+            book_params,
+        ).fetchall()
+        finish_days = [int(r["days"]) for r in finish_rows if r["days"] is not None]
+        bucket_labels = ["0-7 d", "1-2 wk", "2-4 wk", "1-2 mo", "2-3 mo", "3+ mo"]
+        bucket_counts = [0, 0, 0, 0, 0, 0]
+        for d in finish_days:
+            if d <= 7:
+                bucket_counts[0] += 1
+            elif d <= 14:
+                bucket_counts[1] += 1
+            elif d <= 30:
+                bucket_counts[2] += 1
+            elif d <= 60:
+                bucket_counts[3] += 1
+            elif d <= 90:
+                bucket_counts[4] += 1
+            else:
+                bucket_counts[5] += 1
+        finish_time_distribution = [
+            {"range": label, "count": count}
+            for label, count in zip(bucket_labels, bucket_counts, strict=True)
+        ]
+        finish_time_stats: dict[str, Any] = {
+            "avg_days": round(sum(finish_days) / len(finish_days), 1) if finish_days else None,
+            "min_days": min(finish_days) if finish_days else None,
+            "max_days": max(finish_days) if finish_days else None,
+            "book_count": len(finish_days),
+        }
+
+        # Longest unread (oldest want-to-read books)
+        unread_conds = list(book_conditions) + ["b.status = 'want_to_read'"]
+        unread_where = " WHERE " + " AND ".join(unread_conds)
+        unread_rows = db.execute(
+            f"""SELECT b.title, b.author, b.added_at,
+                      CAST(JULIANDAY('now') - JULIANDAY(b.added_at) AS INTEGER) AS days_waiting
+               FROM books b
+               {unread_where}
+               ORDER BY b.added_at ASC
+               LIMIT 10""",
+            book_params,
+        ).fetchall()
+        longest_unread = [
+            {
+                "title": row["title"],
+                "author": row["author"],
+                "added_at": row["added_at"][:10] if row["added_at"] else None,
+                "days_waiting": int(row["days_waiting"] or 0),
+            }
+            for row in unread_rows
+        ]
+
+        # Rating trend over time (monthly avg)
+        rating_trend_rows = db.execute(
+            f"""SELECT SUBSTR(r.created_at, 1, 7) AS month,
+                      ROUND(AVG(r.rating), 2) AS avg_rating,
+                      COUNT(*) AS review_count
+               FROM reviews r, books b
+               {review_with_books_where}
+               GROUP BY month
+               ORDER BY month""",
+            review_with_books_params,
+        ).fetchall()
+        rating_trend = [
+            {
+                "month": row["month"],
+                "avg_rating": float(row["avg_rating"]),
+                "review_count": int(row["review_count"]),
+            }
+            for row in rating_trend_rows
+        ]
+
+        # Genre trends over time (top genres by year)
+        genre_year_conds = list(book_conditions) + [
+            "(t.name IS NOT NULL OR b.genre IS NOT NULL)",
+            "b.added_at IS NOT NULL",
+        ]
+        genre_year_where = " WHERE " + " AND ".join(genre_year_conds)
+        genre_trend_rows = db.execute(
+            f"""SELECT SUBSTR(b.added_at, 1, 4) AS year,
+                      COALESCE(t.name, b.genre) AS genre,
+                      COUNT(DISTINCT b.id) AS book_count
+               FROM books b
+               LEFT JOIN book_tags bt ON bt.book_id = b.id
+               LEFT JOIN tags t ON t.id = bt.tag_id
+               {genre_year_where}
+               GROUP BY year, genre
+               ORDER BY year, book_count DESC""",
+            book_params,
+        ).fetchall()
+        genre_year_map: dict[str, dict[str, int]] = {}
+        genre_totals: dict[str, int] = {}
+        all_years_set: set[str] = set()
+        for gtr in genre_trend_rows:
+            g = gtr["genre"]
+            y = gtr["year"]
+            if not g or not y:
+                continue
+            c = int(gtr["book_count"])
+            if g not in genre_year_map:
+                genre_year_map[g] = {}
+            genre_year_map[g][y] = genre_year_map[g].get(y, 0) + c
+            genre_totals[g] = genre_totals.get(g, 0) + c
+            all_years_set.add(y)
+        top_g = sorted(genre_totals.items(), key=lambda x: -x[1])[:7]
+        all_years_sorted = sorted(all_years_set)
+        genre_trends_over_time: dict[str, Any] = {
+            "years": all_years_sorted,
+            "series": [
+                {
+                    "genre": g,
+                    "counts": [genre_year_map[g].get(yr, 0) for yr in all_years_sorted],
+                }
+                for g, _ in top_g
+            ],
+        }
+
+        # Loans out
+        loan_conds = list(book_conditions) + [
+            "b.location_type = 'loaned_to'",
+            "b.loan_person IS NOT NULL",
+            "TRIM(b.loan_person) != ''",
+        ]
+        loan_where = " WHERE " + " AND ".join(loan_conds)
+        loan_rows = db.execute(
+            f"""SELECT b.title, b.author, b.loan_person, b.updated_at,
+                      CAST(JULIANDAY('now') - JULIANDAY(b.updated_at) AS INTEGER) AS days_loaned
+               FROM books b
+               {loan_where}
+               ORDER BY b.updated_at ASC""",
+            book_params,
+        ).fetchall()
+        loans_out = [
+            {
+                "title": row["title"],
+                "author": row["author"],
+                "loan_person": row["loan_person"],
+                "updated_at": row["updated_at"][:10] if row["updated_at"] else None,
+                "days_loaned": int(row["days_loaned"] or 0),
+            }
+            for row in loan_rows
+        ]
+
+        # Custom shelf breakdown
+        shelf_where_conds = list(book_conditions)
+        shelf_where = f" WHERE {' AND '.join(shelf_where_conds)}" if shelf_where_conds else ""
+        shelf_rows = db.execute(
+            f"""SELECT sh.name, COUNT(DISTINCT b.id) AS book_count
+               FROM shelves sh
+               JOIN book_shelves bs ON bs.shelf_id = sh.id
+               JOIN books b ON b.id = bs.book_id
+               {shelf_where}
+               GROUP BY sh.id, sh.name
+               ORDER BY book_count DESC, sh.name COLLATE NOCASE""",
+            book_params,
+        ).fetchall()
+        shelf_breakdown = [
+            {"shelf": row["name"], "book_count": int(row["book_count"])} for row in shelf_rows
+        ]
+
         summary = dict(summary_books_row)
         summary["total_books"] = int(summary.get("total_books") or 0)
         summary["total_pages"] = int(summary.get("total_pages") or 0)
@@ -1314,6 +1715,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         summary["read"] = int(summary.get("read") or 0)
         summary["reading"] = int(summary.get("reading") or 0)
         summary["want_to_read"] = int(summary.get("want_to_read") or 0)
+        summary["dnf"] = int(summary.get("dnf") or 0)
         summary["pages_completed_estimate"] = int(pages_completed_estimate)
 
         goal_year = end_dt.year if end_dt else datetime.now(timezone.utc).year
@@ -1348,6 +1750,79 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         active_days = int(session_summary_row["active_days"] or 0)
         monthly_pages_pace = int(round((session_pages / active_days) * 30)) if active_days else 0
 
+        # Daily reading pace + streak (need session_where defined above)
+        pace_rows = db.execute(
+            f"""SELECT s.session_date,
+                      SUM(CASE WHEN s.end_page >= s.start_page
+                               THEN s.end_page - s.start_page ELSE 0 END) AS pages_read,
+                      SUM(COALESCE(s.minutes_spent, 0)) AS minutes_spent
+               FROM reading_sessions s
+               {session_where}
+               GROUP BY s.session_date
+               ORDER BY s.session_date""",
+            session_params,
+        ).fetchall()
+        reading_pace_daily = [
+            {
+                "date": row["session_date"],
+                "pages": int(row["pages_read"]),
+                "minutes": int(row["minutes_spent"]),
+            }
+            for row in pace_rows
+        ]
+
+        # Reading speed per book (pages/hour from sessions)
+        speed_rows = db.execute(
+            f"""SELECT b.title, b.author,
+                      SUM(CASE WHEN s.end_page >= s.start_page
+                               THEN s.end_page - s.start_page ELSE 0 END) AS pages_read,
+                      SUM(COALESCE(s.minutes_spent, 0)) AS minutes_spent,
+                      COUNT(*) AS session_count
+               FROM reading_sessions s
+               JOIN books b ON b.id = s.book_id
+               {session_where}
+               GROUP BY b.id, b.title, b.author
+               HAVING minutes_spent > 0 AND pages_read > 0
+               ORDER BY (CAST(pages_read AS REAL) / minutes_spent) DESC
+               LIMIT 20""",
+            session_params,
+        ).fetchall()
+        reading_speed_per_book = [
+            {
+                "title": row["title"],
+                "author": row["author"],
+                "pages_read": int(row["pages_read"]),
+                "pages_per_hour": round(
+                    (int(row["pages_read"]) / int(row["minutes_spent"])) * 60, 1
+                ),
+                "session_count": int(row["session_count"]),
+            }
+            for row in speed_rows
+        ]
+
+        all_session_dates = sorted(
+            {datetime.strptime(r["session_date"], "%Y-%m-%d").date() for r in pace_rows}
+        )
+        current_streak = 0
+        longest_streak = 0
+        if all_session_dates:
+            today_d = datetime.now(timezone.utc).date()
+            expected = today_d if all_session_dates[-1] == today_d else today_d - timedelta(days=1)
+            i = len(all_session_dates) - 1
+            while i >= 0 and all_session_dates[i] == expected:
+                current_streak += 1
+                expected -= timedelta(days=1)
+                i -= 1
+            cur = 1
+            longest_streak = 1
+            for i in range(1, len(all_session_dates)):
+                if all_session_dates[i] == all_session_dates[i - 1] + timedelta(days=1):
+                    cur += 1
+                    if cur > longest_streak:
+                        longest_streak = cur
+                else:
+                    cur = 1
+
         goal_payload = {
             "year": goal_year,
             "target_books": target_books,
@@ -1365,6 +1840,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             else 0,
         }
 
+        avg_reading_speed = (
+            round((session_pages / session_minutes) * 60, 1) if session_minutes > 0 else None
+        )
         sessions_summary = {
             "pages_read": session_pages,
             "minutes_spent": session_minutes,
@@ -1372,6 +1850,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             "active_days": active_days,
             "pages_per_day": round((session_pages / active_days), 1) if active_days else 0,
             "pages_per_week": round((session_pages / active_days) * 7, 1) if active_days else 0,
+            "avg_speed_pages_per_hour": avg_reading_speed,
+            "current_streak_days": current_streak,
+            "longest_streak_days": longest_streak,
         }
 
         return jsonify(
@@ -1389,6 +1870,20 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 "monthly_additions": monthly_additions,
                 "goal": goal_payload,
                 "sessions_summary": sessions_summary,
+                "format_breakdown": format_breakdown,
+                "decade_distribution": decade_distribution,
+                "top_publishers": top_publishers,
+                "community_vs_personal": community_vs_personal,
+                "reading_pace_daily": reading_pace_daily,
+                "library_growth": library_growth,
+                "finish_time_stats": finish_time_stats,
+                "finish_time_distribution": finish_time_distribution,
+                "longest_unread": longest_unread,
+                "rating_trend": rating_trend,
+                "genre_trends_over_time": genre_trends_over_time,
+                "loans_out": loans_out,
+                "shelf_breakdown": shelf_breakdown,
+                "reading_speed_per_book": reading_speed_per_book,
             }
         )
 

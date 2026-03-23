@@ -60,13 +60,22 @@ def ensure_schema(db: sqlite3.Connection) -> None:
             added_at    TEXT    NOT NULL,
             updated_at  TEXT    NOT NULL,
             status      TEXT    NOT NULL DEFAULT 'want_to_read'
-                        CHECK(status IN ('want_to_read','reading','read'))
+                        CHECK(status IN ('want_to_read','reading','read','dnf')),
+            series_name TEXT,
+            series_number TEXT,
+            community_rating REAL,
+            community_rating_count INTEGER,
+            book_format TEXT NOT NULL DEFAULT 'physical'
+                        CHECK(book_format IN ('physical','ebook','audiobook')),
+            owned       INTEGER NOT NULL DEFAULT 0,
+            start_date  TEXT,
+            finish_date TEXT
         );
 
         CREATE TABLE IF NOT EXISTS reviews (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             book_id     INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
-            rating      INTEGER CHECK(rating BETWEEN 1 AND 5),
+            rating      REAL CHECK(rating >= 0.5 AND rating <= 5),
             comment     TEXT,
             current_page INTEGER,
             created_at  TEXT    NOT NULL,
@@ -159,6 +168,25 @@ def ensure_schema(db: sqlite3.Connection) -> None:
             created_at      TEXT    NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS quotes (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            book_id     INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+            text        TEXT    NOT NULL,
+            page_number INTEGER,
+            created_at  TEXT    NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS reading_history (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            book_id     INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+            started_at  TEXT,
+            finished_at TEXT,
+            notes       TEXT,
+            created_at  TEXT    NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_quotes_book ON quotes(book_id);
+        CREATE INDEX IF NOT EXISTS idx_reading_history_book ON reading_history(book_id);
         CREATE INDEX IF NOT EXISTS idx_books_status  ON books(status);
         CREATE INDEX IF NOT EXISTS idx_books_author  ON books(author COLLATE NOCASE);
         CREATE INDEX IF NOT EXISTS idx_reviews_book  ON reviews(book_id);
@@ -185,6 +213,22 @@ def ensure_schema(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE books ADD COLUMN location_note TEXT")
     if "loan_person" not in book_cols:
         db.execute("ALTER TABLE books ADD COLUMN loan_person TEXT")
+    if "series_name" not in book_cols:
+        db.execute("ALTER TABLE books ADD COLUMN series_name TEXT")
+    if "series_number" not in book_cols:
+        db.execute("ALTER TABLE books ADD COLUMN series_number TEXT")
+    if "community_rating" not in book_cols:
+        db.execute("ALTER TABLE books ADD COLUMN community_rating REAL")
+    if "community_rating_count" not in book_cols:
+        db.execute("ALTER TABLE books ADD COLUMN community_rating_count INTEGER")
+    if "book_format" not in book_cols:
+        db.execute("ALTER TABLE books ADD COLUMN book_format TEXT NOT NULL DEFAULT 'physical'")
+    if "owned" not in book_cols:
+        db.execute("ALTER TABLE books ADD COLUMN owned INTEGER NOT NULL DEFAULT 0")
+    if "start_date" not in book_cols:
+        db.execute("ALTER TABLE books ADD COLUMN start_date TEXT")
+    if "finish_date" not in book_cols:
+        db.execute("ALTER TABLE books ADD COLUMN finish_date TEXT")
 
     db.commit()
     log.info("Database schema verified.")

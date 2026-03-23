@@ -120,7 +120,7 @@
   /* ── Filter tabs ── */
   .filter-bar {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: .55rem;
     padding: 1rem 1.25rem .35rem;
   }
@@ -417,6 +417,7 @@
   .badge-reading   { background: var(--sage); color: #fff; }
   .badge-read      { background: var(--rust); color: #fff; }
   .badge-want      { background: var(--brown); color: var(--tan); }
+  .badge-dnf       { background: #555; color: #eee; }
 
   /* ── FAB ── */
   .fab-stack {
@@ -1007,6 +1008,21 @@
   }
   .btn-delete-review:hover { color: var(--rust); }
 
+  .detail-extra-fields { margin-top: .6rem; display: flex; flex-direction: column; gap: .4rem; }
+  .extra-row { display: flex; align-items: center; gap: .55rem; font-size: .82rem; }
+  .extra-row label { min-width: 60px; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--brown); }
+  .extra-row select, .extra-row input[type=date] { flex: 1; padding: .32rem .55rem; font-size: .82rem; }
+  .community-rating { margin-top: .4rem; font-size: .78rem; color: var(--brown); display: flex; align-items: center; gap: .35rem; }
+  .community-stars { color: var(--gold); letter-spacing: -.5px; }
+  .series-label { margin-top: .35rem; font-size: .78rem; color: var(--brown); font-style: italic; }
+  .add-quote-form, .add-read-form { display: flex; flex-direction: column; gap: .5rem; }
+  .quote-item { background: #fff; border-left: 3px solid var(--amber); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: .6rem .85rem; margin-bottom: .45rem; position: relative; }
+  .quote-item blockquote { margin: 0; font-size: .84rem; color: #444; font-style: italic; line-height: 1.55; }
+  .quote-item .quote-page { font-size: .7rem; color: #aaa; margin-top: .25rem; }
+  .read-item { background: #fff; border: 1px solid var(--tan); border-radius: var(--radius-sm); padding: .55rem .85rem; margin-bottom: .45rem; font-size: .82rem; color: #444; }
+  .read-item .read-dates { font-weight: 700; color: var(--brown); }
+  .btn-delete-quote, .btn-delete-read { background: none; border: none; cursor: pointer; font-size: .7rem; color: #ccc; position: absolute; top: .35rem; right: .45rem; transition: color .2s; }
+  .btn-delete-quote:hover, .btn-delete-read:hover { color: var(--rust); }
   .add-review-form { display: flex; flex-direction: column; gap: .6rem; }
   .star-picker { display: flex; gap: 4px; }
   .star-picker label { font-size: 1.3rem; cursor: pointer; }
@@ -1206,6 +1222,14 @@
   .dark-mode .detail-section h3::before {
     background: var(--amber);
   }
+  .dark-mode .quote-item,
+  .dark-mode .read-item {
+    background: #211709;
+    border-color: #5a4531;
+    color: #dbc8ae;
+  }
+  .dark-mode .quote-item { border-left-color: var(--amber); }
+  .dark-mode .quote-item blockquote { color: #dbc8ae; }
 
   .light-mode {
     --cream: #fdf8f2;
@@ -1276,6 +1300,7 @@
     <option value="reading">Reading</option>
     <option value="read">Read</option>
     <option value="want_to_read">Want to Read</option>
+    <option value="dnf">Did Not Finish</option>
   </select>
   <select id="author-filter" class="filter-select">
     <option value="">All authors</option>
@@ -1285,6 +1310,12 @@
   </select>
   <select id="shelf-filter" class="filter-select">
     <option value="">All shelves</option>
+  </select>
+  <select id="format-filter" class="filter-select">
+    <option value="">All formats</option>
+    <option value="physical">Physical</option>
+    <option value="ebook">E-Book</option>
+    <option value="audiobook">Audiobook</option>
   </select>
 </div>
 
@@ -1501,6 +1532,7 @@
             <option value="want_to_read">Want to Read</option>
             <option value="reading">Currently Reading</option>
             <option value="read">Read</option>
+            <option value="dnf">Did Not Finish</option>
           </select>
         </div>
         <div class="detail-shelves">
@@ -1528,6 +1560,30 @@
           <input type="text" id="d-location-note" placeholder="Location note">
           <input type="text" id="d-loan-person" placeholder="Loan person">
           <button class="mini-btn" onclick="updateBookLocation()">Save Location</button>
+        </div>
+        <div class="detail-extra-fields">
+          <div class="extra-row">
+            <label>Format</label>
+            <select id="d-book-format" onchange="updateBookMeta()">
+              <option value="physical">📗 Physical</option>
+              <option value="ebook">📱 E-Book</option>
+              <option value="audiobook">🎧 Audiobook</option>
+            </select>
+          </div>
+          <div class="extra-row">
+            <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer">
+              <input type="checkbox" id="d-owned" onchange="updateBookMeta()" style="width:auto;accent-color:var(--amber)">
+              Owned
+            </label>
+          </div>
+          <div class="extra-row">
+            <label>Started</label>
+            <input type="date" id="d-start-date" onchange="updateBookMeta()">
+          </div>
+          <div class="extra-row">
+            <label>Finished</label>
+            <input type="date" id="d-finish-date" onchange="updateBookMeta()">
+          </div>
         </div>
       </div>
     </div>
@@ -1567,6 +1623,31 @@
         <button class="btn-primary" onclick="submitReview()" style="margin-top:0">Save Review</button>
       </div>
       <div class="reviews-list" id="d-reviews" style="margin-top:1rem"></div>
+    </div>
+
+    <div class="detail-section" id="d-quotes-section">
+      <h3>Quotes &amp; Highlights</h3>
+      <div class="add-quote-form">
+        <textarea id="new-quote-text" placeholder="Paste a memorable quote…" rows="2"></textarea>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <input type="number" id="new-quote-page" min="1" placeholder="Page (optional)" style="width:140px">
+          <button class="btn-primary" onclick="submitQuote()" style="flex:1;margin-top:0">Save Quote</button>
+        </div>
+      </div>
+      <div class="quotes-list" id="d-quotes" style="margin-top:.75rem"></div>
+    </div>
+
+    <div class="detail-section" id="d-reads-section">
+      <h3>Reading History</h3>
+      <div class="add-read-form">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+          <div><label>Started</label><input type="date" id="new-read-start"></div>
+          <div><label>Finished</label><input type="date" id="new-read-finish"></div>
+        </div>
+        <textarea id="new-read-notes" placeholder="Notes for this read (optional)" rows="2"></textarea>
+        <button class="btn-primary" onclick="submitRead()" style="margin-top:0">Log Read</button>
+      </div>
+      <div class="reads-list" id="d-reads" style="margin-top:.75rem"></div>
     </div>
 
     <div class="detail-actions">
@@ -1673,6 +1754,8 @@ let currentAuthor = '';
 let currentGenre = '';
 let currentShelfId = '';
 let currentContinueReading = false;
+let currentFormat = '';
+let currentOwnedOnly = false;
 let addGenreTags = [];
 let detailGenreTags = [];
 let currentRole = 'user';
@@ -1714,6 +1797,11 @@ document.getElementById('genre-filter').addEventListener('change', e => {
 
 document.getElementById('shelf-filter').addEventListener('change', e => {
   currentShelfId = e.target.value;
+  loadBooks();
+});
+
+document.getElementById('format-filter').addEventListener('change', e => {
+  currentFormat = e.target.value;
   loadBooks();
 });
 
@@ -2161,6 +2249,8 @@ async function loadBooks() {
   if (currentGenre) params.set('genre', currentGenre);
   if (currentShelfId) params.set('shelf_id', currentShelfId);
   if (currentContinueReading) params.set('continue_reading', '1');
+  if (currentFormat) params.set('format', currentFormat);
+  if (currentOwnedOnly) params.set('owned', '1');
   const r = await api(`/api/books?${params}`);
   books = await r.json();
   updateFilterOptions();
@@ -2217,7 +2307,7 @@ function renderBooks() {
     card.onclick = () => openDetail(b.id);
     const safeCover = getBookCover(b);
 
-    const statusMap = { reading:'badge-reading', read:'badge-read', want_to_read:'badge-want' };
+    const statusMap = { reading:'badge-reading', read:'badge-read', want_to_read:'badge-want', dnf:'badge-dnf' };
     const statusLabel = { reading:'Reading', read:'Read', want_to_read:'Soon' };
     const stars = b.avg_rating ? renderStars(b.avg_rating) : '';
     const progress = formatProgress(b.current_page, b.pages, b.progress_percent);
@@ -2343,10 +2433,13 @@ function clearAdvancedFilters() {
   currentGenre = '';
   currentShelfId = '';
   currentContinueReading = false;
+  currentFormat = '';
+  currentOwnedOnly = false;
   document.getElementById('status-filter').value = '';
   document.getElementById('author-filter').value = '';
   document.getElementById('genre-filter').value = '';
   document.getElementById('shelf-filter').value = '';
+  document.getElementById('format-filter').value = '';
   loadBooks();
 }
 
@@ -2884,8 +2977,26 @@ async function openDetail(id) {
 
 // Populate the detail modal from any book object (cached or full API response).
 function _fillDetailModal(b) {
-  document.getElementById('d-title').textContent  = b.title;
-  document.getElementById('d-author').textContent = b.author || 'Unknown author';
+  document.getElementById('d-title').textContent = b.title;
+
+  // Clickable author — sets author filter on click
+  const authorEl = document.getElementById('d-author');
+  authorEl.innerHTML = b.author
+    ? `<a href="#" style="color:var(--brown);text-decoration:none" onclick="filterByAuthor(${JSON.stringify(b.author)});return false">${esc(b.author)}</a>`
+    : 'Unknown author';
+
+  // Series label (injected below title if present)
+  let seriesEl = document.getElementById('d-series-label');
+  if (!seriesEl) {
+    seriesEl = document.createElement('div');
+    seriesEl.id = 'd-series-label';
+    seriesEl.className = 'series-label';
+    document.getElementById('d-author').after(seriesEl);
+  }
+  seriesEl.textContent = b.series_name
+    ? (b.series_number ? `${b.series_name} #${b.series_number}` : b.series_name)
+    : '';
+  seriesEl.style.display = b.series_name ? '' : 'none';
 
   const sub = [];
   if (b.publisher) sub.push(`<span>${esc(b.publisher)}</span>`);
@@ -2900,6 +3011,22 @@ function _fillDetailModal(b) {
   sub.push(`<span>${esc(formatLocation(b))}</span>`);
   document.getElementById('d-sub').innerHTML = sub.join('');
 
+  // Community rating
+  let comEl = document.getElementById('d-community-rating');
+  if (!comEl) {
+    comEl = document.createElement('div');
+    comEl.id = 'd-community-rating';
+    comEl.className = 'community-rating';
+    document.getElementById('d-sub').after(comEl);
+  }
+  if (b.community_rating) {
+    const stars = '★'.repeat(Math.round(b.community_rating)) + '☆'.repeat(5 - Math.round(b.community_rating));
+    comEl.innerHTML = `<span class="community-stars">${stars}</span> ${b.community_rating.toFixed(1)} community rating${b.community_rating_count ? ` (${b.community_rating_count.toLocaleString()})` : ''}`;
+    comEl.style.display = '';
+  } else {
+    comEl.style.display = 'none';
+  }
+
   // Cover
   const wrap = document.getElementById('detail-cover-wrap');
   const safeCover = getBookCover(b);
@@ -2913,29 +3040,42 @@ function _fillDetailModal(b) {
   document.getElementById('d-location-type').value = b.location_type || 'shelf';
   document.getElementById('d-location-note').value = b.location_note || '';
   document.getElementById('d-loan-person').value = b.loan_person || '';
+
+  // Extra meta fields
+  const fmtEl = document.getElementById('d-book-format');
+  if (fmtEl) fmtEl.value = b.book_format || 'physical';
+  const ownedEl = document.getElementById('d-owned');
+  if (ownedEl) ownedEl.checked = !!b.owned;
+  const startEl = document.getElementById('d-start-date');
+  if (startEl) startEl.value = b.start_date || '';
+  const finishEl = document.getElementById('d-finish-date');
+  if (finishEl) finishEl.value = b.finish_date || '';
+
   populateDetailShelfSelect((b.shelves || []).map(s => s.id));
   setGenreState('detail', b.genre_tags || []);
   document.getElementById('d-genre-input').value = '';
 
   // Description — section is always shown; missing description shows placeholder + Edit button
-  const descEl      = document.getElementById('d-desc');
-  const descPH      = document.getElementById('d-desc-placeholder');
-  const descInput   = document.getElementById('d-desc-input');
+  const descEl    = document.getElementById('d-desc');
+  const descPH    = document.getElementById('d-desc-placeholder');
+  const descInput = document.getElementById('d-desc-input');
   document.getElementById('d-desc-edit-form').classList.remove('open');
   document.getElementById('d-desc-edit-btn').textContent = 'Edit';
   if (b.description) {
-    descEl.textContent  = b.description;
-    descEl.style.display  = '';
-    descPH.style.display  = 'none';
+    descEl.textContent = b.description;
+    descEl.style.display = '';
+    descPH.style.display = 'none';
   } else {
-    descEl.textContent  = '';
-    descEl.style.display  = 'none';
-    descPH.style.display  = '';
+    descEl.textContent = '';
+    descEl.style.display = 'none';
+    descPH.style.display = '';
   }
   descInput.value = b.description || '';
 
-  // Reviews are only present in the full API response, not in the cached books list.
+  // Reviews, quotes, reads — only in full API response
   if (b.reviews !== undefined) renderReviews(b.reviews);
+  if (b.quotes  !== undefined) renderQuotes(b.quotes);
+  if (b.reads   !== undefined) renderReads(b.reads);
 
   newRating = 0;
   buildNewStarPicker();
@@ -2982,6 +3122,16 @@ function populateDetailShelfSelect(selectedIds=[]) {
   _buildShelfPills('d-shelves-pills', 'd-shelves', selectedIds);
 }
 
+function renderHalfStars(rating) {
+  let out = '';
+  for (let i = 1; i <= 5; i++) {
+    if (rating >= i)       out += '★';
+    else if (rating >= i - 0.5) out += '½';
+    else                   out += '☆';
+  }
+  return out;
+}
+
 function buildStarPicker(containerId, labelId, currentRating) {
   const container = document.getElementById(containerId);
   const label     = document.getElementById(labelId);
@@ -2993,23 +3143,24 @@ function buildStarPicker(containerId, labelId, currentRating) {
   ).join('');
 }
 
+// Half-star picker — each star split into two clickable halves.
+// Supports 0.5 increments: left half = X-0.5, right half = X.
 function buildNewStarPicker() {
   const container = document.getElementById('new-stars');
-  const starLabels = ['','Terrible','Poor','Okay','Good','Amazing'];
-
-  // Build DOM only once — subsequent calls just update the visual state.
-  // This avoids innerHTML replacement + listener re-attachment on every star click.
   if (!container.dataset.spInit) {
     container.innerHTML = [1,2,3,4,5].map(n =>
-      `<label title="${starLabels[n]}" style="cursor:pointer;font-size:1.4rem">★
-         <input type="radio" name="new-rating" value="${n}" style="display:none">
-       </label>`
+      `<span class="star-wrap" data-star="${n}" style="cursor:pointer;font-size:1.4rem;position:relative;display:inline-block;width:1.3em">` +
+        `<span class="star-bg" style="color:#ddd">★</span>` +
+        `<span class="star-fg" style="position:absolute;left:0;top:0;overflow:hidden;color:var(--gold);width:0">★</span>` +
+      `</span>`
     ).join('');
-    // One delegated listener instead of 5 individual ones
     container.addEventListener('click', e => {
-      const lbl = e.target.closest('label');
-      if (!lbl) return;
-      newRating = [...container.querySelectorAll('label')].indexOf(lbl) + 1;
+      const wrap = e.target.closest('[data-star]');
+      if (!wrap) return;
+      const n = parseInt(wrap.dataset.star);
+      const rect = wrap.getBoundingClientRect();
+      const half = e.clientX < rect.left + rect.width / 2;
+      newRating = half ? n - 0.5 : n;
       _syncNewStarDisplay();
     });
     container.dataset.spInit = '1';
@@ -3017,15 +3168,19 @@ function buildNewStarPicker() {
   _syncNewStarDisplay();
 }
 
-// Update star colours and label text without touching the DOM structure.
+// Update star fill widths and label without touching DOM structure.
 function _syncNewStarDisplay() {
   const container = document.getElementById('new-stars');
   const label = document.getElementById('new-rating-label');
-  const starLabels = ['','Terrible','Poor','Okay','Good','Amazing'];
-  container.querySelectorAll('label').forEach((lbl, i) => {
-    lbl.style.color = i < newRating ? 'var(--gold)' : '#ddd';
+  const ratingLabels = {0:'No rating',0.5:'½',1:'Terrible',1.5:'Terrible+',2:'Poor',2.5:'Poor+',3:'Okay',3.5:'Okay+',4:'Good',4.5:'Good+',5:'Amazing'};
+  container.querySelectorAll('[data-star]').forEach(wrap => {
+    const n = parseInt(wrap.dataset.star);
+    const fg = wrap.querySelector('.star-fg');
+    if (newRating >= n)       fg.style.width = '100%';
+    else if (newRating >= n - 0.5) fg.style.width = '50%';
+    else                      fg.style.width = '0';
   });
-  label.textContent = newRating ? starLabels[newRating] : 'No rating';
+  label.textContent = ratingLabels[newRating] ?? `${newRating}★`;
 }
 
 function renderReviews(reviews) {
@@ -3034,7 +3189,7 @@ function renderReviews(reviews) {
   list.innerHTML = reviews.map(rv => `
     <div class="review-item" data-id="${rv.id}">
       <div class="review-header">
-        <span class="review-stars">${rv.rating ? '★'.repeat(rv.rating) : ''}</span>
+        <span class="review-stars">${rv.rating ? renderHalfStars(rv.rating) : ''}</span>
         <span>
           <span class="review-date">${formatDate(rv.created_at)}</span>
           <button class="btn-delete-review" onclick="deleteReview(${rv.id})">✕</button>
@@ -3204,6 +3359,101 @@ async function saveDescription() {
   document.getElementById('d-desc-edit-btn').textContent = 'Edit';
   _detailNeedsRefresh = true;
   showToast('Description saved ✓');
+}
+
+// ── Author filter shortcut ─────────────────────────────────────────────────
+function filterByAuthor(author) {
+  closeDetail();
+  currentAuthor = author;
+  document.getElementById('author-filter').value = author;
+  loadBooks();
+}
+
+// ── Book meta (format / owned / dates) ────────────────────────────────────
+async function updateBookMeta() {
+  const payload = {
+    book_format: document.getElementById('d-book-format').value,
+    owned: document.getElementById('d-owned').checked ? 1 : 0,
+    start_date: document.getElementById('d-start-date').value || null,
+    finish_date: document.getElementById('d-finish-date').value || null,
+  };
+  const r = await api(`/api/books/${currentBookId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  if (!r.ok) { showToast('Could not save'); return; }
+  _detailNeedsRefresh = true;
+}
+
+// ── Quotes ─────────────────────────────────────────────────────────────────
+async function submitQuote() {
+  const text = document.getElementById('new-quote-text').value.trim();
+  if (!text) { showToast('Quote text is required'); return; }
+  const page = document.getElementById('new-quote-page').value || null;
+  const r = await api(`/api/books/${currentBookId}/quotes`, {
+    method: 'POST',
+    body: JSON.stringify({ text, page_number: page ? Number(page) : null })
+  });
+  if (!r.ok) { showToast('Could not save quote'); return; }
+  document.getElementById('new-quote-text').value = '';
+  document.getElementById('new-quote-page').value = '';
+  const qr = await api(`/api/books/${currentBookId}/quotes`);
+  renderQuotes(await qr.json());
+  showToast('Quote saved ✓');
+}
+
+function renderQuotes(quotes) {
+  const el = document.getElementById('d-quotes');
+  if (!el) return;
+  if (!quotes.length) { el.innerHTML = '<p style="font-size:.82rem;color:#aaa">No quotes saved yet.</p>'; return; }
+  el.innerHTML = quotes.map(q => `
+    <div class="quote-item">
+      <blockquote>${esc(q.text)}</blockquote>
+      ${q.page_number ? `<div class="quote-page">p. ${q.page_number}</div>` : ''}
+      <button class="btn-delete-quote" onclick="deleteQuote(${q.id})">✕</button>
+    </div>`).join('');
+}
+
+async function deleteQuote(quoteId) {
+  await api(`/api/books/${currentBookId}/quotes/${quoteId}`, { method: 'DELETE' });
+  const qr = await api(`/api/books/${currentBookId}/quotes`);
+  renderQuotes(await qr.json());
+}
+
+// ── Reading history ────────────────────────────────────────────────────────
+async function submitRead() {
+  const started_at  = document.getElementById('new-read-start').value  || null;
+  const finished_at = document.getElementById('new-read-finish').value || null;
+  const notes       = document.getElementById('new-read-notes').value.trim()  || null;
+  const r = await api(`/api/books/${currentBookId}/reads`, {
+    method: 'POST',
+    body: JSON.stringify({ started_at, finished_at, notes })
+  });
+  if (!r.ok) { showToast('Could not log read'); return; }
+  document.getElementById('new-read-start').value  = '';
+  document.getElementById('new-read-finish').value = '';
+  document.getElementById('new-read-notes').value  = '';
+  const rr = await api(`/api/books/${currentBookId}/reads`);
+  renderReads(await rr.json());
+  showToast('Read logged ✓');
+}
+
+function renderReads(reads) {
+  const el = document.getElementById('d-reads');
+  if (!el) return;
+  if (!reads.length) { el.innerHTML = '<p style="font-size:.82rem;color:#aaa">No reads logged yet.</p>'; return; }
+  el.innerHTML = reads.map((r, i) => {
+    const dates = [r.started_at, r.finished_at].filter(Boolean).join(' → ') || 'Undated';
+    return `
+      <div class="read-item" style="position:relative">
+        <div class="read-dates">Read ${reads.length - i}: ${esc(dates)}</div>
+        ${r.notes ? `<div style="margin-top:.25rem">${esc(r.notes)}</div>` : ''}
+        <button class="btn-delete-read" onclick="deleteRead(${r.id})">✕</button>
+      </div>`;
+  }).join('');
+}
+
+async function deleteRead(readId) {
+  await api(`/api/books/${currentBookId}/reads/${readId}`, { method: 'DELETE' });
+  const rr = await api(`/api/books/${currentBookId}/reads`);
+  renderReads(await rr.json());
 }
 
 document.getElementById('detail-modal').addEventListener('click', e => {

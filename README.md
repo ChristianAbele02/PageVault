@@ -51,14 +51,14 @@ Open PageVault on your phone browser, tap the scan button, and point at the barc
 **📚 Automatic metadata**
 Title, author, cover image, publisher, year, and page count — fetched with a multi-provider fallback chain: [Open Library Books API](https://openlibrary.org/dev/docs/api/books) → [Google Books API](https://developers.google.com/books) → [Open Library Search API](https://openlibrary.org/dev/docs/api/search) → [Crossref API](https://api.crossref.org) + [Open Library Covers API](https://openlibrary.org/dev/docs/api/covers) for cover rescue.
 
-**⭐ Ratings & personal notes**
-Give each book a 1–5 star rating and add written notes. Build up a reading journal over time.
+**⭐ Ratings, reviews & quotes**
+Give each book a half-star rating (0.5–5.0), add written notes, and save favourite quotes with page numbers. Build up a reading journal over time.
 
 **📖 Reading progress (current page)**
 Save page progress together with each review entry and see a live progress bar on the library grid.
 
 **🔖 Reading status**
-Track every book as *Want to Read*, *Currently Reading*, or *Read*.
+Track every book as *Want to Read*, *Currently Reading*, *Read*, or *Did Not Finish (DNF)*.
 
 **🗂️ Custom shelves / lists**
 Create as many named shelves as you want, attach an optional logo URL, and place books in multiple shelves.
@@ -74,12 +74,15 @@ Theme preference is remembered locally.
 **🔍 Search & filter**
 Filter by status, author, genre tag, shelf, and text search.
 
-**📊 Stats dashboard with Plotly**
-Open `/stats` for interactive analytics: books/pages by status, top genres/authors, rating distribution, and monthly activity.
-Includes preset + custom date range filters and automatic dark/light theme inheritance.
+**📊 Advanced stats dashboard with Plotly**
+Open `/stats` for 20+ interactive analytics charts: books/pages by status (including DNF), top genres/authors, rating distribution, monthly activity, format breakdown, decade distribution, publisher insights, community vs personal ratings, daily reading pace, library growth, reading activity heatmap (GitHub-style), rating trend over time, genre trends by year, time-to-finish distribution, reading speed per book, shelf breakdown, longest unread shelf, and active loans tracker.
+Includes preset + custom date range filters, format and language filters, and automatic dark/light theme inheritance.
 
 **🎯 Annual goals & reading sessions**
-Set yearly targets for books/pages, log reading sessions, and track pace metrics directly in analytics.
+Set yearly targets for books/pages, log reading sessions with start/end pages and time, and track pace, streak, and speed metrics directly in analytics.
+
+**📚 Series, reading history & book metadata**
+Track series name and number, log re-reads with start/finish dates, record book format (physical/ebook/audiobook), community ratings from Google Books, and owned/wishlist status.
 
 **🧪 Import mapping preview + dry-run**
 Preview CSV imports with optional column mapping before writing data, then run a safe dry-run to verify import/update counts.

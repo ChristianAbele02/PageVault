@@ -172,6 +172,14 @@ def fetch_googlebooks(isbn: str) -> dict | None:
             or image_links.get("smallThumbnail")
         )
 
+        avg_rating = info.get("averageRating")
+        ratings_count = info.get("ratingsCount")
+        series_info = info.get("seriesInfo") or {}
+        series_name = series_info.get("shortSeriesBookTitle") or None
+        series_number = None
+        if series_info.get("bookDisplayNumber"):
+            series_number = str(series_info["bookDisplayNumber"])
+
         return {
             "isbn": isbn,
             "title": info.get("title") or None,
@@ -184,6 +192,10 @@ def fetch_googlebooks(isbn: str) -> dict | None:
             "genre": categories[0] if categories else None,
             "genre_tags": categories,
             "language": info.get("language") or None,
+            "community_rating": float(avg_rating) if avg_rating is not None else None,
+            "community_rating_count": int(ratings_count) if ratings_count is not None else None,
+            "series_name": series_name,
+            "series_number": series_number,
         }
     except Exception as exc:
         log.warning("Google Books lookup failed for ISBN %s: %s", isbn, exc)
