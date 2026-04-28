@@ -35,7 +35,7 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "ruff>=0.15.11",
-    "mypy>=1.20.1",
+    "mypy>=1.20.2",
 ]
 prod = [
     "gunicorn>=25.3.0",
