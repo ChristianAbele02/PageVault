@@ -38,7 +38,7 @@ dev = [
     "mypy>=2.1.0",
 ]
 prod = [
-    "gunicorn>=25.3.0",
+    "gunicorn>=26.0.0",
 ]
 
 [project.urls]
