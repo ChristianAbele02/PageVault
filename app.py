@@ -111,6 +111,7 @@ def create_app(config: dict | None = None) -> Flask:
     app.register_blueprint(_api_bp())
     app.add_url_rule("/", "index", lambda: render_template("index.html"))
     app.add_url_rule("/stats", "stats", lambda: render_template("stats.html"))
+    app.add_url_rule("/reader", "reader", lambda: render_template("reader.html"))
     app.add_url_rule("/admin/login", "admin_login", lambda: render_template("admin_login.html"))
 
     @app.get("/admin")

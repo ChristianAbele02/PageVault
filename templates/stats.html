@@ -2,12 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0f0b05">
 <title>PageVault — Stats</title>
 <link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="/static/i18n.js"></script>
 <style>
   :root {
     --ink: #f5efe6;
@@ -110,6 +112,53 @@
     line-height: 1;
   }
   .pill-btn:hover { border-color: rgba(255,255,255,.3); color: var(--gold); }
+
+  ::selection { background: rgba(200,145,58,.35); }
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 4px; }
+
+  /* ── Motion ────────────────────────────────────────────────────────────── */
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .hero        { animation: rise-in .45s ease-out both; }
+  .filter-wrap { animation: rise-in .45s ease-out .06s both; }
+  .kpi {
+    animation: rise-in .45s ease-out both;
+    animation-delay: calc(var(--kpi-i, 0) * 30ms + 100ms);
+    transition: transform .22s cubic-bezier(.34,1.26,.64,1), border-color .2s, box-shadow .2s;
+  }
+  .kpi:hover {
+    transform: translateY(-3px);
+    border-color: rgba(212,168,67,.55);
+    box-shadow: 0 8px 22px rgba(0,0,0,.22);
+  }
+  /* Panels reveal as they scroll into view (class added by IntersectionObserver) */
+  .panel {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity .5s ease, transform .5s cubic-bezier(.22,.9,.36,1),
+                border-color .2s, box-shadow .2s;
+  }
+  .panel.revealed { opacity: 1; transform: translateY(0); }
+  .panel:hover {
+    border-color: rgba(212,168,67,.5);
+    box-shadow: 0 10px 26px rgba(0,0,0,.2);
+  }
+  .pill-btn, .filter-btn {
+    transition: border-color .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease;
+  }
+  .filter-btn:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,.18); }
+  .kpi-value { font-variant-numeric: tabular-nums; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+    }
+    .panel { opacity: 1; transform: none; }
+  }
 
   main {
     max-width: 1180px;
@@ -214,26 +263,72 @@
 
   .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
     gap: .55rem;
-    margin-bottom: .75rem;
+    margin-bottom: .9rem;
   }
 
   .kpi {
-    padding: .65rem .75rem;
+    padding: .6rem .7rem .55rem;
+    border-left: 3px solid rgba(212,168,67,.45);
+    position: relative;
+    overflow: hidden;
   }
   .kpi-label {
     color: #b8a894;
-    font-size: .7rem;
+    font-size: .66rem;
     text-transform: uppercase;
     letter-spacing: .08em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .kpi-icon {
+    font-size: .82rem;
+    margin-right: .26rem;
+    vertical-align: -1px;
   }
   .kpi-value {
-    margin-top: .12rem;
+    margin-top: .14rem;
     color: var(--ink);
-    font-size: 1.2rem;
+    font-size: 1.25rem;
     font-weight: 700;
+    font-family: 'Playfair Display', serif;
+    letter-spacing: .01em;
   }
+  /* Slim progress bar inside goal KPI tiles */
+  .kpi-bar {
+    margin-top: .4rem;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(122,92,58,.25);
+    overflow: hidden;
+  }
+  .kpi-bar-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--amber), var(--gold));
+    transition: width .9s cubic-bezier(.22,.9,.36,1);
+  }
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin: 1.15rem 0 .55rem;
+    font-family: 'Playfair Display', serif;
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--line), transparent);
+  }
+  .section-title .section-icon { font-size: .95rem; }
 
   .chart-grid {
     display: grid;
@@ -302,6 +397,15 @@
     color: var(--ink);
     font-family: 'Playfair Display', serif;
   }
+  .panel-note {
+    font-family: 'Lato', sans-serif;
+    font-size: .66rem;
+    font-weight: 400;
+    color: #b8a894;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    margin-left: .4rem;
+  }
 
   .plot {
     width: 100%;
@@ -311,7 +415,33 @@
   .empty {
     color: var(--soft);
     font-size: .8rem;
-    padding: .6rem 0 .8rem;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    text-align: center;
+    padding: 1rem .75rem;
+    opacity: .85;
+  }
+  .empty::before {
+    content: '📉';
+    font-size: 1.6rem;
+    opacity: .5;
+  }
+
+  /* Heatmap legend */
+  .heatmap-legend {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    font-size: .64rem;
+    color: #b8a894;
+    margin-top: .45rem;
+  }
+  .heatmap-legend .cell {
+    width: 11px; height: 11px; border-radius: 2px;
   }
 
   @media (max-width: 1100px) {
@@ -343,15 +473,17 @@
 <header>
   <a class="logo" href="/">Page<span>Vault</span></a>
   <div class="top-actions">
-    <a class="pill-btn" href="/">Library</a>
+    <a class="pill-btn" href="/" data-i18n="nav_library">Library</a>
+    <a class="pill-btn" href="/reader" data-i18n="nav_reader">Reader</a>
+    <button class="pill-btn" data-lang-toggle onclick="toggleLang()" title="Switch language">DE</button>
     <button id="theme-toggle" class="pill-btn" onclick="toggleTheme()" title="Switch dark/light mode">Light</button>
   </div>
 </header>
 
 <main>
   <section class="hero">
-    <h1>Reading Analytics</h1>
-    <p>Track your progress with live statistics from your local library data — pages, genres, authors, ratings, and monthly activity.</p>
+    <h1 data-i18n="stats_heading">Reading Analytics</h1>
+    <p data-i18n="stats_subtitle">Track your progress with live statistics from your local library data — pages, genres, authors, ratings, and monthly activity.</p>
   </section>
 
   <section class="filter-wrap" aria-label="Date range filters">
@@ -409,29 +541,83 @@
     <div id="range-label" class="range-label">Range: All time</div>
   </section>
 
+  <h2 class="section-title"><span class="section-icon">📚</span>Library at a Glance</h2>
   <section class="kpi-grid">
-    <article class="kpi"><div class="kpi-label">Total Books</div><div id="kpi-total-books" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label">Total Pages</div><div id="kpi-total-pages" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label">Est. Pages Completed</div><div id="kpi-pages-completed" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label">Average Rating</div><div id="kpi-avg-rating" class="kpi-value">—</div></article>
-    <article class="kpi"><div class="kpi-label">Reviews</div><div id="kpi-total-reviews" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label">Read</div><div id="kpi-read" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label">Reading</div><div id="kpi-reading" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label">Want To Read</div><div id="kpi-want" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label">Did Not Finish</div><div id="kpi-dnf" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label">Book Goal</div><div id="kpi-goal-books" class="kpi-value">0%</div></article>
-    <article class="kpi"><div class="kpi-label">Page Goal</div><div id="kpi-goal-pages" class="kpi-value">0%</div></article>
-    <article class="kpi"><div class="kpi-label">Pages / Day</div><div id="kpi-pages-day" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label">Pages / Week</div><div id="kpi-pages-week" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label">Reading Speed</div><div id="kpi-speed" class="kpi-value">— pg/hr</div></article>
-    <article class="kpi"><div class="kpi-label">Current Streak</div><div id="kpi-streak" class="kpi-value">0 days</div></article>
-    <article class="kpi"><div class="kpi-label">Longest Streak</div><div id="kpi-streak-longest" class="kpi-value">0 days</div></article>
-    <article class="kpi"><div class="kpi-label">DNF Rate</div><div id="kpi-dnf-rate" class="kpi-value">0%</div></article>
-    <article class="kpi"><div class="kpi-label">Avg. Days to Finish</div><div id="kpi-days-finish" class="kpi-value">—</div></article>
-    <article class="kpi"><div class="kpi-label">Session Hours</div><div id="kpi-session-hours" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label">Custom Shelves</div><div id="kpi-shelves" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📚</span>Total Books</div><div id="kpi-total-books" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📄</span>Total Pages</div><div id="kpi-total-pages" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">✅</span>Read</div><div id="kpi-read" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📖</span>Reading</div><div id="kpi-reading" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🔖</span>Want To Read</div><div id="kpi-want" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🚫</span>Did Not Finish</div><div id="kpi-dnf" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">⭐</span>Average Rating</div><div id="kpi-avg-rating" class="kpi-value">—</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">✍️</span>Reviews</div><div id="kpi-total-reviews" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🗂️</span>Custom Shelves</div><div id="kpi-shelves" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📉</span>DNF Rate</div><div id="kpi-dnf-rate" class="kpi-value">0%</div></article>
   </section>
 
+  <h2 class="section-title"><span class="section-icon">🎯</span>Goals &amp; Reading Pace</h2>
+  <section class="kpi-grid">
+    <article class="kpi">
+      <div class="kpi-label"><span class="kpi-icon">🎯</span>Book Goal</div>
+      <div id="kpi-goal-books" class="kpi-value">0%</div>
+      <div class="kpi-bar"><div id="kpi-goal-books-bar" class="kpi-bar-fill"></div></div>
+    </article>
+    <article class="kpi">
+      <div class="kpi-label"><span class="kpi-icon">🎯</span>Page Goal</div>
+      <div id="kpi-goal-pages" class="kpi-value">0%</div>
+      <div class="kpi-bar"><div id="kpi-goal-pages-bar" class="kpi-bar-fill"></div></div>
+    </article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📑</span>Est. Pages Completed</div><div id="kpi-pages-completed" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📅</span>Pages / Day</div><div id="kpi-pages-day" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🗓️</span>Pages / Week</div><div id="kpi-pages-week" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">⚡</span>Reading Speed</div><div id="kpi-speed" class="kpi-value">— pg/hr</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🔥</span>Current Streak</div><div id="kpi-streak" class="kpi-value">0 days</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🏆</span>Longest Streak</div><div id="kpi-streak-longest" class="kpi-value">0 days</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">⏱️</span>Avg. Days to Finish</div><div id="kpi-days-finish" class="kpi-value">—</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">⌛</span>Session Hours</div><div id="kpi-session-hours" class="kpi-value">0</div></article>
+  </section>
+
+  <h2 class="section-title"><span class="section-icon">📈</span>Reading Activity</h2>
+  <section class="chart-grid">
+    <article class="panel panel-wide">
+      <h2>Reading Activity Heatmap <span class="panel-note">last 365 days</span></h2>
+      <div id="heatmap-plot" class="heatmap-wrap"></div>
+    </article>
+    <article class="panel panel-wide">
+      <h2>Monthly Activity</h2>
+      <div id="timeline-plot" class="plot"></div>
+    </article>
+    <article class="panel panel-wide">
+      <h2>Daily Reading Pace</h2>
+      <div id="pace-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Reading Speed per Book</h2>
+      <div id="speed-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Time to Finish a Book</h2>
+      <div id="finish-time-plot" class="plot"></div>
+    </article>
+  </section>
+
+  <h2 class="section-title"><span class="section-icon">⭐</span>Ratings &amp; Reviews</h2>
+  <section class="chart-grid">
+    <article class="panel">
+      <h2>Rating Distribution</h2>
+      <div id="ratings-plot" class="plot"></div>
+    </article>
+    <article class="panel">
+      <h2>Rating Trend Over Time</h2>
+      <div id="rating-trend-plot" class="plot"></div>
+    </article>
+    <article class="panel panel-wide">
+      <h2>Community vs Your Ratings</h2>
+      <div id="community-plot" class="plot"></div>
+    </article>
+  </section>
+
+  <h2 class="section-title"><span class="section-icon">🧭</span>Collection Insights</h2>
   <section class="chart-grid">
     <article class="panel">
       <h2>Books by Status</h2>
@@ -450,14 +636,6 @@
       <div id="authors-plot" class="plot"></div>
     </article>
     <article class="panel">
-      <h2>Rating Distribution</h2>
-      <div id="ratings-plot" class="plot"></div>
-    </article>
-    <article class="panel">
-      <h2>Monthly Activity</h2>
-      <div id="timeline-plot" class="plot"></div>
-    </article>
-    <article class="panel">
       <h2>Format Breakdown</h2>
       <div id="format-plot" class="plot"></div>
     </article>
@@ -470,41 +648,21 @@
       <div id="publishers-plot" class="plot"></div>
     </article>
     <article class="panel">
-      <h2>Community vs Your Ratings</h2>
-      <div id="community-plot" class="plot"></div>
-    </article>
-    <article class="panel panel-wide">
-      <h2>Daily Reading Pace</h2>
-      <div id="pace-plot" class="plot"></div>
-    </article>
-    <article class="panel panel-wide">
-      <h2>Library Growth</h2>
-      <div id="growth-plot" class="plot"></div>
-    </article>
-    <article class="panel panel-wide">
-      <h2>Reading Activity Heatmap</h2>
-      <div id="heatmap-plot" class="heatmap-wrap"></div>
-    </article>
-    <article class="panel">
-      <h2>Rating Trend Over Time</h2>
-      <div id="rating-trend-plot" class="plot"></div>
-    </article>
-    <article class="panel">
-      <h2>Time to Finish a Book</h2>
-      <div id="finish-time-plot" class="plot"></div>
+      <h2>Shelf Breakdown</h2>
+      <div id="shelf-plot" class="plot"></div>
     </article>
     <article class="panel panel-wide">
       <h2>Genre Trends Over Time</h2>
       <div id="genre-trends-plot" class="plot"></div>
     </article>
-    <article class="panel">
-      <h2>Reading Speed per Book</h2>
-      <div id="speed-plot" class="plot"></div>
+    <article class="panel panel-wide">
+      <h2>Library Growth</h2>
+      <div id="growth-plot" class="plot"></div>
     </article>
-    <article class="panel">
-      <h2>Shelf Breakdown</h2>
-      <div id="shelf-plot" class="plot"></div>
-    </article>
+  </section>
+
+  <h2 class="section-title"><span class="section-icon">📋</span>Watchlists</h2>
+  <section class="chart-grid">
     <article class="panel">
       <h2>Longest Unread Books</h2>
       <div id="unread-table" class="table-wrap"></div>
@@ -524,14 +682,23 @@ function formatNumber(value) {
   return new Intl.NumberFormat().format(Number(value || 0));
 }
 
+// Format a Date as YYYY-MM-DD in LOCAL time. toISOString() would convert to
+// UTC and shift the date around midnight for timezones ahead of/behind UTC.
+function localIso(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return localIso(new Date());
 }
 
 function addDays(baseDate, deltaDays) {
   const date = new Date(baseDate + 'T00:00:00');
   date.setDate(date.getDate() + deltaDays);
-  return date.toISOString().slice(0, 10);
+  return localIso(date);
 }
 
 function presetToRange(preset) {
@@ -559,21 +726,45 @@ function updateRangeLabel(range) {
   label.textContent = `Range: ${from} → ${to}`;
 }
 
+// Animate a numeric KPI from its current value to a new one (respects
+// prefers-reduced-motion; falls back to instant set for non-numeric content).
+function animateKpi(id, target) {
+  const el = document.getElementById(id);
+  const to = Number(target) || 0;
+  const from = Number(String(el.textContent).replace(/[^\d.-]/g, '')) || 0;
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced || from === to) { el.textContent = formatNumber(to); return; }
+  const duration = 650;
+  const start = performance.now();
+  function frame(nowTs) {
+    const p = Math.min((nowTs - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = formatNumber(Math.round(from + (to - from) * eased));
+    if (p < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
 function setKpis(summary) {
-  document.getElementById('kpi-total-books').textContent = formatNumber(summary.total_books);
-  document.getElementById('kpi-total-pages').textContent = formatNumber(summary.total_pages);
-  document.getElementById('kpi-pages-completed').textContent = formatNumber(summary.pages_completed_estimate);
+  animateKpi('kpi-total-books', summary.total_books);
+  animateKpi('kpi-total-pages', summary.total_pages);
+  animateKpi('kpi-pages-completed', summary.pages_completed_estimate);
   document.getElementById('kpi-avg-rating').textContent = summary.avg_rating ?? '—';
-  document.getElementById('kpi-total-reviews').textContent = formatNumber(summary.total_reviews);
-  document.getElementById('kpi-read').textContent = formatNumber(summary.read);
-  document.getElementById('kpi-reading').textContent = formatNumber(summary.reading);
-  document.getElementById('kpi-want').textContent = formatNumber(summary.want_to_read);
-  document.getElementById('kpi-dnf').textContent = formatNumber(summary.dnf || 0);
+  animateKpi('kpi-total-reviews', summary.total_reviews);
+  animateKpi('kpi-read', summary.read);
+  animateKpi('kpi-reading', summary.reading);
+  animateKpi('kpi-want', summary.want_to_read);
+  animateKpi('kpi-dnf', summary.dnf || 0);
 }
 
 function setExtendedKpis(goal = {}, sessions = {}, data = {}) {
   document.getElementById('kpi-goal-books').textContent = `${goal.book_goal_percent || 0}%`;
   document.getElementById('kpi-goal-pages').textContent = `${goal.page_goal_percent || 0}%`;
+  // Animated goal progress bars (CSS transition drives the motion)
+  document.getElementById('kpi-goal-books-bar').style.width =
+    `${Math.min(100, Number(goal.book_goal_percent) || 0)}%`;
+  document.getElementById('kpi-goal-pages-bar').style.width =
+    `${Math.min(100, Number(goal.page_goal_percent) || 0)}%`;
   document.getElementById('kpi-pages-day').textContent = formatNumber(sessions.pages_per_day || 0);
   document.getElementById('kpi-pages-week').textContent = formatNumber(sessions.pages_per_week || 0);
   const speed = sessions.avg_speed_pages_per_hour;
@@ -636,6 +827,7 @@ function getChartTheme() {
 
 function chartLayout(overrides = {}) {
   const theme = getChartTheme();
+  const dark = document.body.classList.contains('dark-mode');
   return {
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
@@ -643,11 +835,19 @@ function chartLayout(overrides = {}) {
     font: { color: theme.font, family: 'Lato, sans-serif', size: 12 },
     xaxis: { gridcolor: theme.grid, zerolinecolor: theme.grid },
     yaxis: { gridcolor: theme.grid, zerolinecolor: theme.grid },
+    bargap: 0.25,
+    hoverlabel: {
+      bgcolor: dark ? '#211709' : '#fdf8f2',
+      bordercolor: theme.grid,
+      font: { color: theme.font, family: 'Lato, sans-serif', size: 12 },
+    },
     ...overrides,
   };
 }
 
-const plotConfig = { responsive: true, displaylogo: false };
+// Hide the modebar for a cleaner look — drag-zoom and double-click-to-reset
+// still work on every chart.
+const plotConfig = { responsive: true, displaylogo: false, displayModeBar: false };
 
 function emptyPlot(id, message) {
   document.getElementById(id).innerHTML = `<div class="empty">${message}</div>`;
@@ -798,15 +998,15 @@ function renderTimeline(monthlyAdditions, monthlyReviews) {
       hovertemplate: '%{x}<br>%{y} pages logged<extra></extra>',
     }
   ], chartLayout({
+    hovermode: 'x unified',
     legend: { orientation: 'h', y: 1.12, x: 0 },
     yaxis: { ...chartLayout().yaxis, title: 'Books Added' },
     yaxis2: {
       overlaying: 'y',
       side: 'right',
-      title: 'Reviews / Pages Logged',
+      title: { text: 'Reviews / Pages Logged', font: { color: theme.font } },
       gridcolor: 'rgba(0,0,0,0)',
       tickfont: { color: theme.font },
-      titlefont: { color: theme.font },
     },
   }), plotConfig);
 }
@@ -928,6 +1128,7 @@ function renderPaceChart(readingPaceDaily) {
     y: readingPaceDaily.map(d => d.pages),
     hovertemplate: '%{x}<br>%{y} pages read<extra></extra>',
   }], chartLayout({
+    hovermode: 'x unified',
     yaxis: { ...chartLayout().yaxis, title: 'Pages Read' },
     margin: { l: 54, r: 22, t: 18, b: 44 },
   }), plotConfig);
@@ -949,6 +1150,7 @@ function renderGrowthChart(libraryGrowth) {
     y: libraryGrowth.map(d => d.total_books),
     hovertemplate: '%{x}<br>%{y} books in library<extra></extra>',
   }], chartLayout({
+    hovermode: 'x unified',
     yaxis: { ...chartLayout().yaxis, title: 'Total Books' },
     margin: { l: 54, r: 22, t: 18, b: 44 },
   }), plotConfig);
@@ -998,6 +1200,10 @@ function renderHeatmap(readingPaceDaily) {
   const weeksEl = document.createElement('div');
   weeksEl.style.cssText = 'display:flex;gap:2px;';
 
+  const todayStr = localIso(today);
+  let totalPages = 0;
+  let activeDays = 0;
+
   const cur = new Date(start);
   let lastMonth = -1;
   while (cur <= today) {
@@ -1011,7 +1217,7 @@ function renderHeatmap(readingPaceDaily) {
     col.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
     for (let d = 0; d < 7; d++) {
       const cell = document.createElement('div');
-      const dateStr = cur.toISOString().slice(0, 10);
+      const dateStr = localIso(cur);  // local time — toISOString() would shift dates near midnight
       const pages = dateMap.get(dateStr) || 0;
       const isFuture = cur > today;
       let bg = 'transparent';
@@ -1019,11 +1225,16 @@ function renderHeatmap(readingPaceDaily) {
         if (pages === 0) {
           bg = emptyColor;
         } else {
+          totalPages += pages;
+          activeDays += 1;
           const intensity = Math.min(1, Math.pow(pages / maxPages, 0.45));
           bg = `rgba(200,145,58,${(0.22 + intensity * 0.78).toFixed(2)})`;
         }
       }
-      cell.style.cssText = `width:12px;height:12px;border-radius:2px;background:${bg};flex-shrink:0;`;
+      const todayRing = dateStr === todayStr
+        ? `box-shadow:0 0 0 1.5px ${dark ? '#d4a843' : '#9b3a1c'};`
+        : '';
+      cell.style.cssText = `width:12px;height:12px;border-radius:2px;background:${bg};flex-shrink:0;${todayRing}`;
       if (!isFuture) cell.title = `${dateStr}: ${pages} pages`;
       col.appendChild(cell);
       cur.setDate(cur.getDate() + 1);
@@ -1037,6 +1248,26 @@ function renderHeatmap(readingPaceDaily) {
   right.style.cssText = 'display:flex;flex-direction:column;';
   right.appendChild(monthsRow);
   right.appendChild(weeksEl);
+
+  // Legend + summary row
+  const legend = document.createElement('div');
+  legend.className = 'heatmap-legend';
+  const steps = [emptyColor, 'rgba(200,145,58,.32)', 'rgba(200,145,58,.55)', 'rgba(200,145,58,.78)', 'rgba(200,145,58,1)'];
+  legend.appendChild(Object.assign(document.createElement('span'), {
+    textContent: `${formatNumber(totalPages)} pages over ${formatNumber(activeDays)} active days`,
+  }));
+  const spacer = document.createElement('span');
+  spacer.style.cssText = 'flex:1;';
+  legend.appendChild(spacer);
+  legend.appendChild(Object.assign(document.createElement('span'), { textContent: 'Less' }));
+  for (const color of steps) {
+    const sw = document.createElement('span');
+    sw.className = 'cell';
+    sw.style.background = color;
+    legend.appendChild(sw);
+  }
+  legend.appendChild(Object.assign(document.createElement('span'), { textContent: 'More' }));
+  right.appendChild(legend);
 
   const wrap = document.createElement('div');
   wrap.style.cssText = 'display:flex;align-items:flex-start;min-width:max-content;';
@@ -1384,8 +1615,29 @@ document.getElementById('copy-range-link').addEventListener('click', copyCurrent
 document.getElementById('format-filter').addEventListener('change', onApplyClicked);
 document.getElementById('language-filter').addEventListener('change', onApplyClicked);
 
+// Staggered KPI entrance + reveal panels as they scroll into view.
+function initMotion() {
+  document.querySelectorAll('.kpi').forEach((el, i) => el.style.setProperty('--kpi-i', i));
+  const panels = document.querySelectorAll('.panel');
+  if (!('IntersectionObserver' in window)) {
+    panels.forEach(p => p.classList.add('revealed'));
+    return;
+  }
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('revealed');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
+  panels.forEach(p => observer.observe(p));
+}
+
 (async function init() {
   initTheme();
+  applyLang(window.PV_LANG);
+  initMotion();
   const fromUrl = readRangeFromUrl();
   const fromStorage = loadPersistedRangeState();
   const initialRange = fromUrl || fromStorage || presetToRange('all');

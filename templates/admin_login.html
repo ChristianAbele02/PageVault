@@ -80,6 +80,10 @@ async function login() {
   }
   window.location.href = '/admin';
 }
+document.getElementById('password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
+document.getElementById('password').focus();
 </script>
 </body>
 </html>

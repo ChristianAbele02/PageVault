@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0f0b05">
+<title>PageVault — Reader</title>
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js" crossorigin="anonymous"></script>
+<script src="/static/i18n.js"></script>
+<style>
+  :root {
+    --ink:       #f5efe6;
+    --cream:     #1a130a;
+    --sepia:     #211709;
+    --tan:       #3d2e1e;
+    --brown:     #7a5c3a;
+    --amber:     #c8913a;
+    --rust:      #9b3a1c;
+    --gold:      #d4a843;
+    --line:      rgba(212,168,67,.28);
+    --panel-bg:  rgba(15,11,5,.62);
+    --header-bg: #0f0b05;
+    --button-bg: rgba(255,255,255,.06);
+    --button-fg: #e8d9c4;
+    --sidebar-bg: #140e07;
+    --card-bg:    rgba(255,255,255,.04);
+    --card-hover: rgba(255,255,255,.08);
+  }
+  .light-mode {
+    --ink:       #1a1008;
+    --cream:     #fdf8f2;
+    --sepia:     #f5efe6;
+    --tan:       #dfcdb8;
+    --brown:     #7a5c3a;
+    --amber:     #c8913a;
+    --gold:      #d4a843;
+    --line:      rgba(122,92,58,.24);
+    --panel-bg:  rgba(253,248,242,.72);
+    --header-bg: #362213;
+    --button-bg: rgba(255,255,255,.74);
+    --button-fg: #4f341c;
+    --sidebar-bg: #f0e6d8;
+    --card-bg:    rgba(0,0,0,.04);
+    --card-hover: rgba(0,0,0,.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    font-family: 'Lato', sans-serif;
+    color: var(--ink);
+    background: var(--cream);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+  header {
+    height: 52px;
+    padding: 0 1rem;
+    background: var(--header-bg);
+    border-bottom: 1px solid rgba(255,255,255,.07);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    z-index: 30;
+  }
+  .logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+    color: var(--gold);
+    text-decoration: none;
+    letter-spacing: .02em;
+  }
+  .logo span { color: #fff; font-style: italic; font-weight: 400; }
+  .top-actions { display: flex; align-items: center; gap: .4rem; }
+  .pill-btn {
+    border: 1.5px solid rgba(255,255,255,.18);
+    background: var(--button-bg);
+    color: var(--button-fg);
+    border-radius: 999px;
+    padding: .32rem .62rem;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-decoration: none;
+    cursor: pointer;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .pill-btn:hover { border-color: rgba(255,255,255,.3); color: var(--gold); }
+  .pill-btn.active { border-color: var(--amber); color: var(--amber); }
+
+  /* ── Layout ─────────────────────────────────────────────────────────────── */
+  .reader-layout {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ─────────────────────────────────────────────────────────────── */
+  .reader-sidebar {
+    width: 280px;
+    min-width: 280px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: width .25s, min-width .25s;
+  }
+  .reader-sidebar.collapsed {
+    width: 0;
+    min-width: 0;
+    border-right: none;
+  }
+  .sidebar-header {
+    padding: .75rem .85rem .5rem;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .sidebar-heading {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--gold);
+    margin-bottom: .5rem;
+  }
+  .sidebar-search {
+    width: 100%;
+    padding: .38rem .6rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card-bg);
+    color: var(--ink);
+    font-size: .82rem;
+    outline: none;
+  }
+  .sidebar-search:focus { border-color: var(--amber); }
+  #book-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: .4rem 0;
+  }
+  #book-list::-webkit-scrollbar { width: 4px; }
+  #book-list::-webkit-scrollbar-thumb { background: var(--tan); border-radius: 4px; }
+  @keyframes entry-enter {
+    from { opacity: 0; transform: translateX(-10px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .book-entry {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    padding: .55rem .85rem;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background .15s, border-color .15s, padding-left .2s ease;
+    animation: entry-enter .35s ease-out both;
+    animation-delay: var(--entry-delay, 0ms);
+  }
+  .book-entry:hover { background: var(--card-hover); padding-left: 1rem; }
+  .book-entry.active {
+    background: var(--card-hover);
+    border-left-color: var(--amber);
+  }
+  .book-entry-cover {
+    width: 38px;
+    height: 54px;
+    object-fit: cover;
+    border-radius: 3px;
+    flex-shrink: 0;
+    background: var(--tan);
+  }
+  .book-entry-cover-ph {
+    width: 38px;
+    height: 54px;
+    border-radius: 3px;
+    background: var(--tan);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+  .book-entry-meta { min-width: 0; flex: 1; }
+  .book-entry-title {
+    font-size: .83rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--ink);
+  }
+  .book-entry-author {
+    font-size: .72rem;
+    color: var(--brown);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: .15rem;
+  }
+  .book-entry-badge {
+    font-size: .62rem;
+    font-weight: 700;
+    padding: .1rem .35rem;
+    border-radius: 4px;
+    background: var(--amber);
+    color: #fff;
+    flex-shrink: 0;
+    text-transform: uppercase;
+  }
+  .sidebar-empty {
+    padding: 1.5rem .85rem;
+    font-size: .85rem;
+    color: var(--brown);
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  /* ── Reader main ─────────────────────────────────────────────────────────── */
+  .reader-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--cream);
+    min-width: 0;
+  }
+
+  .reader-toolbar {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .45rem .75rem;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .reader-toolbar-title {
+    flex: 1;
+    font-family: 'Playfair Display', serif;
+    font-size: .95rem;
+    font-weight: 700;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .reader-ctrl-btn {
+    background: var(--button-bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: .28rem .55rem;
+    font-size: .82rem;
+    cursor: pointer;
+    color: var(--button-fg);
+    flex-shrink: 0;
+  }
+  .reader-ctrl-btn:hover { border-color: var(--amber); color: var(--amber); }
+  #reader-progress-bar { height: 3px; background: var(--tan); flex-shrink: 0; }
+  #reader-progress-fill { height: 100%; background: var(--amber); width: 0%; transition: width .4s; }
+
+  #reader-epub-area {
+    flex: 1;
+    overflow: hidden;
+    background: #fff;
+  }
+  .light-mode #reader-epub-area { background: #fdf8f2; }
+
+  #reader-pdf-area {
+    flex: 1;
+    border: none;
+    background: #fff;
+    width: 100%;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes float-soft {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-8px); }
+  }
+  .reader-empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--brown);
+    font-size: 1rem;
+    gap: .75rem;
+    padding: 2rem;
+    text-align: center;
+    animation: fade-in .5s ease-out both;
+  }
+  .reader-empty-icon {
+    font-size: 3rem; opacity: .5;
+    animation: float-soft 3.5s ease-in-out infinite;
+  }
+
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 4px; }
+  .pill-btn, .reader-ctrl-btn { transition: border-color .18s ease, color .18s ease; }
+  #reader-progress-fill { background: linear-gradient(90deg, var(--amber), var(--gold)); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+    }
+  }
+
+  /* ── Mobile ──────────────────────────────────────────────────────────────── */
+  @media (max-width: 640px) {
+    .reader-sidebar {
+      position: absolute;
+      top: 52px;
+      left: 0;
+      bottom: 0;
+      z-index: 20;
+      width: 80vw;
+      min-width: 80vw;
+      box-shadow: 4px 0 16px rgba(0,0,0,.3);
+    }
+    .reader-sidebar.collapsed {
+      width: 0;
+      min-width: 0;
+      box-shadow: none;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="/">Page<span>Vault</span></a>
+  <div class="top-actions">
+    <a class="pill-btn" href="/" data-i18n="nav_library">Library</a>
+    <a class="pill-btn" href="/stats" data-i18n="nav_stats">Stats</a>
+    <a class="pill-btn active" href="/reader" data-i18n="nav_reader">Reader</a>
+    <button class="pill-btn" data-lang-toggle onclick="toggleLang()">DE</button>
+    <button id="theme-toggle" class="pill-btn" onclick="toggleTheme()">Light</button>
+  </div>
+</header>
+
+<div class="reader-layout">
+
+  <!-- Sidebar -->
+  <aside class="reader-sidebar" id="reader-sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-heading" data-i18n="reader_heading">E-Books</div>
+      <input class="sidebar-search" id="book-search" type="search"
+             placeholder="Search books…" data-i18n-placeholder="reader_search_ph"
+             oninput="filterBooks(this.value)">
+    </div>
+    <div id="book-list"></div>
+  </aside>
+
+  <!-- Reader -->
+  <div class="reader-main" id="reader-main">
+    <!-- Toolbar (hidden until a book is loaded) -->
+    <div class="reader-toolbar" id="reader-toolbar" style="display:none">
+      <button class="reader-ctrl-btn" onclick="toggleSidebar()" id="sidebar-toggle-btn"
+              data-i18n="reader_close_sidebar">Hide</button>
+      <span class="reader-toolbar-title" id="reader-book-title"></span>
+      <button class="reader-ctrl-btn" onclick="readerFontDown()" data-i18n="reader_font_down">A−</button>
+      <button class="reader-ctrl-btn" onclick="readerFontUp()" data-i18n="reader_font_up">A+</button>
+      <button class="reader-ctrl-btn" onclick="readerPrev()" data-i18n="reader_prev">&#8249;</button>
+      <button class="reader-ctrl-btn" onclick="readerNext()" data-i18n="reader_next">&#8250;</button>
+    </div>
+    <div id="reader-progress-bar"><div id="reader-progress-fill"></div></div>
+
+    <!-- Content areas -->
+    <div id="reader-epub-area" style="display:none"></div>
+    <iframe id="reader-pdf-area" style="display:none" title="PDF Viewer"></iframe>
+
+    <!-- Empty state -->
+    <div class="reader-empty-state" id="reader-empty-state">
+      <div class="reader-empty-icon">📚</div>
+      <div data-i18n="reader_empty">Select a book from the sidebar to start reading.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── Theme ────────────────────────────────────────────────────────────────────
+function initTheme() {
+  const saved = localStorage.getItem('pv_theme');
+  const dark = saved ? saved === 'dark' : true;
+  document.body.classList.toggle('light-mode', !dark);
+  document.getElementById('theme-toggle').textContent =
+    dark ? (window.PV_LANG === 'de' ? 'Hell' : 'Light')
+         : (window.PV_LANG === 'de' ? 'Dunkel' : 'Dark');
+}
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light-mode');
+  localStorage.setItem('pv_theme', isLight ? 'light' : 'dark');
+  document.getElementById('theme-toggle').textContent =
+    isLight ? (window.PV_LANG === 'de' ? 'Dunkel' : 'Dark')
+            : (window.PV_LANG === 'de' ? 'Hell' : 'Light');
+}
+
+// ─── Reader state ─────────────────────────────────────────────────────────────
+let allBooks = [];
+let currentBookId = null;
+let _readerBook = null;
+let _readerRendition = null;
+let _readerFontSize = 100;
+let _positionSaveTimer = null;
+let _pendingPosition = null;
+let _sidebarVisible = true;
+
+// ─── API helper ───────────────────────────────────────────────────────────────
+function api(path, opts = {}) {
+  return fetch(path, { credentials: 'same-origin', ...opts });
+}
+
+// ─── Load books ───────────────────────────────────────────────────────────────
+async function loadBooks() {
+  const r = await api('/api/books');
+  if (!r.ok) return;
+  const data = await r.json();
+  allBooks = (data.books || []).filter(b => b.file_type);
+  renderBookList(allBooks);
+}
+
+function renderBookList(books) {
+  const list = document.getElementById('book-list');
+  if (!books.length) {
+    list.innerHTML = `<div class="sidebar-empty">${esc(t('reader_no_books'))}</div>`;
+    return;
+  }
+  list.innerHTML = books.map((b, i) => {
+    const cover = b.cover_url
+      ? `<img class="book-entry-cover" src="${esc(b.cover_url)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=\\'book-entry-cover-ph\\'>📖</div>'">`
+      : `<div class="book-entry-cover-ph">📖</div>`;
+    return `<div class="book-entry" id="entry-${b.id}" onclick="openBook(${b.id})"
+                 style="--entry-delay:${Math.min(i, 15) * 30}ms">
+      ${cover}
+      <div class="book-entry-meta">
+        <div class="book-entry-title">${esc(b.title)}</div>
+        <div class="book-entry-author">${esc(b.author || '')}</div>
+      </div>
+      <span class="book-entry-badge">${esc(b.file_type || '')}</span>
+    </div>`;
+  }).join('');
+}
+
+function filterBooks(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) { renderBookList(allBooks); return; }
+  renderBookList(allBooks.filter(b =>
+    (b.title || '').toLowerCase().includes(q) || (b.author || '').toLowerCase().includes(q)
+  ));
+}
+
+function esc(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Open book ────────────────────────────────────────────────────────────────
+function openBook(id) {
+  destroyReader();
+
+  currentBookId = id;
+  const book = allBooks.find(b => b.id === id);
+  if (!book) return;
+
+  // Mark active
+  document.querySelectorAll('.book-entry').forEach(el => el.classList.remove('active'));
+  const entry = document.getElementById('entry-' + id);
+  if (entry) entry.classList.add('active');
+
+  document.getElementById('reader-book-title').textContent = book.title;
+  document.getElementById('reader-toolbar').style.display = '';
+  document.getElementById('reader-empty-state').style.display = 'none';
+  document.getElementById('reader-progress-fill').style.width = '0%';
+
+  const epubArea = document.getElementById('reader-epub-area');
+  const pdfArea  = document.getElementById('reader-pdf-area');
+
+  if (book.file_type === 'epub') {
+    epubArea.style.display = '';
+    pdfArea.style.display  = 'none';
+    epubArea.innerHTML = '';
+    initEpubReader(book.reader_position);
+  } else {
+    epubArea.style.display = 'none';
+    pdfArea.style.display  = '';
+    pdfArea.src = `/api/books/${id}/file`;
+  }
+
+  // On mobile: auto-collapse sidebar after opening
+  if (window.innerWidth <= 640) {
+    collapseSidebar();
+  }
+}
+
+// ─── EPUB.js ──────────────────────────────────────────────────────────────────
+function initEpubReader(readerPos) {
+  _readerBook = ePub(`/api/books/${currentBookId}/file`);
+  _readerRendition = _readerBook.renderTo('reader-epub-area', {
+    width: '100%', height: '100%', flow: 'paginated', spread: 'none'
+  });
+  _readerFontSize = 100;
+
+  let startCfi = null;
+  if (readerPos) {
+    try { startCfi = JSON.parse(readerPos).cfi || null; } catch (_) {}
+  }
+  _readerRendition.display(startCfi || undefined);
+
+  _readerRendition.on('relocated', loc => {
+    const pct = (loc.start.percentage || 0) * 100;
+    document.getElementById('reader-progress-fill').style.width = pct.toFixed(1) + '%';
+    schedulePositionSave({ cfi: loc.start.cfi, percent: loc.start.percentage || 0 });
+  });
+
+  document.addEventListener('keydown', _keyHandler);
+}
+
+function destroyReader() {
+  if (_positionSaveTimer) { clearTimeout(_positionSaveTimer); }
+  if (_pendingPosition)   { _doSavePosition(_pendingPosition); }
+  if (_readerRendition)   { _readerRendition.destroy(); _readerRendition = null; }
+  if (_readerBook)        { _readerBook.destroy(); _readerBook = null; }
+  document.getElementById('reader-epub-area').innerHTML = '';
+  document.getElementById('reader-pdf-area').src = '';
+  document.removeEventListener('keydown', _keyHandler);
+  _pendingPosition = null;
+}
+
+function readerFontUp() {
+  _readerFontSize = Math.min(_readerFontSize + 10, 200);
+  if (_readerRendition) _readerRendition.themes.fontSize(_readerFontSize + '%');
+}
+function readerFontDown() {
+  _readerFontSize = Math.max(_readerFontSize - 10, 60);
+  if (_readerRendition) _readerRendition.themes.fontSize(_readerFontSize + '%');
+}
+function readerPrev() { if (_readerRendition) _readerRendition.prev(); }
+function readerNext() { if (_readerRendition) _readerRendition.next(); }
+
+function _keyHandler(e) {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowLeft')  readerPrev();
+  if (e.key === 'ArrowRight') readerNext();
+}
+
+// ─── Position save ────────────────────────────────────────────────────────────
+function schedulePositionSave(pos) {
+  _pendingPosition = pos;
+  if (_positionSaveTimer) clearTimeout(_positionSaveTimer);
+  _positionSaveTimer = setTimeout(() => _doSavePosition(pos), 1500);
+}
+
+async function _doSavePosition(pos) {
+  _positionSaveTimer = null;
+  _pendingPosition = null;
+  if (!currentBookId || !pos) return;
+  await api(`/api/books/${currentBookId}/position`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(pos),
+  });
+  const b = allBooks.find(b => b.id === currentBookId);
+  if (b) b.reader_position = JSON.stringify(pos);
+}
+
+// ─── Sidebar toggle ───────────────────────────────────────────────────────────
+function toggleSidebar() {
+  _sidebarVisible ? collapseSidebar() : expandSidebar();
+}
+function collapseSidebar() {
+  _sidebarVisible = false;
+  document.getElementById('reader-sidebar').classList.add('collapsed');
+  const btn = document.getElementById('sidebar-toggle-btn');
+  btn.textContent = window.PV_LANG === 'de' ? 'Bücher' : 'Books';
+  btn.dataset.i18n = 'reader_show_sidebar';
+}
+function expandSidebar() {
+  _sidebarVisible = true;
+  document.getElementById('reader-sidebar').classList.remove('collapsed');
+  const btn = document.getElementById('sidebar-toggle-btn');
+  btn.textContent = window.PV_LANG === 'de' ? 'Ausblenden' : 'Hide';
+  btn.dataset.i18n = 'reader_close_sidebar';
+}
+
+// Flush position on unload
+window.addEventListener('beforeunload', () => {
+  if (_pendingPosition) _doSavePosition(_pendingPosition);
+});
+
+// ─── i18n hook — re-render dynamic sidebar content on language change ────────
+const _origApplyLang = window.applyLang;
+window.applyLang = function (lang) {
+  _origApplyLang(lang);
+  if (!allBooks.length) renderBookList(allBooks);
+};
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+initTheme();
+applyLang(window.PV_LANG);
+loadBooks();
+</script>
+</body>
+</html>

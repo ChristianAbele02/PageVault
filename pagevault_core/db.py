@@ -69,7 +69,10 @@ def ensure_schema(db: sqlite3.Connection) -> None:
                         CHECK(book_format IN ('physical','ebook','audiobook')),
             owned       INTEGER NOT NULL DEFAULT 0,
             start_date  TEXT,
-            finish_date TEXT
+            finish_date TEXT,
+            file_path   TEXT,
+            file_type   TEXT,
+            reader_position TEXT
         );
 
         CREATE TABLE IF NOT EXISTS reviews (
@@ -229,6 +232,12 @@ def ensure_schema(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE books ADD COLUMN start_date TEXT")
     if "finish_date" not in book_cols:
         db.execute("ALTER TABLE books ADD COLUMN finish_date TEXT")
+    if "file_path" not in book_cols:
+        db.execute("ALTER TABLE books ADD COLUMN file_path TEXT")
+    if "file_type" not in book_cols:
+        db.execute("ALTER TABLE books ADD COLUMN file_type TEXT")
+    if "reader_position" not in book_cols:
+        db.execute("ALTER TABLE books ADD COLUMN reader_position TEXT")
 
     db.commit()
     log.info("Database schema verified.")
