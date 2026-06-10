@@ -12,13 +12,14 @@ import csv
 import io
 import json
 import os
+import pathlib
 import sqlite3
 import tempfile
 import zipfile
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from flask import Blueprint, Response, current_app, jsonify, request, session
+from flask import Blueprint, Response, current_app, jsonify, request, send_file, session
 
 from pagevault_core.db import ensure_schema
 from pagevault_core.services import admin_service, recommendations
@@ -713,6 +714,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         db = get_db()
         if not db.execute("SELECT 1 FROM books WHERE id=?", (book_id,)).fetchone():
             return err("Book not found", 404)
+        remove_book_files(book_id)  # avoid orphaned ebook files on disk
         db.execute("DELETE FROM books WHERE id = ?", (book_id,))
         db.commit()
         log.info("Book %d deleted.", book_id)
@@ -939,6 +941,161 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             "DELETE FROM reviews WHERE id = ? AND book_id = ?",
             (review_id, book_id),
         )
+        db.commit()
+        return jsonify({"ok": True})
+
+    # ── E-Book file management ─────────────────────────────────────────────────
+
+    _ALLOWED_BOOK_EXTS = {"epub", "pdf"}
+    # Magic bytes: EPUB is a ZIP container ("PK"), PDF starts with "%PDF".
+    _BOOK_FILE_SIGNATURES = {"epub": b"PK", "pdf": b"%PDF"}
+
+    @bp.post("/books/<int:book_id>/file")
+    def api_upload_book_file(book_id: int):
+        db = get_db()
+        if not db.execute("SELECT 1 FROM books WHERE id=?", (book_id,)).fetchone():
+            return err("Book not found", 404)
+        if "file" not in request.files:
+            return err("No file provided")
+        f = request.files["file"]
+        if not f.filename:
+            return err("No filename")
+        ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
+        if ext not in _ALLOWED_BOOK_EXTS:
+            return err("Only EPUB and PDF files are supported")
+
+        signature = _BOOK_FILE_SIGNATURES[ext]
+        head = f.stream.read(len(signature))
+        f.stream.seek(0)
+        if head != signature:
+            return err(f"File content does not look like a valid {ext.upper()}")
+
+        files_dir = pathlib.Path(current_app.config["BOOK_FILES_DIR"])
+        files_dir.mkdir(parents=True, exist_ok=True)
+        # Remove any old file for this book (different extension)
+        for old_ext in _ALLOWED_BOOK_EXTS:
+            old = files_dir / f"{book_id}.{old_ext}"
+            if old.exists() and old_ext != ext:
+                old.unlink()
+        dest = files_dir / f"{book_id}.{ext}"
+        try:
+            f.save(str(dest))
+        except OSError as exc:
+            log.error("Failed to store ebook file for book %d: %s", book_id, exc)
+            return err("Could not store the file on disk", 500)
+        file_path = f"{book_id}.{ext}"
+        # New file content invalidates any previously saved reading position.
+        db.execute(
+            "UPDATE books SET file_path=?, file_type=?, reader_position=NULL, updated_at=? "
+            "WHERE id=?",
+            (file_path, ext, now(), book_id),
+        )
+        db.commit()
+        log.info("Ebook file uploaded for book %d (%s).", book_id, ext)
+        return jsonify({"ok": True, "file_type": ext, "file_path": file_path})
+
+    @bp.get("/books/<int:book_id>/file")
+    def api_serve_book_file(book_id: int):
+        db = get_db()
+        row = db.execute(
+            "SELECT title, file_path, file_type FROM books WHERE id=?", (book_id,)
+        ).fetchone()
+        if not row or not row["file_path"]:
+            return err("No file attached to this book", 404)
+        file_path = pathlib.Path(current_app.config["BOOK_FILES_DIR"]) / row["file_path"]
+        if not file_path.exists():
+            return err("File not found on disk", 404)
+        mime = "application/epub+zip" if row["file_type"] == "epub" else "application/pdf"
+        safe_title = "".join(
+            ch for ch in (row["title"] or "book") if ch.isalnum() or ch in " -_"
+        ).strip()
+        download_name = f"{safe_title or 'book'}.{row['file_type']}"
+        return send_file(
+            str(file_path), mimetype=mime, conditional=True, download_name=download_name
+        )
+
+    def remove_book_files(book_id: int) -> None:
+        """Delete any stored ebook files for a book from disk."""
+        files_dir = pathlib.Path(current_app.config["BOOK_FILES_DIR"])
+        for ext in _ALLOWED_BOOK_EXTS:
+            candidate = files_dir / f"{book_id}.{ext}"
+            try:
+                if candidate.exists():
+                    candidate.unlink()
+            except OSError as exc:
+                log.warning("Could not delete ebook file %s: %s", candidate, exc)
+
+    @bp.delete("/books/<int:book_id>/file")
+    def api_delete_book_file(book_id: int):
+        db = get_db()
+        row = db.execute("SELECT file_path FROM books WHERE id=?", (book_id,)).fetchone()
+        if not row or not row["file_path"]:
+            return err("No file attached to this book", 404)
+        remove_book_files(book_id)
+        db.execute(
+            "UPDATE books SET file_path=NULL, file_type=NULL, reader_position=NULL, updated_at=? "
+            "WHERE id=?",
+            (now(), book_id),
+        )
+        db.commit()
+        return jsonify({"ok": True})
+
+    @bp.patch("/books/<int:book_id>/position")
+    def api_save_reading_position(book_id: int):
+        """Persist the e-reader position for a book.
+
+        Accepts either an explicit ``position`` string, or the raw locator the
+        readers send (``{"cfi": ..., "percent": ...}``), which is stored as a
+        JSON string.  When the book has a page count, ``percent`` is also
+        translated into ``current_page`` progress on the latest review.
+        """
+        db = get_db()
+        book = db.execute("SELECT id, pages FROM books WHERE id=?", (book_id,)).fetchone()
+        if not book:
+            return err("Book not found", 404)
+        body = request.get_json(force=True, silent=True) or {}
+
+        position = body.get("position")
+        if position is None:
+            locator = {k: body[k] for k in ("cfi", "percent") if k in body}
+            position = json.dumps(locator) if locator else ""
+        elif not isinstance(position, str):
+            position = json.dumps(position)
+        db.execute("UPDATE books SET reader_position=? WHERE id=?", (position, book_id))
+
+        current_page = body.get("current_page")
+        if current_page is None and book["pages"]:
+            try:
+                percent = float(body.get("percent") or 0)
+            except (TypeError, ValueError):
+                percent = 0.0
+            if 0 < percent <= 1:
+                current_page = round(percent * int(book["pages"]))
+        if current_page is not None:
+            try:
+                page = max(1, int(current_page))
+            except (ValueError, TypeError):
+                page = None
+            if page is not None:
+                if book["pages"]:
+                    page = min(page, int(book["pages"]))
+                current = now()
+                # Update current_page on the most recent review, or insert a progress note
+                existing = db.execute(
+                    "SELECT id FROM reviews WHERE book_id=? ORDER BY created_at DESC, id DESC LIMIT 1",
+                    (book_id,),
+                ).fetchone()
+                if existing:
+                    db.execute(
+                        "UPDATE reviews SET current_page=?, updated_at=? WHERE id=?",
+                        (page, current, existing["id"]),
+                    )
+                else:
+                    db.execute(
+                        "INSERT INTO reviews (book_id, current_page, created_at, updated_at) "
+                        "VALUES (?, ?, ?, ?)",
+                        (book_id, page, current, current),
+                    )
         db.commit()
         return jsonify({"ok": True})
 
@@ -1400,8 +1557,10 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                ORDER BY r.rating""",
             review_with_books_params,
         ).fetchall()
+        # Ratings use 0.5 increments — keep them as floats so half-star
+        # buckets (e.g. 4.5) are not collapsed into the integer below.
         rating_distribution = [
-            {"rating": int(row["rating"]), "review_count": int(row["review_count"])}
+            {"rating": float(row["rating"]), "review_count": int(row["review_count"])}
             for row in rating_rows
         ]
 

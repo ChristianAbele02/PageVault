@@ -1112,3 +1112,126 @@ class TestAdminApis:
 
         logs = client.get("/api/admin/logs")
         assert logs.status_code == 200
+
+
+# ── E-book files & reading position ───────────────────────────────────────────
+
+
+def _upload_pdf(client, book_id: int, content: bytes = b"%PDF-1.4 fake pdf content"):
+    return client.post(
+        f"/api/books/{book_id}/file",
+        data={"file": (io.BytesIO(content), "book.pdf")},
+        content_type="multipart/form-data",
+    )
+
+
+class TestEbookFiles:
+    def test_upload_serve_and_delete_pdf(self, client, app, added_book):
+        book_id = added_book["id"]
+        upload = _upload_pdf(client, book_id)
+        assert upload.status_code == 200
+        payload = upload.get_json()
+        assert payload["file_type"] == "pdf"
+        assert payload["file_path"] == f"{book_id}.pdf"
+        assert (Path(app.config["BOOK_FILES_DIR"]) / f"{book_id}.pdf").exists()
+
+        served = client.get(f"/api/books/{book_id}/file")
+        assert served.status_code == 200
+        assert served.mimetype == "application/pdf"
+        assert served.data.startswith(b"%PDF")
+        served.close()  # release the file handle so Windows allows deletion
+
+        deleted = client.delete(f"/api/books/{book_id}/file")
+        assert deleted.status_code == 200
+        assert not (Path(app.config["BOOK_FILES_DIR"]) / f"{book_id}.pdf").exists()
+        detail = client.get(f"/api/books/{book_id}").get_json()
+        assert detail["file_path"] is None
+        assert detail["file_type"] is None
+
+    def test_upload_epub_replaces_pdf(self, client, app, added_book):
+        book_id = added_book["id"]
+        assert _upload_pdf(client, book_id).status_code == 200
+        epub = client.post(
+            f"/api/books/{book_id}/file",
+            data={"file": (io.BytesIO(b"PK\x03\x04 fake epub"), "book.epub")},
+            content_type="multipart/form-data",
+        )
+        assert epub.status_code == 200
+        files_dir = Path(app.config["BOOK_FILES_DIR"])
+        assert (files_dir / f"{book_id}.epub").exists()
+        assert not (files_dir / f"{book_id}.pdf").exists()
+
+    def test_upload_rejects_wrong_extension_and_content(self, client, added_book):
+        book_id = added_book["id"]
+        bad_ext = client.post(
+            f"/api/books/{book_id}/file",
+            data={"file": (io.BytesIO(b"hello"), "book.txt")},
+            content_type="multipart/form-data",
+        )
+        assert bad_ext.status_code == 400
+
+        # Correct extension but wrong magic bytes must be rejected too.
+        bad_content = client.post(
+            f"/api/books/{book_id}/file",
+            data={"file": (io.BytesIO(b"MZ executable"), "book.pdf")},
+            content_type="multipart/form-data",
+        )
+        assert bad_content.status_code == 400
+
+    def test_serve_missing_file_returns_404(self, client, added_book):
+        assert client.get(f"/api/books/{added_book['id']}/file").status_code == 404
+
+    def test_delete_book_removes_file_from_disk(self, client, app, added_book):
+        book_id = added_book["id"]
+        assert _upload_pdf(client, book_id).status_code == 200
+        assert client.delete(f"/api/books/{book_id}").status_code == 200
+        assert not (Path(app.config["BOOK_FILES_DIR"]) / f"{book_id}.pdf").exists()
+
+
+class TestReadingPosition:
+    def test_save_reader_locator_persists_position(self, client, added_book):
+        book_id = added_book["id"]
+        save = client.patch(
+            f"/api/books/{book_id}/position",
+            json={"cfi": "epubcfi(/6/4!/4/2)", "percent": 0.5},
+        )
+        assert save.status_code == 200
+
+        detail = client.get(f"/api/books/{book_id}").get_json()
+        assert "epubcfi(/6/4!/4/2)" in detail["reader_position"]
+        # 50% of the 180-page sample book — synced into review progress.
+        assert detail["current_page"] == 90
+
+    def test_explicit_current_page_updates_latest_review(self, client, added_book):
+        book_id = added_book["id"]
+        client.post(f"/api/books/{book_id}/reviews", json={"rating": 4, "current_page": 10})
+        save = client.patch(
+            f"/api/books/{book_id}/position",
+            json={"position": "{}", "current_page": 42},
+        )
+        assert save.status_code == 200
+        detail = client.get(f"/api/books/{book_id}").get_json()
+        assert detail["current_page"] == 42
+        # No second review row was created — the latest one was updated.
+        assert len(detail["reviews"]) == 1
+
+    def test_current_page_clamped_to_book_pages(self, client, added_book):
+        book_id = added_book["id"]
+        save = client.patch(
+            f"/api/books/{book_id}/position",
+            json={"position": "{}", "current_page": 9999},
+        )
+        assert save.status_code == 200
+        detail = client.get(f"/api/books/{book_id}").get_json()
+        assert detail["current_page"] == added_book["pages"]
+
+    def test_position_for_missing_book_returns_404(self, client):
+        assert client.patch("/api/books/424242/position", json={"percent": 0.1}).status_code == 404
+
+    def test_new_file_upload_resets_reader_position(self, client, added_book):
+        book_id = added_book["id"]
+        assert _upload_pdf(client, book_id).status_code == 200
+        client.patch(f"/api/books/{book_id}/position", json={"cfi": "x", "percent": 0.2})
+        assert _upload_pdf(client, book_id, b"%PDF-1.7 new content").status_code == 200
+        detail = client.get(f"/api/books/{book_id}").get_json()
+        assert detail["reader_position"] is None

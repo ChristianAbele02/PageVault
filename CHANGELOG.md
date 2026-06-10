@@ -9,8 +9,44 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Planned
-- Saved stats views
+### Added
+- **Built-in e-book reader**: attach an EPUB or PDF file to any book (drag & drop or file picker in the detail view), read it in an in-app reader dialog or on the dedicated `/reader` page with a searchable sidebar, font-size controls, keyboard navigation, and a progress bar.
+- E-book file API: `POST/GET/DELETE /api/books/:id/file` with magic-byte content validation (only real EPUB/PDF files are accepted) and friendly download filenames.
+- Reading position sync: `PATCH /api/books/:id/position` stores the EPUB locator (`{cfi, percent}`) and, when the book has a page count, converts the percentage into `current_page` progress on the latest review — so reading in the e-reader updates the library progress bars automatically.
+- German/English interface toggle (`static/i18n.js`) on the library, stats, and reader pages; language preference persists locally.
+- `PAGEVAULT_BOOK_FILES_DIR` environment variable for the e-book storage directory (default: `book_files/` next to the database).
+- Test coverage for e-book upload/serve/delete and reading-position endpoints (78 tests total); test fixtures now isolate the book-files directory.
+
+### Changed
+- Frontend visual refresh across all pages: staggered entrance animations for book cards and KPI tiles, cover shine on hover, skeleton loading placeholders, animated count-up statistics, scroll-reveal chart panels, refined toasts, custom scrollbars, and visible focus rings. All animation respects `prefers-reduced-motion`.
+- Deleting a book (or its file) now also removes the stored e-book file from disk instead of leaving orphans.
+- Uploading a new e-book file resets the saved reading position for that book.
+
+### Fixed
+- Reading positions were never persisted: the position endpoint expected a `position` key the readers never sent; it now accepts the raw locator payload.
+- Review timestamps written by the position endpoint used SQLite `datetime('now')` format instead of the ISO-8601 format used everywhere else, breaking "latest review" ordering.
+- Rating distribution in stats collapsed half-star ratings into integer buckets (4.5★ counted as 4★).
+- File upload response did not include `file_path`, leaving the frontend cache out of sync.
+- DNF books showed a raw `dnf` status badge on the library grid.
+- Pinch-zoom was blocked on all pages (`maximum-scale=1.0` removed for accessibility).
+- Admin login ignored the Enter key and did not focus the password field.
+- Reader sidebar crashed when filtering books without a title.
+
+---
+
+## [1.5.0] — 2026-03-23
+
+### Added
+- Advanced statistics dashboard expansion: 8 new charts including a GitHub-style reading activity heatmap, rating trend over time, genre trends by year, time-to-finish distribution, reading speed per book, shelf breakdown, longest-unread list, and active loans tracker.
+- Goodreads-inspired tracking fields: series name/number, book format (physical/ebook/audiobook), owned flag, start/finish dates, community ratings from Google Books, re-read history, and quotes with page numbers.
+- Mobile QR connect: scan a QR code from the header to open PageVault on your phone over the same Wi-Fi (`GET /api/mobile/connect`, `PAGEVAULT_MOBILE_HOST` override).
+
+### Changed
+- UI modernisation: native `<dialog>` modals with top-layer rendering and entrance/exit transitions, design tokens, and performance hardening (no GPU-blur backdrops).
+- Alembic migrations removed — schema evolution is handled by idempotent `ALTER TABLE` checks in `pagevault_core/db.py`, which suits the single-file SQLite model.
+
+### Fixed
+- CI test stability (admin password in test config), type-check issues, and config import order.
 
 ---
 
@@ -124,7 +160,8 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Makefile** for developer convenience
 - Local SQLite database — data stays on your machine
 
-[Unreleased]: https://github.com/ChristianAbele02/PageVault/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/ChristianAbele02/PageVault/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.5.0
 [1.4.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.4.0
 [1.3.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.3.0
 [1.2.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.2.0

@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1a1008">
 <title>PageVault</title>
 <link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin="anonymous">
@@ -13,6 +14,8 @@
 <!-- Or use https://www.srihash.org/ and add integrity="sha384-<hash>" to each script tag.        -->
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js" crossorigin="anonymous"></script>
+<script src="/static/i18n.js"></script>
 <style>
   :root {
     --ink:    #1a1008;
@@ -42,6 +45,8 @@
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  html { scroll-behavior: smooth; }
+
   body {
     font-family: 'Lato', sans-serif;
     background: var(--cream);
@@ -51,6 +56,35 @@
       radial-gradient(ellipse at 20% 0%, rgba(255,226,168,.26) 0%, transparent 62%),
       radial-gradient(ellipse at 80% 100%, rgba(214,232,255,.2) 0%, transparent 66%),
       linear-gradient(to bottom, rgba(255,255,255,.25), rgba(255,255,255,0));
+  }
+
+  ::selection { background: rgba(200,145,58,.35); }
+
+  :focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Custom scrollbar — thin, warm-toned */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(122,92,58,.35);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background-color: rgba(122,92,58,.55); }
+
+  /* Motion accessibility — disable decorative animation system-wide */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 
   /* ── Header ── */
@@ -336,13 +370,61 @@
     );
   }
 
+  /* Staggered entrance — each card fades up with a per-card delay (set inline) */
+  @keyframes card-enter {
+    from { opacity: 0; transform: translateY(18px) scale(.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
   .book-card {
     cursor: pointer;
-    transition: transform .2s, box-shadow .2s;
+    transition: transform .25s var(--ease-spring), box-shadow .2s;
     position: relative;
+    animation: card-enter .5s cubic-bezier(.22,.9,.36,1) both;
+    animation-delay: var(--card-delay, 0ms);
   }
-  .book-card:hover { transform: translateY(-4px); }
-  .book-card:hover .book-cover { box-shadow: 0 12px 28px var(--shadow); }
+  .book-card:hover { transform: translateY(-5px); }
+  .book-card:hover .book-cover,
+  .book-card:hover .cover-placeholder { box-shadow: 0 14px 30px var(--shadow); }
+
+  /* Shine sweep across the cover on hover */
+  .book-cover-wrap::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 4px 8px 8px 4px;
+    background: linear-gradient(105deg,
+      transparent 35%, rgba(255,255,255,.28) 48%,
+      rgba(255,255,255,.12) 52%, transparent 65%);
+    background-size: 280% 100%;
+    background-position: 110% 0;
+    pointer-events: none;
+    transition: background-position .65s ease;
+  }
+  .book-card:hover .book-cover-wrap::after { background-position: -55% 0; }
+
+  /* Skeleton loading state */
+  @keyframes shimmer {
+    from { background-position: 160% 0; }
+    to   { background-position: -60% 0; }
+  }
+  .skeleton-card { pointer-events: none; }
+  .skeleton-card .sk-cover {
+    width: 100%; aspect-ratio: 2/3;
+    border-radius: 4px 8px 8px 4px;
+    background: linear-gradient(100deg,
+      rgba(122,92,58,.14) 38%, rgba(122,92,58,.26) 50%, rgba(122,92,58,.14) 62%);
+    background-size: 220% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+  .skeleton-card .sk-line {
+    height: 10px; border-radius: 999px; margin-top: .55rem;
+    background: linear-gradient(100deg,
+      rgba(122,92,58,.12) 38%, rgba(122,92,58,.22) 50%, rgba(122,92,58,.12) 62%);
+    background-size: 220% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+  .skeleton-card .sk-line.short { width: 60%; }
 
   .book-cover {
     width: 100%; aspect-ratio: 2/3;
@@ -508,7 +590,14 @@
     justify-content: center; padding: 4rem 2rem; text-align: center;
     grid-column: 1/-1;
   }
-  #empty-state .empty-icon { font-size: 4rem; opacity: .25; margin-bottom: 1rem; }
+  @keyframes float-soft {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-8px); }
+  }
+  #empty-state .empty-icon {
+    font-size: 4rem; opacity: .25; margin-bottom: 1rem;
+    animation: float-soft 3.5s ease-in-out infinite;
+  }
   #empty-state p { color: var(--brown); font-family: 'Playfair Display', serif; font-size: 1.1rem; }
   #empty-state small { color: #aaa; margin-top: .4rem; display: block; }
 
@@ -751,14 +840,19 @@
   .preview-info .preview-year   { font-size: .72rem; color: #aaa; margin-top: .1rem; }
 
   .toast {
-    position: fixed; bottom: 5rem; left: 50%; transform: translateX(-50%) translateY(20px);
+    position: fixed; bottom: 5rem; left: 50%;
+    transform: translateX(-50%) translateY(16px) scale(.94);
     background: var(--toast-bg); color: var(--toast-fg); padding: .6rem 1.2rem;
     border: 1px solid rgba(212,168,67,.35);
     border-radius: 20px; font-size: .85rem; opacity: 0;
-    transition: opacity .3s, transform .3s; z-index: 500; white-space: nowrap;
+    box-shadow: 0 8px 28px rgba(0,0,0,.3), 0 0 0 1px rgba(255,255,255,.06) inset;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    transition: opacity .25s ease, transform .35s var(--ease-spring);
+    z-index: 500; white-space: nowrap;
     pointer-events: none;
   }
-  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 
   .mobile-connect {
     padding: 1rem 1.25rem 1.1rem;
@@ -1272,6 +1366,73 @@
       grid-template-columns: 1fr;
     }
   }
+
+  /* ── E-Book reader ─────────────────────────────────────────────────────── */
+  #reader-dialog {
+    position: fixed; inset: 0; margin: 0; padding: 0;
+    width: 100vw; height: 100vh; max-width: 100vw; max-height: 100vh;
+    border: none; background: var(--cream);
+    z-index: 9999;
+  }
+  #reader-dialog[open] {
+    display: flex; flex-direction: column;
+  }
+  #reader-dialog::backdrop { background: rgba(0,0,0,.7); }
+  .reader-header {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .6rem 1rem; background: var(--sepia);
+    border-bottom: 1px solid var(--tan); flex-shrink: 0;
+  }
+  .reader-title {
+    flex: 1; font-family: 'Playfair Display', serif;
+    font-size: 1rem; font-weight: 700; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .reader-nav { display: flex; gap: .5rem; align-items: center; }
+  .reader-btn {
+    background: none; border: 1px solid var(--tan); border-radius: 6px;
+    padding: .3rem .6rem; font-size: .85rem; cursor: pointer; color: var(--ink);
+  }
+  .reader-btn:hover { background: var(--tan); }
+  #reader-progress-bar { height: 3px; background: var(--tan); flex-shrink: 0; }
+  #reader-progress-fill { height: 100%; background: var(--amber); width: 0%; transition: width .3s; }
+  #reader-epub-area { flex: 1; overflow: hidden; background: #fff; }
+  #reader-pdf-area { flex: 1; border: none; background: #fff; width: 100%; }
+  /* Card ebook overlay */
+  .book-cover-wrap { position: relative; display: block; }
+  .card-reader-overlay {
+    position: absolute; bottom: 4px; right: 4px;
+    background: rgba(200,145,58,.92); color: #fff;
+    border: none; border-radius: 6px; padding: .2rem .45rem;
+    font-size: .7rem; cursor: pointer; font-weight: 700;
+    pointer-events: auto; box-shadow: 0 1px 4px rgba(0,0,0,.25);
+  }
+  .card-reader-overlay:hover { background: var(--amber); }
+  /* Ebook section in detail */
+  .ebook-drop-zone {
+    border: 2px dashed var(--tan); border-radius: 10px;
+    padding: 1.2rem; text-align: center;
+    color: var(--brown); font-size: .88rem;
+    cursor: pointer; transition: border-color .2s, background .2s;
+    margin-top: .5rem;
+  }
+  .ebook-drop-zone.drag-over { border-color: var(--amber); background: rgba(200,145,58,.07); }
+  .ebook-file-info {
+    display: flex; align-items: center; gap: .75rem;
+    background: var(--sepia); border-radius: 8px;
+    padding: .7rem .9rem; margin-top: .5rem;
+  }
+  .ebook-file-icon { font-size: 1.6rem; }
+  .ebook-file-meta { flex: 1; min-width: 0; }
+  .ebook-file-name { font-weight: 700; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ebook-file-type { font-size: .75rem; color: var(--brown); text-transform: uppercase; }
+  .dark-mode #reader-dialog { background: #1a1008; }
+  .dark-mode .reader-header { background: #2a1f14; border-color: #3d2e1c; }
+  .dark-mode .reader-title { color: var(--cream); }
+  .dark-mode .reader-btn { color: var(--cream); border-color: #3d2e1c; }
+  .dark-mode .reader-btn:hover { background: #3d2e1c; }
+  .dark-mode #reader-epub-area { background: #1a1008; }
+  .dark-mode .ebook-file-info { background: #2a1f14; }
 </style>
 </head>
 <body class="dark-mode">
@@ -1279,104 +1440,106 @@
 <header>
   <div class="logo">Page<span>Vault</span></div>
   <div class="header-actions">
-    <button class="theme-toggle" onclick="openMobileConnect()" title="Show mobile connection QR">Mobile</button>
-    <a id="admin-link" class="header-link" href="/admin" title="Open admin dashboard" style="display:none">Admin</a>
-    <a id="admin-login-link" class="header-link" href="/admin/login" title="Admin login">Admin Login</a>
-    <a class="header-link" href="/stats" title="Open reading analytics">Stats</a>
-    <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()" title="Switch dark/light mode">Light</button>
+    <button class="theme-toggle" onclick="openMobileConnect()" data-i18n="nav_mobile" title="Show mobile connection QR">Mobile</button>
+    <a id="admin-link" class="header-link" href="/admin" data-i18n="nav_admin" title="Open admin dashboard" style="display:none">Admin</a>
+    <a id="admin-login-link" class="header-link" href="/admin/login" data-i18n="nav_admin_login" title="Admin login">Admin Login</a>
+    <a class="header-link" href="/reader" data-i18n="nav_reader" title="Open e-book reader">Reader</a>
+    <a class="header-link" href="/stats" data-i18n="nav_stats" title="Open reading analytics">Stats</a>
+    <button class="theme-toggle" data-lang-toggle onclick="toggleLang()" title="Switch language">DE</button>
+    <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()" data-i18n="theme_light" title="Switch dark/light mode">Light</button>
   </div>
 </header>
 
 <div id="stats-bar">
-  <div class="stat-item">📚 <strong id="s-total">0</strong> books</div>
-  <div class="stat-item">✅ <strong id="s-read">0</strong> read</div>
-  <div class="stat-item">📖 <strong id="s-reading">0</strong> reading</div>
-  <div class="stat-item">⭐ <strong id="s-avg">—</strong> avg</div>
+  <div class="stat-item">📚 <strong id="s-total">0</strong> <span data-i18n="stat_label_books">books</span></div>
+  <div class="stat-item">✅ <strong id="s-read">0</strong> <span data-i18n="stat_label_read">read</span></div>
+  <div class="stat-item">📖 <strong id="s-reading">0</strong> <span data-i18n="stat_label_reading">reading</span></div>
+  <div class="stat-item">⭐ <strong id="s-avg">—</strong> <span data-i18n="stat_label_avg">avg</span></div>
 </div>
 
 <div class="filter-bar">
   <select id="status-filter" class="filter-select">
-    <option value="">All status</option>
-    <option value="reading">Reading</option>
-    <option value="read">Read</option>
-    <option value="want_to_read">Want to Read</option>
-    <option value="dnf">Did Not Finish</option>
+    <option value="" data-i18n="filter_all_status">All status</option>
+    <option value="reading" data-i18n="filter_reading">Reading</option>
+    <option value="read" data-i18n="filter_read">Read</option>
+    <option value="want_to_read" data-i18n="filter_want">Want to Read</option>
+    <option value="dnf" data-i18n="filter_dnf">Did Not Finish</option>
   </select>
   <select id="author-filter" class="filter-select">
-    <option value="">All authors</option>
+    <option value="" data-i18n="filter_all_authors">All authors</option>
   </select>
   <select id="genre-filter" class="filter-select">
-    <option value="">All genres</option>
+    <option value="" data-i18n="filter_all_genres">All genres</option>
   </select>
   <select id="shelf-filter" class="filter-select">
     <option value="">All shelves</option>
   </select>
   <select id="format-filter" class="filter-select">
-    <option value="">All formats</option>
-    <option value="physical">Physical</option>
-    <option value="ebook">E-Book</option>
-    <option value="audiobook">Audiobook</option>
+    <option value="" data-i18n="filter_all_formats">All formats</option>
+    <option value="physical" data-i18n="filter_fmt_physical">Physical</option>
+    <option value="ebook" data-i18n="filter_fmt_ebook">E-Book</option>
+    <option value="audiobook" data-i18n="filter_fmt_audiobook">Audiobook</option>
   </select>
 </div>
 
 <div class="search-wrap">
-  <input class="search-input" type="text" id="search-input" placeholder="Search title or author…">
+  <input class="search-input" type="text" id="search-input" placeholder="Search title or author…" data-i18n-placeholder="search_placeholder">
   <div style="display:flex;gap:.5rem;">
-    <button id="continue-reading-btn" class="mini-btn" onclick="toggleContinueReadingFilter()">📖 Continue reading</button>
-    <button class="mini-btn" onclick="clearAdvancedFilters()">🧹 Clear filters</button>
-    <button class="mini-btn" onclick="refreshLibraryMetadata()">🔄 Reload metadata</button>
+    <button id="continue-reading-btn" class="mini-btn" onclick="toggleContinueReadingFilter()">📖 <span data-i18n="btn_continue_reading">Continue reading</span></button>
+    <button class="mini-btn" onclick="clearAdvancedFilters()">🧹 <span data-i18n="btn_clear_filters">Clear filters</span></button>
+    <button class="mini-btn" onclick="refreshLibraryMetadata()">🔄 <span data-i18n="btn_reload_meta">Reload metadata</span></button>
   </div>
 </div>
 
 <section class="about-panel" aria-label="About PageVault">
-  <div class="about-title">About PageVault</div>
-  <div>
+  <div class="about-title" data-i18n="about_title">About PageVault</div>
+  <div data-i18n="about_text">
     Built and maintained by Christian Abele — a private, local Goodreads alternative focused on speed and ownership.
   </div>
-  <div class="about-love">Made with love for my wife Emili. ❤️</div>
+  <div class="about-love" data-i18n="about_love">Made with love for my wife Emili. ❤️</div>
 </section>
 
 <div id="book-grid">
   <div id="empty-state">
     <div class="empty-icon">📚</div>
-    <p>Your shelf is empty.</p>
-    <small>Tap + to scan or add a book.</small>
+    <p data-i18n="empty_shelf">Your shelf is empty.</p>
+    <small data-i18n="empty_shelf_hint">Tap + to scan or add a book.</small>
   </div>
 </div>
 
 <footer class="about-footer" aria-label="About and Contact Links">
   <a class="about-block" href="https://christianabele02.github.io/PageVault/" target="_blank" rel="noopener noreferrer">
-    <span class="about-k">Website</span>
+    <span class="about-k" data-i18n="footer_website">Website</span>
     <span class="about-icon" aria-hidden="true">🌐</span>GitHub Pages
   </a>
   <a class="about-block" href="https://github.com/ChristianAbele02/PageVault" target="_blank" rel="noopener noreferrer">
-    <span class="about-k">Code</span>
+    <span class="about-k" data-i18n="footer_code">Code</span>
     <span class="about-icon" aria-hidden="true">💻</span>Repository
   </a>
   <a class="about-block" href="https://github.com/ChristianAbele02" target="_blank" rel="noopener noreferrer">
-    <span class="about-k">Author</span>
+    <span class="about-k" data-i18n="footer_author">Author</span>
     <span class="about-icon" aria-hidden="true">👤</span>Christian Abele
   </a>
   <a class="about-block" href="mailto:christian.abele@uni-bielefeld.de?subject=PageVault%20Contact">
-    <span class="about-k">Contact</span>
+    <span class="about-k" data-i18n="footer_contact">Contact</span>
     <span class="about-icon" aria-hidden="true">✉️</span>christian.abele@uni-bielefeld.de
   </a>
 </footer>
 
 <div class="fab-stack">
   <div class="tools-dropdown">
-    <button id="tools-fab" class="fab-mini" onclick="toggleToolsMenu()" title="Open tools">⚙</button>
+    <button id="tools-fab" class="fab-mini" onclick="toggleToolsMenu()" title="Open tools" data-i18n-title="fab_tools">⚙</button>
     <div id="tools-menu" class="tools-menu" role="menu" aria-label="Open tools panel">
-      <button onclick="openToolsModal('tools-panel-io')">Import / Export Preview</button>
-      <button onclick="openToolsModal('tools-panel-metadata')">Metadata Refresh</button>
-      <button onclick="openToolsModal('tools-panel-goals')">Annual Goals & Sessions</button>
-      <button onclick="openToolsModal('tools-panel-csv')">CSV Import Wizard</button>
-      <button onclick="openToolsModal('tools-panel-backup')">Backup & Restore</button>
+      <button onclick="openToolsModal('tools-panel-io')" data-i18n="tools_menu_io">Import / Export Preview</button>
+      <button onclick="openToolsModal('tools-panel-metadata')" data-i18n="tools_menu_metadata">Metadata Refresh</button>
+      <button onclick="openToolsModal('tools-panel-goals')" data-i18n="tools_menu_goals">Annual Goals & Sessions</button>
+      <button onclick="openToolsModal('tools-panel-csv')" data-i18n="tools_menu_csv">CSV Import Wizard</button>
+      <button onclick="openToolsModal('tools-panel-backup')" data-i18n="tools_menu_backup">Backup & Restore</button>
     </div>
   </div>
-  <button id="export-fab" class="fab-mini" onclick="exportCsvFile()" title="Export CSV">⇩</button>
-  <button id="import-fab" class="fab-mini" onclick="triggerCsvImport()" title="Import CSV">⇧</button>
-  <button id="fab" onclick="openAdd()" title="Add book">＋</button>
+  <button id="export-fab" class="fab-mini" onclick="exportCsvFile()" title="Export CSV" data-i18n-title="fab_export">⇩</button>
+  <button id="import-fab" class="fab-mini" onclick="triggerCsvImport()" title="Import CSV" data-i18n-title="fab_import">⇧</button>
+  <button id="fab" onclick="openAdd()" title="Add book" data-i18n-title="fab_add">＋</button>
 </div>
 <input id="csv-import-input" type="file" accept=".csv,text/csv" style="display:none" />
 <div class="toast" id="toast"></div>
@@ -1385,17 +1548,17 @@
   <div class="modal-panel" style="max-width:430px;">
     <div class="modal-handle"></div>
     <div class="modal-header">
-      <span class="modal-title">Connect Phone</span>
+      <span class="modal-title" data-i18n="mobile_title">Connect Phone</span>
       <button class="btn-close" onclick="closeMobileConnect()">✕</button>
     </div>
     <div class="mobile-connect">
       <div id="mobile-qr">Preparing QR...</div>
       <input id="mobile-url" class="mobile-url" type="text" value="" readonly>
       <div class="mobile-connect-actions">
-        <button class="mini-btn" onclick="copyMobileUrl()">Copy link</button>
-        <a id="mobile-open-link" class="mini-btn" href="#" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:center;text-decoration:none;">Open in browser</a>
+        <button class="mini-btn" onclick="copyMobileUrl()" data-i18n="mobile_copy">Copy link</button>
+        <a id="mobile-open-link" class="mini-btn" href="#" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:center;text-decoration:none;" data-i18n="mobile_open">Open in browser</a>
       </div>
-      <p class="mobile-connect-note">Scan this QR code with your phone camera while both devices are on the same Wi-Fi.</p>
+      <p class="mobile-connect-note" data-i18n="mobile_note">Scan this QR code with your phone camera while both devices are on the same Wi-Fi.</p>
     </div>
   </div>
 </dialog>
@@ -1405,12 +1568,12 @@
   <div class="modal-panel">
     <div class="modal-handle"></div>
     <div class="modal-header">
-      <span class="modal-title">Add a Book</span>
+      <span class="modal-title" data-i18n="add_title">Add a Book</span>
       <button class="btn-close" onclick="closeAdd()">✕</button>
     </div>
     <div class="modal-body">
       <button class="scan-btn" id="scan-btn" onclick="toggleScanner()">
-        <span>📷</span> Scan ISBN Barcode
+        <span>📷</span> <span data-i18n="scan_isbn">Scan ISBN Barcode</span>
       </button>
 
       <div id="scanner-container">
@@ -1418,13 +1581,13 @@
         <button id="scanner-close" onclick="stopScanner()">✕</button>
       </div>
 
-      <div class="divider">or enter manually</div>
+      <div class="divider" data-i18n="divider_or">or enter manually</div>
 
       <div class="form-group">
-        <label>ISBN</label>
+        <label data-i18n="label_isbn">ISBN</label>
         <div style="display:flex;gap:.5rem">
           <input type="text" id="isbn-input" placeholder="e.g. 9780743273565" inputmode="numeric">
-          <button onclick="lookupIsbn()" style="padding:.6rem 1rem;background:var(--amber);color:#fff;border:none;border-radius:8px;cursor:pointer;white-space:nowrap;font-weight:700;font-size:.85rem">Look up</button>
+          <button onclick="lookupIsbn()" style="padding:.6rem 1rem;background:var(--amber);color:#fff;border:none;border-radius:8px;cursor:pointer;white-space:nowrap;font-weight:700;font-size:.85rem" data-i18n="btn_lookup">Look up</button>
         </div>
       </div>
 
@@ -1439,72 +1602,72 @@
 
       <div id="manual-fields" style="display:none">
         <div class="form-group">
-          <label>Title</label>
-          <input type="text" id="m-title" placeholder="Book title">
+          <label data-i18n="label_title">Title</label>
+          <input type="text" id="m-title" placeholder="Book title" data-i18n-placeholder="ph_title">
         </div>
         <div class="form-group">
-          <label>Author</label>
-          <input type="text" id="m-author" placeholder="Author name">
+          <label data-i18n="label_author">Author</label>
+          <input type="text" id="m-author" placeholder="Author name" data-i18n-placeholder="ph_author">
         </div>
       </div>
 
       <div class="form-group">
-        <label>Reading Status</label>
+        <label data-i18n="label_status">Reading Status</label>
         <select id="add-status">
-          <option value="want_to_read">Want to Read</option>
-          <option value="reading">Currently Reading</option>
-          <option value="read">Read</option>
+          <option value="want_to_read" data-i18n="status_want">Want to Read</option>
+          <option value="reading" data-i18n="status_reading">Currently Reading</option>
+          <option value="read" data-i18n="status_read">Read</option>
         </select>
       </div>
 
       <div class="form-group">
-        <label>Genre tags</label>
+        <label data-i18n="label_genre_tags">Genre tags</label>
         <div class="tag-editor" id="add-genre-editor">
           <div id="add-genre-chips"></div>
-          <input type="text" id="add-genre-input" class="tag-input" placeholder="Type tag and press Enter">
+          <input type="text" id="add-genre-input" class="tag-input" placeholder="Type tag and press Enter" data-i18n-placeholder="ph_tag_input">
         </div>
         <small class="tag-msg" id="add-genre-msg"></small>
         <small class="tag-counter" id="add-genre-count">0/10 tags</small>
       </div>
 
       <div class="form-group">
-        <label>Add to shelves</label>
+        <label data-i18n="label_add_shelves">Add to shelves</label>
         <select id="add-shelves" multiple style="display:none"></select>
         <div id="add-shelves-pills" class="shelf-pills"></div>
       </div>
 
       <div class="form-group">
-        <label>Physical location</label>
+        <label data-i18n="label_location">Physical location</label>
         <select id="add-location-type">
-          <option value="shelf">Shelf</option>
-          <option value="ebook">E-Book</option>
-          <option value="loaned_to">Loaned to</option>
-          <option value="loaned_from">Loaned from</option>
-          <option value="other">Other</option>
+          <option value="shelf" data-i18n="loc_shelf">Shelf</option>
+          <option value="ebook" data-i18n="loc_ebook">E-Book</option>
+          <option value="loaned_to" data-i18n="loc_loaned_to">Loaned to</option>
+          <option value="loaned_from" data-i18n="loc_loaned_from">Loaned from</option>
+          <option value="other" data-i18n="loc_other">Other</option>
         </select>
       </div>
       <div class="form-group">
-        <label>Location note</label>
-        <input type="text" id="add-location-note" placeholder="e.g. Living room shelf A3">
+        <label data-i18n="label_location_note">Location note</label>
+        <input type="text" id="add-location-note" placeholder="e.g. Living room shelf A3" data-i18n-placeholder="ph_location_note">
       </div>
       <div class="form-group">
-        <label>Loan person (if loaned)</label>
-        <input type="text" id="add-loan-person" placeholder="Person name">
+        <label data-i18n="label_loan_person">Loan person (if loaned)</label>
+        <input type="text" id="add-loan-person" placeholder="Person name" data-i18n-placeholder="ph_loan_person">
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.5rem;align-items:end;margin:.5rem 0 0;">
         <div class="form-group" style="margin:0;">
-          <label>New shelf name</label>
+          <label data-i18n="label_new_shelf">New shelf name</label>
           <input type="text" id="new-shelf-name" placeholder="Favorites">
         </div>
         <div class="form-group" style="margin:0;">
-          <label>Logo URL (optional)</label>
+          <label data-i18n="label_shelf_logo">Logo URL (optional)</label>
           <input type="text" id="new-shelf-logo" placeholder="https://...">
         </div>
-        <button class="mini-btn" onclick="createShelfFromAdd()" style="height:40px;">Create shelf</button>
+        <button class="mini-btn" onclick="createShelfFromAdd()" style="height:40px;" data-i18n="btn_create_shelf">Create shelf</button>
       </div>
 
-      <button class="btn-primary" id="add-btn" onclick="addBook()" disabled>Add to My Shelf</button>
+      <button class="btn-primary" id="add-btn" onclick="addBook()" disabled data-i18n="btn_add_to_shelf">Add to My Shelf</button>
     </div>
   </div>
 </dialog>
@@ -1514,7 +1677,7 @@
   <div class="modal-panel">
     <div class="modal-handle"></div>
     <div class="modal-header">
-      <span class="modal-title">Book Details</span>
+      <span class="modal-title" data-i18n="detail_title">Book Details</span>
       <button class="btn-close" onclick="closeDetail()">✕</button>
     </div>
     <div class="detail-hero">
@@ -1529,59 +1692,59 @@
         </div>
         <div class="status-select">
           <select id="d-status" onchange="updateStatus()">
-            <option value="want_to_read">Want to Read</option>
-            <option value="reading">Currently Reading</option>
-            <option value="read">Read</option>
-            <option value="dnf">Did Not Finish</option>
+            <option value="want_to_read" data-i18n="status_want">Want to Read</option>
+            <option value="reading" data-i18n="status_reading">Currently Reading</option>
+            <option value="read" data-i18n="status_read">Read</option>
+            <option value="dnf" data-i18n="status_dnf">Did Not Finish</option>
           </select>
         </div>
         <div class="detail-shelves">
           <select id="d-shelves" multiple style="display:none"></select>
           <div id="d-shelves-pills" class="shelf-pills"></div>
-          <button class="mini-btn" onclick="updateBookShelves()">Save Shelves</button>
+          <button class="mini-btn" onclick="updateBookShelves()" data-i18n="btn_save_shelves">Save Shelves</button>
         </div>
         <div class="detail-genres">
           <div class="tag-editor" id="d-genre-editor">
             <div id="d-genre-chips"></div>
-            <input type="text" id="d-genre-input" class="tag-input" placeholder="Type tag and press Enter">
+            <input type="text" id="d-genre-input" class="tag-input" placeholder="Type tag and press Enter" data-i18n-placeholder="ph_tag_input">
           </div>
           <small class="tag-msg" id="d-genre-msg"></small>
           <small class="tag-counter" id="d-genre-count">0/10 tags</small>
-          <button class="mini-btn" onclick="updateBookGenres()">Save Genre Tags</button>
+          <button class="mini-btn" onclick="updateBookGenres()" data-i18n="btn_save_genres">Save Genre Tags</button>
         </div>
         <div class="detail-shelves">
           <select id="d-location-type">
-            <option value="shelf">Shelf</option>
-            <option value="ebook">E-Book</option>
-            <option value="loaned_to">Loaned to</option>
-            <option value="loaned_from">Loaned from</option>
-            <option value="other">Other</option>
+            <option value="shelf" data-i18n="loc_shelf">Shelf</option>
+            <option value="ebook" data-i18n="loc_ebook">E-Book</option>
+            <option value="loaned_to" data-i18n="loc_loaned_to">Loaned to</option>
+            <option value="loaned_from" data-i18n="loc_loaned_from">Loaned from</option>
+            <option value="other" data-i18n="loc_other">Other</option>
           </select>
-          <input type="text" id="d-location-note" placeholder="Location note">
-          <input type="text" id="d-loan-person" placeholder="Loan person">
-          <button class="mini-btn" onclick="updateBookLocation()">Save Location</button>
+          <input type="text" id="d-location-note" placeholder="Location note" data-i18n-placeholder="label_location_note">
+          <input type="text" id="d-loan-person" placeholder="Loan person" data-i18n-placeholder="ph_loan_person">
+          <button class="mini-btn" onclick="updateBookLocation()" data-i18n="btn_save_location">Save Location</button>
         </div>
         <div class="detail-extra-fields">
           <div class="extra-row">
-            <label>Format</label>
+            <label data-i18n="label_format">Format</label>
             <select id="d-book-format" onchange="updateBookMeta()">
-              <option value="physical">📗 Physical</option>
-              <option value="ebook">📱 E-Book</option>
-              <option value="audiobook">🎧 Audiobook</option>
+              <option value="physical" data-i18n="fmt_physical">📗 Physical</option>
+              <option value="ebook" data-i18n="fmt_ebook">📱 E-Book</option>
+              <option value="audiobook" data-i18n="fmt_audiobook">🎧 Audiobook</option>
             </select>
           </div>
           <div class="extra-row">
             <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer">
               <input type="checkbox" id="d-owned" onchange="updateBookMeta()" style="width:auto;accent-color:var(--amber)">
-              Owned
+              <span data-i18n="label_owned">Owned</span>
             </label>
           </div>
           <div class="extra-row">
-            <label>Started</label>
+            <label data-i18n="label_started">Started</label>
             <input type="date" id="d-start-date" onchange="updateBookMeta()">
           </div>
           <div class="extra-row">
-            <label>Finished</label>
+            <label data-i18n="label_finished">Finished</label>
             <input type="date" id="d-finish-date" onchange="updateBookMeta()">
           </div>
         </div>
@@ -1589,151 +1752,187 @@
     </div>
 
     <div class="detail-section" id="d-desc-section">
-      <h3>Description
+      <h3><span data-i18n="sec_description">Description</span>
         <button class="btn-edit-inline" onclick="toggleDescEdit()" id="d-desc-edit-btn">Edit</button>
       </h3>
       <div class="detail-desc" id="d-desc"></div>
-      <p class="detail-desc-placeholder" id="d-desc-placeholder">No description available.</p>
+      <p class="detail-desc-placeholder" id="d-desc-placeholder" data-i18n="desc_placeholder">No description available.</p>
       <div class="desc-edit-form" id="d-desc-edit-form">
-        <textarea id="d-desc-input" placeholder="Add a description…" rows="5"></textarea>
+        <textarea id="d-desc-input" placeholder="Add a description…" rows="5" data-i18n-placeholder="ph_desc"></textarea>
         <div style="display:flex;gap:.5rem">
-          <button class="btn-primary" style="flex:1;margin-top:0" onclick="saveDescription()">Save</button>
-          <button class="mini-btn" onclick="toggleDescEdit()">Cancel</button>
+          <button class="btn-primary" style="flex:1;margin-top:0" onclick="saveDescription()" data-i18n="btn_save">Save</button>
+          <button class="mini-btn" onclick="toggleDescEdit()" data-i18n="btn_cancel">Cancel</button>
         </div>
       </div>
     </div>
 
+    <div class="detail-section" id="d-ebook-section">
+      <h3 data-i18n="sec_ebook">E-Book File</h3>
+      <div id="d-ebook-file-info" style="display:none">
+        <div class="ebook-file-info">
+          <div class="ebook-file-icon" id="d-ebook-icon">📄</div>
+          <div class="ebook-file-meta">
+            <div class="ebook-file-name" id="d-ebook-filename">—</div>
+            <div class="ebook-file-type" id="d-ebook-filetype">—</div>
+          </div>
+          <button class="btn-primary" style="margin:0;padding:.35rem .7rem;font-size:.82rem" onclick="openReader()" data-i18n="btn_open">Open</button>
+          <button class="mini-btn" style="margin:0" onclick="deleteBookFile()" data-i18n="btn_remove">Remove</button>
+        </div>
+      </div>
+      <div id="d-ebook-drop-zone" class="ebook-drop-zone">
+        <div data-i18n="drop_hint">📂 Drop an EPUB or PDF here</div>
+        <button class="btn-primary" style="margin:.65rem auto 0;display:block;padding:.35rem .9rem;font-size:.84rem" onclick="document.getElementById('ebook-file-input').click()" data-i18n="btn_browse">Browse Files…</button>
+      </div>
+      <input type="file" id="ebook-file-input" accept=".epub,.pdf" style="display:none" onchange="uploadBookFile(this.files[0])">
+    </div>
+
     <div class="detail-section" id="d-rec-section">
-      <h3>Recommended Similar Books</h3>
+      <h3 data-i18n="sec_recommendations">Recommended Similar Books</h3>
       <div id="d-recommendations" style="font-size:.84rem;color:var(--brown)">No recommendations yet.</div>
     </div>
 
     <div class="detail-section">
-      <h3>Your Reviews &amp; Notes</h3>
+      <h3 data-i18n="sec_reviews">Your Reviews &amp; Notes</h3>
       <div class="add-review-form">
         <div style="display:flex;align-items:center;gap:.75rem">
           <div class="star-picker" id="new-stars"></div>
           <span style="font-size:.78rem;color:var(--brown)" id="new-rating-label">No rating</span>
         </div>
         <div class="form-group" style="margin:0;">
-          <label>Current page (optional)</label>
+          <label data-i18n="label_current_page">Current page (optional)</label>
           <input type="number" id="new-current-page" min="0" step="1" placeholder="e.g. 135">
         </div>
-        <textarea id="new-comment" placeholder="Write a note or review…" rows="3"></textarea>
-        <button class="btn-primary" onclick="submitReview()" style="margin-top:0">Save Review</button>
+        <textarea id="new-comment" placeholder="Write a note or review…" rows="3" data-i18n-placeholder="ph_review"></textarea>
+        <button class="btn-primary" onclick="submitReview()" style="margin-top:0" data-i18n="btn_save_review">Save Review</button>
       </div>
       <div class="reviews-list" id="d-reviews" style="margin-top:1rem"></div>
     </div>
 
     <div class="detail-section" id="d-quotes-section">
-      <h3>Quotes &amp; Highlights</h3>
+      <h3 data-i18n="sec_quotes">Quotes &amp; Highlights</h3>
       <div class="add-quote-form">
-        <textarea id="new-quote-text" placeholder="Paste a memorable quote…" rows="2"></textarea>
+        <textarea id="new-quote-text" placeholder="Paste a memorable quote…" rows="2" data-i18n-placeholder="ph_quote"></textarea>
         <div style="display:flex;gap:.5rem;align-items:center">
-          <input type="number" id="new-quote-page" min="1" placeholder="Page (optional)" style="width:140px">
-          <button class="btn-primary" onclick="submitQuote()" style="flex:1;margin-top:0">Save Quote</button>
+          <input type="number" id="new-quote-page" min="1" placeholder="Page (optional)" style="width:140px" data-i18n-placeholder="ph_quote_page">
+          <button class="btn-primary" onclick="submitQuote()" style="flex:1;margin-top:0" data-i18n="btn_save_quote">Save Quote</button>
         </div>
       </div>
       <div class="quotes-list" id="d-quotes" style="margin-top:.75rem"></div>
     </div>
 
     <div class="detail-section" id="d-reads-section">
-      <h3>Reading History</h3>
+      <h3 data-i18n="sec_reads">Reading History</h3>
       <div class="add-read-form">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
-          <div><label>Started</label><input type="date" id="new-read-start"></div>
-          <div><label>Finished</label><input type="date" id="new-read-finish"></div>
+          <div><label data-i18n="label_started">Started</label><input type="date" id="new-read-start"></div>
+          <div><label data-i18n="label_finished">Finished</label><input type="date" id="new-read-finish"></div>
         </div>
-        <textarea id="new-read-notes" placeholder="Notes for this read (optional)" rows="2"></textarea>
-        <button class="btn-primary" onclick="submitRead()" style="margin-top:0">Log Read</button>
+        <textarea id="new-read-notes" placeholder="Notes for this read (optional)" rows="2" data-i18n-placeholder="ph_read_notes"></textarea>
+        <button class="btn-primary" onclick="submitRead()" style="margin-top:0" data-i18n="btn_log_read">Log Read</button>
       </div>
       <div class="reads-list" id="d-reads" style="margin-top:.75rem"></div>
     </div>
 
     <div class="detail-actions">
-      <button class="btn-danger" onclick="deleteBook()">Remove from Shelf</button>
+      <button class="btn-danger" onclick="deleteBook()" data-i18n="btn_remove_book">Remove from Shelf</button>
     </div>
   </div>
+</dialog>
+
+<dialog id="reader-dialog">
+  <div class="reader-header">
+    <span class="reader-title" id="reader-title">Book Reader</span>
+    <div class="reader-nav">
+      <button class="reader-btn" onclick="readerFontDown()" title="Decrease font size">A-</button>
+      <button class="reader-btn" onclick="readerFontUp()" title="Increase font size">A+</button>
+      <button class="reader-btn" onclick="readerPrev()" title="Previous page">&#8249;</button>
+      <button class="reader-btn" onclick="readerNext()" title="Next page">&#8250;</button>
+      <button class="reader-btn" onclick="closeReader()">&#10005;</button>
+    </div>
+  </div>
+  <div id="reader-progress-bar"><div id="reader-progress-fill"></div></div>
+  <div id="reader-epub-area" style="display:none"></div>
+  <iframe id="reader-pdf-area" style="display:none" title="PDF Viewer"></iframe>
 </dialog>
 
 <dialog class="modal-dialog" id="tools-modal">
   <div class="modal-panel">
     <div class="modal-handle"></div>
     <div class="modal-header">
-      <span class="modal-title">Library Tools</span>
+      <span class="modal-title" data-i18n="tools_title">Library Tools</span>
       <button class="btn-close" onclick="closeToolsModal()">✕</button>
     </div>
     <div class="tools-tabs">
-      <button id="tools-tab-io" class="tools-tab" onclick="showToolsPanel('tools-panel-io')">Import/Export</button>
-      <button id="tools-tab-metadata" class="tools-tab" onclick="showToolsPanel('tools-panel-metadata')">Metadata</button>
-      <button id="tools-tab-goals" class="tools-tab" onclick="showToolsPanel('tools-panel-goals')">Goals/Sessions</button>
-      <button id="tools-tab-csv" class="tools-tab" onclick="showToolsPanel('tools-panel-csv')">CSV Wizard</button>
-      <button id="tools-tab-backup" class="tools-tab" onclick="showToolsPanel('tools-panel-backup')">Backup/Restore</button>
+      <button id="tools-tab-io" class="tools-tab" onclick="showToolsPanel('tools-panel-io')" data-i18n="tab_io">Import/Export</button>
+      <button id="tools-tab-metadata" class="tools-tab" onclick="showToolsPanel('tools-panel-metadata')" data-i18n="tab_metadata">Metadata</button>
+      <button id="tools-tab-goals" class="tools-tab" onclick="showToolsPanel('tools-panel-goals')" data-i18n="tab_goals">Goals/Sessions</button>
+      <button id="tools-tab-csv" class="tools-tab" onclick="showToolsPanel('tools-panel-csv')" data-i18n="tab_csv">CSV Wizard</button>
+      <button id="tools-tab-backup" class="tools-tab" onclick="showToolsPanel('tools-panel-backup')" data-i18n="tab_backup">Backup/Restore</button>
     </div>
     <div class="modal-body">
       <article class="io-card tools-panel" id="tools-panel-io">
-        <div class="io-title">Import / Export Preview</div>
-        <div class="io-line"><strong>Last import:</strong> <span id="io-last-import">No imports yet.</span></div>
-        <div class="io-line"><strong>Last export:</strong> <span id="io-last-export">No exports yet.</span></div>
-        <div class="io-note">Uses the same Goodreads-compatible CSV endpoints in your floating buttons.</div>
+        <div class="io-title" data-i18n="io_title">Import / Export Preview</div>
+        <div class="io-line"><strong data-i18n="io_last_import">Last import:</strong> <span id="io-last-import">No imports yet.</span></div>
+        <div class="io-line"><strong data-i18n="io_last_export">Last export:</strong> <span id="io-last-export">No exports yet.</span></div>
+        <div class="io-note" data-i18n="io_note">Uses the same Goodreads-compatible CSV endpoints in your floating buttons.</div>
       </article>
 
       <article class="io-card tools-panel" id="tools-panel-metadata">
-        <div class="io-title">Metadata Refresh Preview</div>
-        <div class="io-line"><strong>Last refresh:</strong> <span id="io-last-refresh">No refresh run yet.</span></div>
-        <div class="io-line"><strong>Result:</strong> <span id="io-last-refresh-result">—</span></div>
-        <div class="io-note">Preserves ratings, review notes, shelves, and custom tags.</div>
+        <div class="io-title" data-i18n="meta_title">Metadata Refresh Preview</div>
+        <div class="io-line"><strong data-i18n="meta_last_refresh">Last refresh:</strong> <span id="io-last-refresh">No refresh run yet.</span></div>
+        <div class="io-line"><strong data-i18n="meta_result">Result:</strong> <span id="io-last-refresh-result">—</span></div>
+        <div class="io-note" data-i18n="meta_note">Preserves ratings, review notes, shelves, and custom tags.</div>
         <div class="io-actions">
-          <button class="mini-btn" onclick="runMetadataRepair()">Repair missing metadata</button>
-          <button class="mini-btn" onclick="loadLatestMetadataJob()">Refresh job status</button>
+          <button class="mini-btn" onclick="runMetadataRepair()" data-i18n="btn_repair_meta">Repair missing metadata</button>
+          <button class="mini-btn" onclick="loadLatestMetadataJob()" data-i18n="btn_job_status">Refresh job status</button>
         </div>
-        <div class="io-line"><strong>Latest job:</strong> <span id="io-last-job">No repair job yet.</span></div>
+        <div class="io-line"><strong data-i18n="meta_latest_job">Latest job:</strong> <span id="io-last-job">No repair job yet.</span></div>
       </article>
 
       <article class="io-card tools-panel" id="tools-panel-goals">
-        <div class="io-title">Annual Goal & Reading Sessions</div>
+        <div class="io-title" data-i18n="goals_title">Annual Goal & Reading Sessions</div>
         <div class="io-inline">
-          <input id="goal-year" class="io-input" type="number" min="2000" max="2100" placeholder="Year">
-          <input id="goal-books" class="io-input" type="number" min="0" placeholder="Target books">
-          <input id="goal-pages" class="io-input" type="number" min="0" placeholder="Target pages">
-          <button class="mini-btn" onclick="saveGoalSettings()">Save goal</button>
+          <input id="goal-year" class="io-input" type="number" min="2000" max="2100" placeholder="Year" data-i18n-placeholder="ph_year">
+          <input id="goal-books" class="io-input" type="number" min="0" placeholder="Target books" data-i18n-placeholder="ph_target_books">
+          <input id="goal-pages" class="io-input" type="number" min="0" placeholder="Target pages" data-i18n-placeholder="ph_target_pages">
+          <button class="mini-btn" onclick="saveGoalSettings()" data-i18n="btn_save_goal">Save goal</button>
         </div>
-        <div class="io-line"><strong>Goal progress:</strong> <span id="goal-progress">—</span></div>
-        <div class="io-note">Tracks yearly targets and estimated pace from reading sessions.</div>
+        <div class="io-line"><strong data-i18n="goal_progress">Goal progress:</strong> <span id="goal-progress">—</span></div>
+        <div class="io-note" data-i18n="goals_note">Tracks yearly targets and estimated pace from reading sessions.</div>
         <div class="io-inline">
           <select id="session-book" class="io-select"></select>
           <input id="session-date" class="io-input" type="date">
-          <input id="session-start" class="io-input" type="number" min="0" placeholder="Start page">
-          <input id="session-end" class="io-input" type="number" min="0" placeholder="End page">
-          <input id="session-minutes" class="io-input" type="number" min="1" placeholder="Minutes">
-          <button class="mini-btn" onclick="saveReadingSession()">Log session</button>
+          <input id="session-start" class="io-input" type="number" min="0" placeholder="Start page" data-i18n-placeholder="ph_start_page">
+          <input id="session-end" class="io-input" type="number" min="0" placeholder="End page" data-i18n-placeholder="ph_end_page">
+          <input id="session-minutes" class="io-input" type="number" min="1" placeholder="Minutes" data-i18n-placeholder="ph_minutes">
+          <button class="mini-btn" onclick="saveReadingSession()" data-i18n="btn_log_session">Log session</button>
         </div>
-        <div class="io-line"><strong>Session summary:</strong> <span id="session-summary">No sessions yet.</span></div>
+        <div class="io-line"><strong data-i18n="session_summary">Session summary:</strong> <span id="session-summary">No sessions yet.</span></div>
       </article>
 
       <article class="io-card tools-panel" id="tools-panel-csv">
-        <div class="io-title">CSV Import Wizard</div>
+        <div class="io-title" data-i18n="csv_title">CSV Import Wizard</div>
         <input id="csv-wizard-file" class="io-input" type="file" accept=".csv,text/csv">
-        <textarea id="csv-wizard-mapping" class="io-textarea" placeholder='Optional JSON mapping, e.g. {"Book Id":"isbn"}'></textarea>
+        <textarea id="csv-wizard-mapping" class="io-textarea" placeholder='Optional JSON mapping, e.g. {"Book Id":"isbn"}' data-i18n-placeholder="ph_csv_mapping"></textarea>
         <div class="io-actions">
-          <button class="mini-btn" onclick="runCsvWizardPreview()">Preview</button>
-          <button class="mini-btn" onclick="runCsvWizardDryRun()">Dry-run</button>
-          <button class="mini-btn" onclick="runCsvWizardImport()">Import</button>
+          <button class="mini-btn" onclick="runCsvWizardPreview()" data-i18n="btn_preview">Preview</button>
+          <button class="mini-btn" onclick="runCsvWizardDryRun()" data-i18n="btn_dry_run">Dry-run</button>
+          <button class="mini-btn" onclick="runCsvWizardImport()" data-i18n="btn_import">Import</button>
         </div>
-        <div class="io-line"><strong>Preview result:</strong> <span id="csv-preview-result">No preview yet.</span></div>
+        <div class="io-line"><strong data-i18n="csv_preview_result">Preview result:</strong> <span id="csv-preview-result">No preview yet.</span></div>
       </article>
 
       <article class="io-card tools-panel" id="tools-panel-backup">
-        <div class="io-title">Backup & Restore</div>
+        <div class="io-title" data-i18n="backup_title">Backup & Restore</div>
         <div class="io-actions">
-          <button class="mini-btn" onclick="downloadBackupArchive()">Download backup</button>
+          <button class="mini-btn" onclick="downloadBackupArchive()" data-i18n="btn_download_backup">Download backup</button>
         </div>
         <input id="restore-file" class="io-input" type="file" accept=".zip,application/zip">
         <div class="io-actions">
-          <button class="mini-btn" onclick="validateRestoreArchive()">Validate restore</button>
-          <button class="mini-btn" onclick="applyRestoreArchive()">Apply restore</button>
+          <button class="mini-btn" onclick="validateRestoreArchive()" data-i18n="btn_validate_restore">Validate restore</button>
+          <button class="mini-btn" onclick="applyRestoreArchive()" data-i18n="btn_apply_restore">Apply restore</button>
         </div>
-        <div class="io-line"><strong>Restore status:</strong> <span id="restore-result">No restore action yet.</span></div>
+        <div class="io-line"><strong data-i18n="restore_status">Restore status:</strong> <span id="restore-result">No restore action yet.</span></div>
       </article>
     </div>
   </div>
@@ -2241,7 +2440,20 @@ function registerServiceWorker() {
 }
 
 // ─── Load books ───────────────────────────────────────────────────────────────
+let _booksLoadedOnce = false;
+
+function renderSkeletons(count = 12) {
+  const grid = document.getElementById('book-grid');
+  grid.innerHTML = Array.from({ length: count }, () => `
+    <div class="book-card skeleton-card" aria-hidden="true">
+      <div class="sk-cover"></div>
+      <div class="sk-line"></div>
+      <div class="sk-line short"></div>
+    </div>`).join('');
+}
+
 async function loadBooks() {
+  if (!_booksLoadedOnce) renderSkeletons();
   const params = new URLSearchParams();
   if (currentFilter) params.set('status', currentFilter);
   if (currentSearch) params.set('q', currentSearch);
@@ -2253,6 +2465,7 @@ async function loadBooks() {
   if (currentOwnedOnly) params.set('owned', '1');
   const r = await api(`/api/books?${params}`);
   books = await r.json();
+  _booksLoadedOnce = true;
   updateFilterOptions();
   syncSessionBookOptions();
   renderBooks();
@@ -2279,13 +2492,32 @@ async function loadShelves() {
   updateAddShelfSelect();
 }
 
+// Animate a numeric element from its current value to a target value.
+function countUp(elementId, target) {
+  const el = document.getElementById(elementId);
+  const from = Number(el.textContent) || 0;
+  const to = Number(target) || 0;
+  if (from === to) { el.textContent = String(to); return; }
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) { el.textContent = String(to); return; }
+  const duration = 600;
+  const start = performance.now();
+  function frame(nowTs) {
+    const p = Math.min((nowTs - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = String(Math.round(from + (to - from) * eased));
+    if (p < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
 async function loadStats() {
   const r = await api('/api/stats');
   const s = await r.json();
-  document.getElementById('s-total').textContent   = s.total;
-  document.getElementById('s-read').textContent    = s.read;
-  document.getElementById('s-reading').textContent = s.reading;
-  document.getElementById('s-avg').textContent     = s.avg_rating ?? '—';
+  countUp('s-total', s.total);
+  countUp('s-read', s.read);
+  countUp('s-reading', s.reading);
+  document.getElementById('s-avg').textContent = s.avg_rating ?? '—';
 }
 
 // ─── Render grid ──────────────────────────────────────────────────────────────
@@ -2301,14 +2533,16 @@ function renderBooks() {
     return;
   }
 
-  books.forEach(b => {
+  books.forEach((b, index) => {
     const card = document.createElement('div');
     card.className = 'book-card';
+    // Stagger entrance for the first rows; later cards appear together.
+    card.style.setProperty('--card-delay', `${Math.min(index, 18) * 30}ms`);
     card.onclick = () => openDetail(b.id);
     const safeCover = getBookCover(b);
 
     const statusMap = { reading:'badge-reading', read:'badge-read', want_to_read:'badge-want', dnf:'badge-dnf' };
-    const statusLabel = { reading:'Reading', read:'Read', want_to_read:'Soon' };
+    const statusLabel = { reading:'Reading', read:'Read', want_to_read:'Soon', dnf:'DNF' };
     const stars = b.avg_rating ? renderStars(b.avg_rating) : '';
     const progress = formatProgress(b.current_page, b.pages, b.progress_percent);
     const progressMarkup = progress
@@ -2319,10 +2553,13 @@ function renderBooks() {
       : '';
 
     card.innerHTML = `
-      ${safeCover
-        ? `<img class="book-cover" src="${esc(safeCover)}" alt="${esc(b.title)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;cover-placeholder&quot;><div class=&quot;ph-icon&quot;>📖</div><div class=&quot;ph-title&quot;>No cover</div></div>'">`
-        : `<div class="cover-placeholder"><div class="ph-icon">📖</div><div class="ph-title">${esc(b.title)}</div></div>`
-      }
+      <div class="book-cover-wrap">
+        ${safeCover
+          ? `<img class="book-cover" src="${esc(safeCover)}" alt="${esc(b.title)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;cover-placeholder&quot;><div class=&quot;ph-icon&quot;>📖</div><div class=&quot;ph-title&quot;>No cover</div></div>'">`
+          : `<div class="cover-placeholder"><div class="ph-icon">📖</div><div class="ph-title">${esc(b.title)}</div></div>`
+        }
+        ${b.file_type ? `<button class="card-reader-overlay" onclick="event.stopPropagation();currentBookId=${b.id};openReader()" title="Open ${esc(b.file_type.toUpperCase())} reader">📖 Read</button>` : ''}
+      </div>
       <div class="book-info">
         <div class="book-title">${esc(b.title)}</div>
         ${progressMarkup}
@@ -2347,13 +2584,15 @@ function syncShelfLines() {
     return;
   }
 
-  const cardRect = firstCard.getBoundingClientRect();
+  // offsetHeight ignores CSS transforms, so the entrance animation's initial
+  // scale doesn't skew the shelf-line measurement.
+  const cardHeight = firstCard.offsetHeight;
   const gridStyles = getComputedStyle(grid);
   const gridPaddingTop = parseFloat(gridStyles.paddingTop) || 0;
   const rowGap = parseFloat(gridStyles.rowGap || gridStyles.gap) || 20;
 
-  const shelfOffset = Math.round(gridPaddingTop + cardRect.height + 12);
-  const shelfStep = Math.round(cardRect.height + rowGap);
+  const shelfOffset = Math.round(gridPaddingTop + cardHeight + 12);
+  const shelfStep = Math.round(cardHeight + rowGap);
 
   grid.style.setProperty('--shelf-offset', `${Math.max(shelfOffset, 180)}px`);
   grid.style.setProperty('--shelf-step', `${Math.max(shelfStep, 240)}px`);
@@ -2381,9 +2620,9 @@ function updateFilterOptions() {
   }))]
     .sort((a, b) => a.localeCompare(b));
 
-  authorSelect.innerHTML = '<option value="">All authors</option>' +
+  authorSelect.innerHTML = `<option value="">${t('filter_all_authors')}</option>` +
     authors.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
-  genreSelect.innerHTML = '<option value="">All genres</option>' +
+  genreSelect.innerHTML = `<option value="">${t('filter_all_genres')}</option>` +
     genres.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
 
   authorSelect.value = currentAuthor;
@@ -2392,7 +2631,7 @@ function updateFilterOptions() {
 
 function updateShelfFilter() {
   const shelfSelect = document.getElementById('shelf-filter');
-  shelfSelect.innerHTML = '<option value="">All shelves</option>' +
+  shelfSelect.innerHTML = `<option value="">${t('filter_all_shelves')}</option>` +
     shelves.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
   shelfSelect.value = currentShelfId;
 }
@@ -3072,6 +3311,8 @@ function _fillDetailModal(b) {
   }
   descInput.value = b.description || '';
 
+  updateEbookSection(b);
+
   // Reviews, quotes, reads — only in full API response
   if (b.reviews !== undefined) renderReviews(b.reviews);
   if (b.quotes  !== undefined) renderQuotes(b.quotes);
@@ -3533,10 +3774,208 @@ async function loadRoleState() {
   adminLoginLink.style.display = isAdmin ? 'none' : 'inline-block';
 }
 
+// ─── E-Book reader ────────────────────────────────────────────────────────────
+let _readerBook = null;
+let _readerRendition = null;
+let _positionSaveTimer = null;
+let _readerFontSize = 100;
+let _pendingPosition = null;
+
+function openReader() {
+  if (!currentBookId) return;
+  const cached = books.find(b => b.id === currentBookId);
+  const title = cached ? cached.title : 'Book Reader';
+  const fileType = cached ? cached.file_type : null;
+  const readerPos = cached ? cached.reader_position : null;
+
+  document.getElementById('reader-title').textContent = title;
+  const dlg = document.getElementById('reader-dialog');
+  dlg.showModal();
+
+  const epubArea = document.getElementById('reader-epub-area');
+  const pdfArea  = document.getElementById('reader-pdf-area');
+
+  if (fileType === 'epub') {
+    epubArea.style.display = '';
+    pdfArea.style.display  = 'none';
+    epubArea.innerHTML = '';
+    initEpubReader(readerPos);
+  } else if (fileType === 'pdf') {
+    epubArea.style.display = 'none';
+    pdfArea.style.display  = '';
+    initPdfViewer();
+  }
+
+  document.addEventListener('keydown', _readerKeyHandler);
+}
+
+function closeReader() {
+  if (_positionSaveTimer) { clearTimeout(_positionSaveTimer); }
+  if (_pendingPosition)   { _doSavePosition(_pendingPosition); }
+  if (_readerRendition)   { _readerRendition.destroy(); _readerRendition = null; }
+  if (_readerBook)        { _readerBook.destroy(); _readerBook = null; }
+  document.getElementById('reader-epub-area').innerHTML = '';
+  document.getElementById('reader-pdf-area').src = '';
+  document.getElementById('reader-dialog').close();
+  document.removeEventListener('keydown', _readerKeyHandler);
+  _pendingPosition = null;
+}
+
+function initEpubReader(readerPos) {
+  const url = `/api/books/${currentBookId}/file`;
+  _readerBook = ePub(url);
+  _readerRendition = _readerBook.renderTo('reader-epub-area', {
+    width: '100%', height: '100%', flow: 'paginated', spread: 'none'
+  });
+  _readerFontSize = 100;
+
+  let startCfi = null;
+  if (readerPos) {
+    try { startCfi = JSON.parse(readerPos).cfi || null; } catch (_) {}
+  }
+  _readerRendition.display(startCfi || undefined);
+
+  _readerRendition.on('relocated', loc => {
+    const pct = (loc.start.percentage || 0) * 100;
+    document.getElementById('reader-progress-fill').style.width = pct.toFixed(1) + '%';
+    schedulePositionSave({ cfi: loc.start.cfi, percent: loc.start.percentage || 0 });
+  });
+}
+
+function initPdfViewer() {
+  const iframe = document.getElementById('reader-pdf-area');
+  iframe.src = `/api/books/${currentBookId}/file`;
+  document.getElementById('reader-progress-fill').style.width = '0%';
+}
+
+function readerFontUp() {
+  _readerFontSize = Math.min(_readerFontSize + 10, 200);
+  if (_readerRendition) _readerRendition.themes.fontSize(_readerFontSize + '%');
+}
+
+function readerFontDown() {
+  _readerFontSize = Math.max(_readerFontSize - 10, 60);
+  if (_readerRendition) _readerRendition.themes.fontSize(_readerFontSize + '%');
+}
+
+function readerPrev() { if (_readerRendition) _readerRendition.prev(); }
+function readerNext() { if (_readerRendition) _readerRendition.next(); }
+
+function _readerKeyHandler(e) {
+  if (e.key === 'ArrowLeft')  readerPrev();
+  if (e.key === 'ArrowRight') readerNext();
+  if (e.key === 'Escape')     closeReader();
+}
+
+function schedulePositionSave(pos) {
+  _pendingPosition = pos;
+  if (_positionSaveTimer) clearTimeout(_positionSaveTimer);
+  _positionSaveTimer = setTimeout(() => _doSavePosition(pos), 1500);
+}
+
+async function _doSavePosition(pos) {
+  _positionSaveTimer = null;
+  _pendingPosition = null;
+  if (!currentBookId || !pos) return;
+  await api(`/api/books/${currentBookId}/position`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(pos)
+  });
+  const cached = books.find(b => b.id === currentBookId);
+  if (cached) cached.reader_position = JSON.stringify(pos);
+}
+
+function updateEbookSection(b) {
+  const fileInfo = document.getElementById('d-ebook-file-info');
+  const dropZone = document.getElementById('d-ebook-drop-zone');
+  if (!fileInfo || !dropZone) return;
+
+  if (b.file_type) {
+    fileInfo.style.display = '';
+    dropZone.style.display = 'none';
+    document.getElementById('d-ebook-icon').textContent = b.file_type === 'epub' ? '📗' : '📕';
+    document.getElementById('d-ebook-filename').textContent = `${b.title || 'book'}.${b.file_type}`;
+    document.getElementById('d-ebook-filetype').textContent = b.file_type.toUpperCase();
+  } else {
+    fileInfo.style.display = 'none';
+    dropZone.style.display = '';
+  }
+}
+
+async function uploadBookFile(file) {
+  if (!file || !currentBookId) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['epub', 'pdf'].includes(ext)) { showToast('Only EPUB and PDF files are supported.'); return; }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  showToast('Uploading…');
+  const r = await api(`/api/books/${currentBookId}/file`, { method: 'POST', body: formData });
+  if (!r.ok) { showToast('Upload failed.'); return; }
+
+  const data = await r.json();
+  const cached = books.find(b => b.id === currentBookId);
+  if (cached) {
+    cached.file_type = data.file_type;
+    cached.file_path = data.file_path;
+    cached.reader_position = null;  // backend resets it for the new file
+  }
+  updateEbookSection(Object.assign({}, cached, data));
+  document.getElementById('ebook-file-input').value = '';
+  _detailNeedsRefresh = true;
+  showToast('File uploaded ✓');
+}
+
+async function deleteBookFile() {
+  if (!currentBookId) return;
+  if (!confirm('Remove the ebook file from this book?')) return;
+  const r = await api(`/api/books/${currentBookId}/file`, { method: 'DELETE' });
+  if (!r.ok) { showToast('Failed to remove file.'); return; }
+  const cached = books.find(b => b.id === currentBookId);
+  if (cached) { cached.file_type = null; cached.file_path = null; cached.reader_position = null; }
+  updateEbookSection({ file_type: null });
+  _detailNeedsRefresh = true;
+  showToast('File removed ✓');
+}
+
+function setupEbookDrop() {
+  const dropZone = document.getElementById('d-ebook-drop-zone');
+  if (!dropZone) return;
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) uploadBookFile(file);
+  });
+}
+
+// ─── i18n hook — refresh dynamic filter first-options on lang change ──────────
+const _origApplyLang = window.applyLang;
+window.applyLang = function(lang) {
+  _origApplyLang(lang);
+  // Refresh dynamic first-options that JS rebuilds without data-i18n
+  const af = document.getElementById('author-filter');
+  if (af && af.options[0] && af.options[0].value === '') af.options[0].textContent = t('filter_all_authors');
+  const gf = document.getElementById('genre-filter');
+  if (gf && gf.options[0] && gf.options[0].value === '') gf.options[0].textContent = t('filter_all_genres');
+  const sf = document.getElementById('shelf-filter');
+  if (sf && sf.options[0] && sf.options[0].value === '') sf.options[0].textContent = t('filter_all_shelves');
+  // Refresh theme-toggle text
+  const tt = document.getElementById('theme-toggle');
+  if (tt) {
+    const isDark = !document.body.classList.contains('light-mode');
+    tt.textContent = isDark ? t('theme_light') : t('theme_dark');
+  }
+};
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 wireGenreInput('add');
 wireGenreInput('detail');
 initTheme();
+applyLang(window.PV_LANG);
 loadRoleState();
 initIoPreviewState();
 initOpsDashboardState();
@@ -3549,6 +3988,7 @@ loadGoalSettings();
 refreshSessionSummary();
 loadLatestMetadataJob();
 registerServiceWorker();
+setupEbookDrop();
 window.addEventListener('resize', debouncedSyncShelfLines);
 </script>
 </body>

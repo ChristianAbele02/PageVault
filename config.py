@@ -13,6 +13,11 @@ _FALLBACK_ADMIN_PASSWORD = secrets.token_urlsafe(14)
 
 class BaseConfig:
     DATABASE = os.getenv("PAGEVAULT_DB") or str(Path(__file__).parent / "pagevault.db")
+    BOOK_FILES_DIR: str = os.getenv("PAGEVAULT_BOOK_FILES_DIR") or str(
+        Path(os.getenv("PAGEVAULT_DB") or str(Path(__file__).parent / "pagevault.db")).parent
+        / "book_files"
+    )
+    MAX_CONTENT_LENGTH: int = 150 * 1024 * 1024  # 150 MB upload limit
 
     # If SECRET_KEY is not set, a random key is generated per-process restart.
     # Sessions will be invalidated on every restart.  Set SECRET_KEY in env for

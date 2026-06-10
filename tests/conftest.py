@@ -23,6 +23,7 @@ def app(tmp_path):
     test_app = create_app(
         {
             "DATABASE": str(tmp_path / "test.db"),
+            "BOOK_FILES_DIR": str(tmp_path / "book_files"),
             "TESTING": True,
             "SECRET_KEY": "test-secret",
             "ADMIN_PASSWORD": "test-admin-password",
