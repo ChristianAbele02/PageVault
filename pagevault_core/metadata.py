@@ -7,6 +7,7 @@ import os
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -97,8 +98,42 @@ def fetch_openlibrary(isbn: str) -> dict | None:
         return None
 
 
+# Open Library's search API serves crowd-sourced community ratings (CC0) —
+# a free, open alternative to Google Books for the stats comparison chart.
+# Fields must be requested explicitly or ratings are omitted from the docs.
+_OL_SEARCH_FIELDS = (
+    "title,author_name,publisher,subject,cover_i,first_publish_year,ratings_average,ratings_count"
+)
+
+
+def _parse_openlibrary_doc(doc: dict, isbn: str | None) -> dict:
+    authors = ", ".join(doc.get("author_name") or [])
+    publishers = doc.get("publisher") or []
+    subjects = normalize_tags(doc.get("subject") or [])[:3]
+    cover_id = doc.get("cover_i")
+    cover_url = (
+        f"https://covers.openlibrary.org/b/id/{cover_id}-L.jpg?default=false" if cover_id else None
+    )
+    ratings_average = doc.get("ratings_average")
+    ratings_count = doc.get("ratings_count")
+
+    return {
+        "isbn": isbn,
+        "title": doc.get("title") or None,
+        "author": authors or None,
+        "cover_url": cover_url,
+        "publisher": publishers[0] if publishers else None,
+        "year": str(doc.get("first_publish_year")) if doc.get("first_publish_year") else None,
+        "genre": subjects[0] if subjects else None,
+        "genre_tags": subjects,
+        "language": None,
+        "community_rating": round(float(ratings_average), 2) if ratings_average else None,
+        "community_rating_count": int(ratings_count) if ratings_count else None,
+    }
+
+
 def fetch_openlibrary_search(isbn: str) -> dict | None:
-    url = f"https://openlibrary.org/search.json?isbn={isbn}&limit=1"
+    url = f"https://openlibrary.org/search.json?isbn={isbn}&limit=1&fields={_OL_SEARCH_FIELDS}"
     try:
         req = urllib.request.Request(url, headers=UA)
         with urllib.request.urlopen(req, timeout=8) as resp:
@@ -107,31 +142,29 @@ def fetch_openlibrary_search(isbn: str) -> dict | None:
         docs = data.get("docs") or []
         if not docs:
             return None
-
-        doc = docs[0]
-        authors = ", ".join(doc.get("author_name") or [])
-        publishers = doc.get("publisher") or []
-        subjects = normalize_tags(doc.get("subject") or [])[:3]
-        cover_id = doc.get("cover_i")
-        cover_url = (
-            f"https://covers.openlibrary.org/b/id/{cover_id}-L.jpg?default=false"
-            if cover_id
-            else None
-        )
-
-        return {
-            "isbn": isbn,
-            "title": doc.get("title") or None,
-            "author": authors or None,
-            "cover_url": cover_url,
-            "publisher": publishers[0] if publishers else None,
-            "year": str(doc.get("first_publish_year")) if doc.get("first_publish_year") else None,
-            "genre": subjects[0] if subjects else None,
-            "genre_tags": subjects,
-            "language": None,
-        }
+        return _parse_openlibrary_doc(docs[0], isbn)
     except Exception as exc:
         log.warning("Open Library search lookup failed for ISBN %s: %s", isbn, exc)
+        return None
+
+
+def fetch_openlibrary_title_search(title: str, author: str | None = None) -> dict | None:
+    """Look up a book on Open Library by title (and optionally author)."""
+    params: dict[str, str] = {"title": title, "limit": "1", "fields": _OL_SEARCH_FIELDS}
+    if author:
+        params["author"] = author.split(",")[0].strip()
+    url = "https://openlibrary.org/search.json?" + urllib.parse.urlencode(params)
+    try:
+        req = urllib.request.Request(url, headers=UA)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read())
+
+        docs = data.get("docs") or []
+        if not docs:
+            return None
+        return _parse_openlibrary_doc(docs[0], None)
+    except Exception as exc:
+        log.warning("Open Library title lookup failed for %r: %s", title, exc)
         return None
 
 
@@ -149,56 +182,145 @@ def fetch_openlibrary_covers(isbn: str) -> dict | None:
         return None
 
 
-def fetch_googlebooks(isbn: str) -> dict | None:
-    url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
+# Google Books has a very low unauthenticated quota: bulk jobs (repair, refresh,
+# CSV import) trip HTTP 429 after a handful of back-to-back requests. Requests
+# are therefore throttled to a minimum interval, and a 429 puts the provider on
+# a cooldown during which calls return None immediately instead of hammering
+# the API and spamming the log.
+GOOGLE_BOOKS_API_KEY = os.getenv("PAGEVAULT_GOOGLE_BOOKS_API_KEY", "").strip()
+GOOGLE_BOOKS_MIN_INTERVAL_SECONDS = max(
+    0.0, float(os.getenv("PAGEVAULT_GOOGLE_BOOKS_MIN_INTERVAL_SECONDS", "0.6"))
+)
+GOOGLE_BOOKS_COOLDOWN_SECONDS = max(
+    1.0, float(os.getenv("PAGEVAULT_GOOGLE_BOOKS_COOLDOWN_SECONDS", "120"))
+)
+
+_googlebooks_lock = threading.Lock()
+_googlebooks_next_request_at = 0.0
+_googlebooks_cooldown_until = 0.0
+
+
+def reset_googlebooks_limiter() -> None:
+    """Clear the Google Books throttle/cooldown state (used by tests)."""
+    global _googlebooks_next_request_at, _googlebooks_cooldown_until
+    with _googlebooks_lock:
+        _googlebooks_next_request_at = 0.0
+        _googlebooks_cooldown_until = 0.0
+
+
+def _googlebooks_get(url: str) -> dict | None:
+    """GET a Google Books API URL respecting the throttle and 429 cooldown.
+
+    Returns the parsed JSON payload, or ``None`` when the provider is on
+    cooldown or responds with HTTP 429 (which starts a new cooldown).
+    Other errors propagate to the caller.
+    """
+    global _googlebooks_next_request_at, _googlebooks_cooldown_until
+    if GOOGLE_BOOKS_API_KEY:
+        url += ("&" if "?" in url else "?") + urllib.parse.urlencode({"key": GOOGLE_BOOKS_API_KEY})
+    with _googlebooks_lock:
+        if time.monotonic() < _googlebooks_cooldown_until:
+            return None
+        wait = _googlebooks_next_request_at - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
+        _googlebooks_next_request_at = time.monotonic() + GOOGLE_BOOKS_MIN_INTERVAL_SECONDS
     try:
         req = urllib.request.Request(url, headers=UA)
         with urllib.request.urlopen(req, timeout=8) as resp:
-            data = json.loads(resp.read())
-
-        items = data.get("items") or []
-        if not items:
-            return None
-
-        info = items[0].get("volumeInfo") or {}
-        authors = ", ".join(info.get("authors") or [])
-        categories = normalize_tags(info.get("categories") or [])[:3]
-        image_links = info.get("imageLinks") or {}
-        cover_url = (
-            image_links.get("extraLarge")
-            or image_links.get("large")
-            or image_links.get("medium")
-            or image_links.get("thumbnail")
-            or image_links.get("smallThumbnail")
+            return cast(dict[Any, Any], json.loads(resp.read()))
+    except urllib.error.HTTPError as exc:
+        if exc.code != 429:
+            raise
+        try:
+            retry_after = float(exc.headers.get("Retry-After") or 0)
+        except (TypeError, ValueError):
+            retry_after = 0.0
+        pause = max(GOOGLE_BOOKS_COOLDOWN_SECONDS, retry_after)
+        with _googlebooks_lock:
+            _googlebooks_cooldown_until = time.monotonic() + pause
+        log.warning(
+            "Google Books rate limit hit (HTTP 429) — pausing Google Books lookups "
+            "for %.0f s. Set PAGEVAULT_GOOGLE_BOOKS_API_KEY for a higher quota.",
+            pause,
         )
+        return None
 
-        avg_rating = info.get("averageRating")
-        ratings_count = info.get("ratingsCount")
-        series_info = info.get("seriesInfo") or {}
-        series_name = series_info.get("shortSeriesBookTitle") or None
-        series_number = None
-        if series_info.get("bookDisplayNumber"):
-            series_number = str(series_info["bookDisplayNumber"])
 
-        return {
-            "isbn": isbn,
-            "title": info.get("title") or None,
-            "author": authors or None,
-            "cover_url": cover_url,
-            "description": info.get("description") or None,
-            "publisher": info.get("publisher") or None,
-            "year": info.get("publishedDate") or None,
-            "pages": info.get("pageCount"),
-            "genre": categories[0] if categories else None,
-            "genre_tags": categories,
-            "language": info.get("language") or None,
-            "community_rating": float(avg_rating) if avg_rating is not None else None,
-            "community_rating_count": int(ratings_count) if ratings_count is not None else None,
-            "series_name": series_name,
-            "series_number": series_number,
-        }
+def _parse_googlebooks_items(items: list, isbn: str | None) -> dict | None:
+    if not items:
+        return None
+
+    info = items[0].get("volumeInfo") or {}
+    authors = ", ".join(info.get("authors") or [])
+    categories = normalize_tags(info.get("categories") or [])[:3]
+    image_links = info.get("imageLinks") or {}
+    cover_url = (
+        image_links.get("extraLarge")
+        or image_links.get("large")
+        or image_links.get("medium")
+        or image_links.get("thumbnail")
+        or image_links.get("smallThumbnail")
+    )
+
+    avg_rating = info.get("averageRating")
+    ratings_count = info.get("ratingsCount")
+    series_info = info.get("seriesInfo") or {}
+    series_name = series_info.get("shortSeriesBookTitle") or None
+    series_number = None
+    if series_info.get("bookDisplayNumber"):
+        series_number = str(series_info["bookDisplayNumber"])
+
+    return {
+        "isbn": isbn,
+        "title": info.get("title") or None,
+        "author": authors or None,
+        "cover_url": cover_url,
+        "description": info.get("description") or None,
+        "publisher": info.get("publisher") or None,
+        "year": info.get("publishedDate") or None,
+        "pages": info.get("pageCount"),
+        "genre": categories[0] if categories else None,
+        "genre_tags": categories,
+        "language": info.get("language") or None,
+        "community_rating": float(avg_rating) if avg_rating is not None else None,
+        "community_rating_count": int(ratings_count) if ratings_count is not None else None,
+        "series_name": series_name,
+        "series_number": series_number,
+    }
+
+
+def fetch_googlebooks(isbn: str) -> dict | None:
+    url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
+    try:
+        data = _googlebooks_get(url)
+        if not data:
+            return None
+        return _parse_googlebooks_items(data.get("items") or [], isbn)
     except Exception as exc:
         log.warning("Google Books lookup failed for ISBN %s: %s", isbn, exc)
+        return None
+
+
+def fetch_googlebooks_title_author(title: str, author: str | None = None) -> dict | None:
+    """Look up a book on Google Books by title (and optionally author).
+
+    Used for books without a real ISBN (Goodreads `GR…` placeholder ids).
+    """
+    query = f'intitle:"{title}"'
+    if author:
+        # Goodreads lists co-authors comma-separated; the first is the primary.
+        query += f' inauthor:"{author.split(",")[0].strip()}"'
+    url = "https://www.googleapis.com/books/v1/volumes?" + urllib.parse.urlencode(
+        {"q": query, "maxResults": 1}
+    )
+    try:
+        data = _googlebooks_get(url)
+        if not data:
+            return None
+        return _parse_googlebooks_items(data.get("items") or [], None)
+    except Exception as exc:
+        log.warning("Google Books title lookup failed for %r: %s", title, exc)
         return None
 
 
@@ -262,6 +384,12 @@ def merge_lookup_data(primary: dict | None, fallback: dict | None) -> dict | Non
         "pages",
         "genre",
         "language",
+        # Google Books exclusives — without these the community rating was
+        # dropped whenever Open Library answered first.
+        "community_rating",
+        "community_rating_count",
+        "series_name",
+        "series_number",
     ]
     for field in fields:
         if not merged.get(field) and fallback.get(field):
@@ -287,6 +415,10 @@ def lookup_isbn(
     clean = isbn.strip().replace("-", "").replace(" ", "")
     if not clean:
         return None
+    if clean.upper().startswith("GR"):
+        # Synthetic Goodreads placeholder id, not a real ISBN — no provider
+        # can resolve it. Callers should use lookup_title_author() instead.
+        return None
 
     hit, cached = _get_cached_lookup(clean)
     if hit:
@@ -301,6 +433,8 @@ def lookup_isbn(
         or not openlibrary_data.get("author")
         or not openlibrary_data.get("publisher")
         or not openlibrary_data.get("year")
+        # The OL Books API never carries ratings; the search fallback does.
+        or not openlibrary_data.get("community_rating")
     )
     if not needs_fallback:
         _set_cached_lookup(clean, openlibrary_data)
@@ -335,3 +469,33 @@ def lookup_isbn(
 
     _set_cached_lookup(clean, merged_data)
     return cast(dict[Any, Any], merged_data)
+
+
+def lookup_title_author(
+    title: str,
+    author: str | None = None,
+    fetch_openlibrary_title_fn=fetch_openlibrary_title_search,
+    fetch_googlebooks_title_fn=fetch_googlebooks_title_author,
+) -> dict | None:
+    """Look up book metadata by title/author for books without a real ISBN.
+
+    Goodreads exports leave the ISBN empty for many Kindle/Audible editions;
+    those books are stored with a synthetic ``GR…`` identifier that no ISBN
+    provider can resolve. This combines an Open Library title search with a
+    Google Books title query (the only source of community ratings).
+    """
+    clean_title = (title or "").strip()
+    if not clean_title:
+        return None
+
+    cache_key = f"title:{clean_title.casefold()}|author:{(author or '').strip().casefold()}"
+    hit, cached = _get_cached_lookup(cache_key)
+    if hit:
+        return cached
+
+    openlibrary_data = fetch_openlibrary_title_fn(clean_title, author)
+    googlebooks_data = fetch_googlebooks_title_fn(clean_title, author)
+    merged = merge_lookup_data(openlibrary_data, googlebooks_data)
+
+    _set_cached_lookup(cache_key, merged)
+    return cast(dict[Any, Any], merged)

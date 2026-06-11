@@ -1040,6 +1040,104 @@ class TestLookup:
         assert data["cover_url"].startswith("https://covers.openlibrary.org/b/isbn/")
 
 
+class TestMetadataResilience:
+    def test_merge_preserves_community_rating_and_series(self):
+        # Regression: these Google Books exclusives were dropped whenever
+        # Open Library answered first, leaving the stats comparison chart empty.
+        merged = core_metadata.merge_lookup_data(
+            {"title": "Primary", "cover_url": "https://example.com/c.jpg"},
+            {
+                "title": "Fallback",
+                "community_rating": 4.2,
+                "community_rating_count": 1234,
+                "series_name": "Saga",
+                "series_number": "2",
+            },
+        )
+        assert merged is not None
+        assert merged["title"] == "Primary"
+        assert merged["community_rating"] == 4.2
+        assert merged["community_rating_count"] == 1234
+        assert merged["series_name"] == "Saga"
+        assert merged["series_number"] == "2"
+
+    def test_lookup_isbn_rejects_goodreads_placeholder_ids(self, monkeypatch):
+        def explode(_isbn):
+            raise AssertionError("provider must not be called for GR placeholder ids")
+
+        for fn_name in (
+            "_fetch_openlibrary",
+            "_fetch_googlebooks",
+            "_fetch_crossref",
+            "_fetch_openlibrary_search",
+            "_fetch_openlibrary_covers",
+        ):
+            monkeypatch.setattr(app_module, fn_name, explode)
+        assert app_module.lookup_isbn("GR43798285") is None
+
+    def test_googlebooks_429_starts_cooldown(self, monkeypatch):
+        import urllib.error
+
+        core_metadata.reset_googlebooks_limiter()
+        calls = {"count": 0}
+
+        def fake_urlopen(req, timeout=0):
+            calls["count"] += 1
+            raise urllib.error.HTTPError(req.full_url, 429, "Too Many Requests", {}, None)
+
+        monkeypatch.setattr(core_metadata.urllib.request, "urlopen", fake_urlopen)
+        try:
+            assert core_metadata.fetch_googlebooks("9780141439556") is None
+            assert calls["count"] == 1
+            # During the cooldown a second lookup must not hit the network.
+            assert core_metadata.fetch_googlebooks("9780380731862") is None
+            assert calls["count"] == 1
+        finally:
+            core_metadata.reset_googlebooks_limiter()
+
+    def test_openlibrary_doc_parses_community_ratings(self):
+        # Open Library search docs carry CC0 community ratings — the free,
+        # keyless alternative to Google Books for the stats comparison chart.
+        parsed = core_metadata._parse_openlibrary_doc(
+            {
+                "title": "Wuthering Heights",
+                "author_name": ["Emily Brontë"],
+                "ratings_average": 4.1157894,
+                "ratings_count": 285,
+            },
+            "9780141439556",
+        )
+        assert parsed["community_rating"] == 4.12
+        assert parsed["community_rating_count"] == 285
+
+    def test_openlibrary_search_url_requests_rating_fields(self):
+        assert "ratings_average" in core_metadata._OL_SEARCH_FIELDS
+        assert "ratings_count" in core_metadata._OL_SEARCH_FIELDS
+
+    def test_lookup_title_author_merges_google_ratings(self):
+        core_metadata.clear_lookup_cache()
+        try:
+            data = core_metadata.lookup_title_author(
+                "The Book Thief",
+                "Markus Zusak",
+                fetch_openlibrary_title_fn=lambda _t, _a: {
+                    "title": "The Book Thief",
+                    "cover_url": "https://covers.openlibrary.org/b/id/1-L.jpg",
+                },
+                fetch_googlebooks_title_fn=lambda _t, _a: {
+                    "description": "A story narrated by Death.",
+                    "community_rating": 4.4,
+                    "community_rating_count": 99,
+                },
+            )
+            assert data is not None
+            assert data["cover_url"].startswith("https://covers.openlibrary.org")
+            assert data["description"] == "A story narrated by Death."
+            assert data["community_rating"] == 4.4
+        finally:
+            core_metadata.clear_lookup_cache()
+
+
 class TestRecommendationsAndLocation:
     def test_book_location_fields_roundtrip(self, client):
         created = client.post(
@@ -1112,6 +1210,250 @@ class TestAdminApis:
 
         logs = client.get("/api/admin/logs")
         assert logs.status_code == 200
+
+
+# ── Goodreads CSV import ──────────────────────────────────────────────────────
+
+GOODREADS_HEADER = (
+    "Book Id,Title,Author,Author l-f,Additional Authors,ISBN,ISBN13,My Rating,"
+    "Publisher,Binding,Number of Pages,Year Published,Original Publication Year,"
+    "Date Read,Date Added,Bookshelves,Bookshelves with positions,Exclusive Shelf,"
+    "My Review,Spoiler,Private Notes,Read Count,Owned Copies"
+)
+
+GOODREADS_ROWS = "\n".join(
+    [
+        GOODREADS_HEADER,
+        # Excel-quoted ISBN, read with date + rating + binding + owned copy
+        '32929156,Wuthering Heights,Emily Brontë,"Brontë, Emily",,"=""0141439556""",'
+        '"=""9780141439556""",5,Penguin Classics,Paperback,359,2016,1847,2026/06/09,'
+        "2026/03/17,,,read,Loved it,,,1,1",
+        # No ISBN at all — must fall back to the Goodreads Book Id
+        '19063,The Book Thief,Markus Zusak,"Zusak, Markus",,"=""""","=""""",0,'
+        "Alfred A. Knopf,Kindle Edition,592,2006,2005,,2026/06/10,to-read,"
+        "to-read (#12),to-read,,,,0,0",
+        # Audible binding -> audiobook format
+        '199741430,The Cyber Effect,Mary Aiken,"Aiken, Mary",,"=""""","=""""",5,'
+        "John Murray,Audible Audio,,2016,,2025/03/18,2025/01/16,,,read,,,,1,0",
+        # Rating 0 must not create a review
+        '21686,Shutter Island,Dennis Lehane,"Lehane, Dennis",,"=""038073186X""",'
+        '"=""9780380731862""",0,HarperTorch,Mass Market Paperback,369,2004,2003,,'
+        "2026/06/10,to-read,to-read (#28),to-read,,,,0,0",
+    ]
+)
+
+
+def _post_goodreads_csv(client, csv_bytes: bytes, path: str = "/api/import/csv", **fields):
+    data = {"file": (io.BytesIO(csv_bytes), "goodreads_library_export.csv")}
+    data.update(fields)
+    return client.post(path, data=data, content_type="multipart/form-data")
+
+
+class TestGoodreadsImport:
+    def test_import_with_real_export_quirks(self, client):
+        r = _post_goodreads_csv(client, GOODREADS_ROWS.encode("utf-8"), fetch_metadata="0")
+        assert r.status_code == 200
+        payload = r.get_json()
+        assert payload["imported"] == 4
+        assert payload["skipped"] == 0
+        assert payload["reviews_added"] == 2  # the two rated books; rating 0 adds none
+
+        books = {b["isbn"]: b for b in client.get("/api/books").get_json()}
+        # Excel-quoted ISBN13 preferred and cleaned
+        wuthering = books["9780141439556"]
+        assert wuthering["title"] == "Wuthering Heights"
+        assert wuthering["finish_date"] == "2026-06-09"
+        assert wuthering["added_at"].startswith("2026-03-17")
+        assert wuthering["owned"] == 1
+        assert wuthering["status"] == "read"
+
+        # ISBN-less book imported via the Goodreads Book Id fallback
+        book_thief = books["GR19063"]
+        assert book_thief["book_format"] == "ebook"  # Kindle Edition binding
+        assert book_thief["status"] == "want_to_read"
+
+        # Audible Audio binding mapped to audiobook
+        assert books["GR199741430"]["book_format"] == "audiobook"
+
+        # "to-read" must not become a custom shelf
+        shelf_names = {s["name"] for s in client.get("/api/shelves").get_json()}
+        assert "to-read" not in shelf_names
+
+        # Date Read produced a reading-history entry
+        detail = client.get(f"/api/books/{wuthering['id']}").get_json()
+        assert any(rd["finished_at"] == "2026-06-09" for rd in detail["reads"])
+
+    def test_import_is_idempotent(self, client):
+        first = _post_goodreads_csv(client, GOODREADS_ROWS.encode("utf-8"), fetch_metadata="0")
+        assert first.get_json()["imported"] == 4
+        second = _post_goodreads_csv(client, GOODREADS_ROWS.encode("utf-8"), fetch_metadata="0")
+        payload = second.get_json()
+        assert payload["imported"] == 0
+        assert len(client.get("/api/books").get_json()) == 4
+        # Reading history is not duplicated either
+        books = {b["isbn"]: b for b in client.get("/api/books").get_json()}
+        detail = client.get(f"/api/books/{books['9780141439556']['id']}").get_json()
+        assert len(detail["reads"]) == 1
+
+    def test_mojibake_export_is_repaired(self, client):
+        # Simulate a Goodreads file that was UTF-8 but re-encoded via cp1252
+        # somewhere along the way ("Brontë" -> "BrontÃ«").
+        garbled = GOODREADS_ROWS.encode("utf-8").decode("cp1252").encode("utf-8")
+        r = _post_goodreads_csv(client, garbled, fetch_metadata="0")
+        assert r.status_code == 200
+        books = client.get("/api/books").get_json()
+        authors = {b["author"] for b in books}
+        assert "Emily Brontë" in authors
+
+    def test_skip_no_isbn_books_when_disabled(self, client):
+        r = _post_goodreads_csv(
+            client, GOODREADS_ROWS.encode("utf-8"), fetch_metadata="0", include_no_isbn="0"
+        )
+        payload = r.get_json()
+        assert payload["imported"] == 2  # only the two books with a real ISBN
+        assert payload["skipped"] == 2
+
+    def test_background_import_job_reports_progress(self, client):
+        import time
+
+        start = _post_goodreads_csv(
+            client,
+            GOODREADS_ROWS.encode("utf-8"),
+            path="/api/import/csv/start",
+            fetch_metadata="0",
+        )
+        assert start.status_code == 202
+        job_id = start.get_json()["job_id"]
+        assert start.get_json()["total"] == 4
+
+        deadline = time.monotonic() + 15
+        job = None
+        while time.monotonic() < deadline:
+            job = client.get(f"/api/metadata/jobs/{job_id}").get_json()["job"]
+            if job["status"] in {"completed", "failed"}:
+                break
+            time.sleep(0.1)
+        assert job is not None and job["status"] == "completed"
+        assert job["job_type"] == "csv_import"
+        assert job["processed_books"] == 4
+        assert job["updated_books"] == 4  # imported + updated
+        assert job["failed_books"] == 0
+        assert len(client.get("/api/books").get_json()) == 4
+
+    def test_import_uses_title_lookup_for_gr_books(self, client, monkeypatch):
+        titles_looked_up: list[str] = []
+
+        def fake_title_lookup(title, author=None):
+            titles_looked_up.append(title)
+            return {
+                "cover_url": "https://example.com/thief.jpg",
+                "description": "Narrated by Death.",
+                "community_rating": 4.4,
+                "community_rating_count": 12,
+            }
+
+        monkeypatch.setattr(app_module, "lookup_title_author", fake_title_lookup)
+        monkeypatch.setattr(app_module, "lookup_isbn", lambda _isbn: None)
+
+        # fetch_metadata defaults to on
+        r = _post_goodreads_csv(client, GOODREADS_ROWS.encode("utf-8"))
+        assert r.status_code == 200
+
+        assert "The Book Thief" in titles_looked_up
+        books = {b["isbn"]: b for b in client.get("/api/books").get_json()}
+        thief = books["GR19063"]
+        assert thief["cover_url"] == "https://example.com/thief.jpg"
+        assert thief["community_rating"] == 4.4
+
+    def test_repair_uses_title_lookup_for_gr_books(self, client, monkeypatch):
+        _post_goodreads_csv(client, GOODREADS_ROWS.encode("utf-8"), fetch_metadata="0")
+
+        isbn_lookups: list[str] = []
+        monkeypatch.setattr(
+            app_module, "lookup_isbn", lambda isbn: isbn_lookups.append(isbn) or None
+        )
+        monkeypatch.setattr(
+            app_module,
+            "lookup_title_author",
+            lambda title, author=None: {
+                "cover_url": "https://example.com/repaired.jpg",
+                "community_rating": 4.1,
+                "community_rating_count": 7,
+            },
+        )
+
+        repair = client.post("/api/metadata/repair", json={"max_retries": 1})
+        assert repair.status_code == 200
+
+        # GR placeholder ids must never reach the ISBN lookup chain
+        assert not any(isbn.startswith("GR") for isbn in isbn_lookups)
+        books = {b["isbn"]: b for b in client.get("/api/books").get_json()}
+        gr_book = books["GR19063"]
+        assert gr_book["cover_url"] == "https://example.com/repaired.jpg"
+        assert gr_book["community_rating"] == 4.1
+
+
+def _poll_metadata_job(client, job_id: int, timeout: float = 15.0):
+    import time
+
+    deadline = time.monotonic() + timeout
+    job = None
+    while time.monotonic() < deadline:
+        job = client.get(f"/api/metadata/jobs/{job_id}").get_json()["job"]
+        if job["status"] in {"completed", "failed"}:
+            return job
+        time.sleep(0.1)
+    return job
+
+
+class TestBackgroundMetadataJobs:
+    def test_background_repair_job(self, client, monkeypatch):
+        _post_goodreads_csv(client, GOODREADS_ROWS.encode("utf-8"), fetch_metadata="0")
+        monkeypatch.setattr(
+            app_module,
+            "lookup_isbn",
+            lambda _isbn: {"cover_url": "https://example.com/c.jpg", "community_rating": 4.0},
+        )
+        monkeypatch.setattr(
+            app_module,
+            "lookup_title_author",
+            lambda title, author=None: {"community_rating": 3.9},
+        )
+
+        start = client.post("/api/metadata/repair/start", json={"max_retries": 1})
+        assert start.status_code == 202
+        payload = start.get_json()
+        assert payload["total"] == 4  # all imported books lack community ratings
+
+        job = _poll_metadata_job(client, payload["job_id"])
+        assert job is not None and job["status"] == "completed"
+        assert job["job_type"] == "repair_missing_metadata"
+        assert job["processed_books"] == 4
+        assert job["updated_books"] == 4
+
+        books = {b["isbn"]: b for b in client.get("/api/books").get_json()}
+        assert books["9780141439556"]["community_rating"] == 4.0
+        assert books["GR19063"]["community_rating"] == 3.9
+
+    def test_background_refresh_job(self, client, added_book, monkeypatch):
+        monkeypatch.setattr(
+            app_module,
+            "lookup_isbn",
+            lambda _isbn: {"description": "Refreshed description", "community_rating": 4.5},
+        )
+
+        start = client.post("/api/books/refresh/start")
+        assert start.status_code == 202
+        payload = start.get_json()
+        assert payload["total"] == 1
+
+        job = _poll_metadata_job(client, payload["job_id"])
+        assert job is not None and job["status"] == "completed"
+        assert job["job_type"] == "metadata_refresh"
+        assert job["updated_books"] == 1
+
+        refreshed = client.get(f"/api/books/{added_book['id']}").get_json()
+        assert refreshed["community_rating"] == 4.5
 
 
 # ── E-book files & reading position ───────────────────────────────────────────

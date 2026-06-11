@@ -82,16 +82,21 @@ def _check_security_config(app: Flask) -> None:
             "Set PAGEVAULT_ADMIN_PASSWORD in your environment to make it permanent.",
             _pw,
         )
-        print(
+        banner = (
             "\n"
             "┌─────────────────────────────────────────────────────┐\n"
             "│  PageVault — Admin Password (this session only)     │\n"
             f"│  Password : {_pw:<41}│\n"
             "│                                                     │\n"
             "│  Set PAGEVAULT_ADMIN_PASSWORD in .env to persist.  │\n"
-            "└─────────────────────────────────────────────────────┘\n",
-            flush=True,
+            "└─────────────────────────────────────────────────────┘\n"
         )
+        try:
+            print(banner, flush=True)
+        except UnicodeEncodeError:
+            # Redirected Windows consoles may use cp1252, which cannot encode
+            # the box-drawing characters — never let the banner crash boot.
+            print(f"\nPageVault admin password (this session only): {_pw}\n", flush=True)
 
 
 # ── Application factory ───────────────────────────────────────────────────────
@@ -163,6 +168,14 @@ def _fetch_openlibrary_covers(isbn: str) -> dict | None:
     return core_metadata.fetch_openlibrary_covers(isbn)
 
 
+def _fetch_openlibrary_title_search(title: str, author: str | None = None) -> dict | None:
+    return core_metadata.fetch_openlibrary_title_search(title, author)
+
+
+def _fetch_googlebooks_title_author(title: str, author: str | None = None) -> dict | None:
+    return core_metadata.fetch_googlebooks_title_author(title, author)
+
+
 def _merge_lookup_data(primary: dict | None, fallback: dict | None) -> dict | None:
     return core_metadata.merge_lookup_data(primary, fallback)
 
@@ -175,6 +188,16 @@ def lookup_isbn(isbn: str) -> dict | None:
         fetch_crossref_fn=_fetch_crossref,
         fetch_openlibrary_search_fn=_fetch_openlibrary_search,
         fetch_openlibrary_covers_fn=_fetch_openlibrary_covers,
+    )
+
+
+def lookup_title_author(title: str, author: str | None = None) -> dict | None:
+    """Metadata lookup for books without a real ISBN (Goodreads GR… ids)."""
+    return core_metadata.lookup_title_author(
+        title,
+        author,
+        fetch_openlibrary_title_fn=_fetch_openlibrary_title_search,
+        fetch_googlebooks_title_fn=_fetch_googlebooks_title_author,
     )
 
 
@@ -261,6 +284,7 @@ def _api_bp():
         deps={
             "get_db": get_db,
             "lookup_isbn": lambda isbn: lookup_isbn(isbn),
+            "lookup_title_author": lambda title, author=None: lookup_title_author(title, author),
             "merge_lookup_data": _merge_lookup_data,
             "now": _now,
             "err": _err,

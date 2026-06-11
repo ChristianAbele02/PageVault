@@ -28,6 +28,15 @@
     --button-bg: rgba(255,255,255,.06);
     --button-fg: #e8d9c4;
     --chart-grid: rgba(212,168,67,.14);
+    /* ── Open-book materials (procedural SVG, no binary assets) ── */
+    --wood-grain: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='420' height='420'><filter id='wg'><feTurbulence type='fractalNoise' baseFrequency='0.011 0.14' numOctaves='4' seed='8'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.5 0.22 0 0 0'/></filter><rect width='420' height='420' filter='url(%23wg)'/></svg>");
+    --paper-grain: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='pg'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='4'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.38 0 0 0 0'/></filter><rect width='240' height='240' filter='url(%23pg)'/></svg>");
+    /* Night-reading page: deep sepia paper so dark mode stays easy on the eyes */
+    --page-hi: #2f2414;
+    --page:    #271d0e;
+    --page-lo: #1f1608;
+    --book-cover: #2b1a0c;
+    --desk: #1d1208;
   }
 
   .light-mode {
@@ -47,27 +56,35 @@
     --button-bg: rgba(255,255,255,.74);
     --button-fg: #4f341c;
     --chart-grid: rgba(122,92,58,.16);
+    --page-hi: #fbf6ea;
+    --page:    #f6eedb;
+    --page-lo: #eadcc0;
+    --book-cover: #4a2e16;
+    --desk: #5a3a1d;
   }
 
   * { box-sizing: border-box; }
 
+  /* The page is a wooden desk; <main> is the open book lying on it. */
   body {
     margin: 0;
     font-family: 'Lato', sans-serif;
     color: var(--ink);
     min-height: 100vh;
+    background-color: var(--desk);
     background-image:
-      radial-gradient(ellipse at 18% 0%, rgba(212,168,67,.22) 0%, transparent 48%),
-      radial-gradient(ellipse at 86% 14%, rgba(212,168,67,.16) 0%, transparent 50%),
-      radial-gradient(ellipse at 50% 100%, rgba(0,0,0,.5) 0%, transparent 62%),
-      linear-gradient(to bottom, #211508 0%, #170f07 100%);
+      var(--wood-grain),
+      radial-gradient(ellipse at 50% 8%, rgba(255,210,140,.10) 0%, transparent 55%),
+      radial-gradient(ellipse at 50% 100%, rgba(0,0,0,.55) 0%, transparent 60%),
+      linear-gradient(165deg, rgba(255,255,255,.04), rgba(0,0,0,.28));
   }
 
   body.light-mode {
     background-image:
-      radial-gradient(ellipse at 20% 0%, rgba(255,232,181,.36) 0%, transparent 60%),
-      radial-gradient(ellipse at 82% 100%, rgba(180,214,247,.28) 0%, transparent 66%),
-      linear-gradient(to bottom, rgba(255,255,255,.35), rgba(255,255,255,0));
+      var(--wood-grain),
+      radial-gradient(ellipse at 50% 6%, rgba(255,226,168,.22) 0%, transparent 55%),
+      radial-gradient(ellipse at 50% 100%, rgba(0,0,0,.32) 0%, transparent 62%),
+      linear-gradient(165deg, rgba(255,255,255,.10), rgba(0,0,0,.18));
   }
 
   header {
@@ -160,10 +177,57 @@
     .panel { opacity: 1; transform: none; }
   }
 
+  /* ── The open book ──
+     Leather cover = thick border; paper spread = layered gradients with a
+     central gutter shadow; stacked page edges peek out left and right via
+     pseudo-elements positioned over the cover border. */
   main {
-    max-width: 1180px;
-    margin: 0 auto;
-    padding: 1rem 1.1rem 2rem;
+    position: relative;
+    max-width: 1240px;
+    margin: 1.5rem auto 2.8rem;
+    padding: 1.4rem clamp(1.2rem, 4vw, 3rem) 2rem;
+    border: 16px solid var(--book-cover);
+    border-radius: 16px;
+    background-color: var(--page);
+    background-image:
+      var(--paper-grain),
+      /* central gutter where the two pages meet */
+      linear-gradient(90deg,
+        transparent 0%, transparent 45.5%,
+        rgba(0,0,0,.10) 49.2%, rgba(0,0,0,.30) 50%, rgba(0,0,0,.10) 50.8%,
+        transparent 54.5%, transparent 100%),
+      /* outer page curvature */
+      linear-gradient(90deg, rgba(0,0,0,.16) 0%, transparent 6%, transparent 94%, rgba(0,0,0,.16) 100%),
+      linear-gradient(180deg, var(--page-hi) 0%, var(--page) 30%, var(--page-lo) 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(0,0,0,.22),
+      0 1px 0 rgba(255,255,255,.06),
+      0 30px 60px rgba(0,0,0,.5);
+  }
+  main::before,
+  main::after {
+    content: '';
+    position: absolute;
+    top: 8px; bottom: 8px;
+    width: 11px;
+    background: repeating-linear-gradient(90deg,
+      var(--page-lo) 0 2px, rgba(0,0,0,.28) 2px 3px);
+    pointer-events: none;
+  }
+  main::before { left: -14px; border-radius: 4px 0 0 4px; }
+  main::after  { right: -14px; border-radius: 0 4px 4px 0; }
+
+  @media (max-width: 880px) {
+    /* Narrow screens read like a single page: no gutter, slimmer cover */
+    main {
+      margin: .8rem .5rem 1.6rem;
+      border-width: 10px;
+      background-image:
+        var(--paper-grain),
+        linear-gradient(90deg, rgba(0,0,0,.12) 0%, transparent 7%, transparent 93%, rgba(0,0,0,.12) 100%),
+        linear-gradient(180deg, var(--page-hi) 0%, var(--page) 30%, var(--page-lo) 100%);
+    }
+    main::before, main::after { display: none; }
   }
 
   .hero,
@@ -390,13 +454,33 @@
 
   .panel {
     padding: .6rem .65rem .45rem;
+    position: relative;
   }
   .panel h2 {
     margin: 0 0 .35rem;
+    padding-right: 32px;   /* clears the download button */
     font-size: .9rem;
     color: var(--ink);
     font-family: 'Playfair Display', serif;
   }
+  /* Per-figure download button, top corner of each chart panel */
+  .panel-dl {
+    position: absolute;
+    top: .42rem; right: .48rem;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--button-bg);
+    color: var(--button-fg);
+    font-size: .85rem; line-height: 1;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    opacity: .55;
+    transition: opacity .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .panel:hover .panel-dl,
+  .panel-dl:focus-visible { opacity: 1; }
+  .panel-dl:hover { border-color: var(--gold); color: var(--gold); }
   .panel-note {
     font-family: 'Lato', sans-serif;
     font-size: .66rem;
@@ -489,186 +573,186 @@
   <section class="filter-wrap" aria-label="Date range filters">
     <div class="filter-grid">
       <div class="filter-group">
-        <label for="range-preset">Range Preset</label>
+        <label for="range-preset" data-i18n="lbl_range_preset">Range Preset</label>
         <select id="range-preset" class="filter-select">
-          <option value="all">All time</option>
-          <option value="30d">Last 30 days</option>
-          <option value="90d">Last 90 days</option>
-          <option value="180d">Last 180 days</option>
-          <option value="365d">Last 365 days</option>
-          <option value="ytd">Year to date</option>
-          <option value="custom">Custom range</option>
+          <option value="all" data-i18n="preset_all">All time</option>
+          <option value="30d" data-i18n="preset_30d">Last 30 days</option>
+          <option value="90d" data-i18n="preset_90d">Last 90 days</option>
+          <option value="180d" data-i18n="preset_180d">Last 180 days</option>
+          <option value="365d" data-i18n="preset_365d">Last 365 days</option>
+          <option value="ytd" data-i18n="preset_ytd">Year to date</option>
+          <option value="custom" data-i18n="preset_custom">Custom range</option>
         </select>
       </div>
       <div class="filter-group">
-        <label for="start-date">Start Date</label>
+        <label for="start-date" data-i18n="lbl_start_date">Start Date</label>
         <input id="start-date" type="date" class="filter-input">
       </div>
       <div class="filter-group">
-        <label for="end-date">End Date</label>
+        <label for="end-date" data-i18n="lbl_end_date">End Date</label>
         <input id="end-date" type="date" class="filter-input">
       </div>
       <div class="filter-group">
-        <label for="format-filter">Format</label>
+        <label for="format-filter" data-i18n="lbl_format">Format</label>
         <select id="format-filter" class="filter-select">
-          <option value="">All formats</option>
-          <option value="physical">Physical</option>
-          <option value="ebook">E-Book</option>
-          <option value="audiobook">Audiobook</option>
+          <option value="" data-i18n="filter_all_formats">All formats</option>
+          <option value="physical" data-i18n="filter_fmt_physical">Physical</option>
+          <option value="ebook" data-i18n="filter_fmt_ebook">E-Book</option>
+          <option value="audiobook" data-i18n="filter_fmt_audiobook">Audiobook</option>
         </select>
       </div>
       <div class="filter-group">
-        <label for="language-filter">Language</label>
+        <label for="language-filter" data-i18n="lbl_language">Language</label>
         <select id="language-filter" class="filter-select">
-          <option value="">All languages</option>
-          <option value="en">English</option>
-          <option value="de">German</option>
-          <option value="fr">French</option>
-          <option value="es">Spanish</option>
-          <option value="it">Italian</option>
-          <option value="nl">Dutch</option>
-          <option value="pt">Portuguese</option>
-          <option value="ja">Japanese</option>
-          <option value="zh">Chinese</option>
+          <option value="" data-i18n="filter_all_langs">All languages</option>
+          <option value="en" data-i18n="lang_en">English</option>
+          <option value="de" data-i18n="lang_de">German</option>
+          <option value="fr" data-i18n="lang_fr">French</option>
+          <option value="es" data-i18n="lang_es">Spanish</option>
+          <option value="it" data-i18n="lang_it">Italian</option>
+          <option value="nl" data-i18n="lang_nl">Dutch</option>
+          <option value="pt" data-i18n="lang_pt">Portuguese</option>
+          <option value="ja" data-i18n="lang_ja">Japanese</option>
+          <option value="zh" data-i18n="lang_zh">Chinese</option>
         </select>
       </div>
       <div class="filter-actions">
-        <button id="apply-range" class="filter-btn" type="button">Apply</button>
-        <button id="reset-range" class="filter-btn" type="button">Reset</button>
-        <button id="copy-range-link" class="filter-btn" type="button">Copy Link</button>
+        <button id="apply-range" class="filter-btn" type="button" data-i18n="btn_apply">Apply</button>
+        <button id="reset-range" class="filter-btn" type="button" data-i18n="btn_reset">Reset</button>
+        <button id="copy-range-link" class="filter-btn" type="button" data-i18n="btn_copy_link">Copy Link</button>
       </div>
     </div>
     <div id="range-label" class="range-label">Range: All time</div>
   </section>
 
-  <h2 class="section-title"><span class="section-icon">📚</span>Library at a Glance</h2>
+  <h2 class="section-title"><span class="section-icon">📚</span><span data-i18n="sec_glance">Library at a Glance</span></h2>
   <section class="kpi-grid">
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📚</span>Total Books</div><div id="kpi-total-books" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📄</span>Total Pages</div><div id="kpi-total-pages" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">✅</span>Read</div><div id="kpi-read" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📖</span>Reading</div><div id="kpi-reading" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🔖</span>Want To Read</div><div id="kpi-want" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🚫</span>Did Not Finish</div><div id="kpi-dnf" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">⭐</span>Average Rating</div><div id="kpi-avg-rating" class="kpi-value">—</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">✍️</span>Reviews</div><div id="kpi-total-reviews" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🗂️</span>Custom Shelves</div><div id="kpi-shelves" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📉</span>DNF Rate</div><div id="kpi-dnf-rate" class="kpi-value">0%</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📚</span><span data-i18n="kpi_total_books">Total Books</span></div><div id="kpi-total-books" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📄</span><span data-i18n="kpi_total_pages">Total Pages</span></div><div id="kpi-total-pages" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">✅</span><span data-i18n="kpi_read">Read</span></div><div id="kpi-read" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📖</span><span data-i18n="kpi_reading">Reading</span></div><div id="kpi-reading" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🔖</span><span data-i18n="kpi_want">Want To Read</span></div><div id="kpi-want" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🚫</span><span data-i18n="kpi_dnf">Did Not Finish</span></div><div id="kpi-dnf" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">⭐</span><span data-i18n="kpi_avg_rating">Average Rating</span></div><div id="kpi-avg-rating" class="kpi-value">—</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">✍️</span><span data-i18n="kpi_reviews">Reviews</span></div><div id="kpi-total-reviews" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🗂️</span><span data-i18n="kpi_shelves">Custom Shelves</span></div><div id="kpi-shelves" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📉</span><span data-i18n="kpi_dnf_rate">DNF Rate</span></div><div id="kpi-dnf-rate" class="kpi-value">0%</div></article>
   </section>
 
-  <h2 class="section-title"><span class="section-icon">🎯</span>Goals &amp; Reading Pace</h2>
+  <h2 class="section-title"><span class="section-icon">🎯</span><span data-i18n="sec_goals">Goals &amp; Reading Pace</span></h2>
   <section class="kpi-grid">
     <article class="kpi">
-      <div class="kpi-label"><span class="kpi-icon">🎯</span>Book Goal</div>
+      <div class="kpi-label"><span class="kpi-icon">🎯</span><span data-i18n="kpi_book_goal">Book Goal</span></div>
       <div id="kpi-goal-books" class="kpi-value">0%</div>
       <div class="kpi-bar"><div id="kpi-goal-books-bar" class="kpi-bar-fill"></div></div>
     </article>
     <article class="kpi">
-      <div class="kpi-label"><span class="kpi-icon">🎯</span>Page Goal</div>
+      <div class="kpi-label"><span class="kpi-icon">🎯</span><span data-i18n="kpi_page_goal">Page Goal</span></div>
       <div id="kpi-goal-pages" class="kpi-value">0%</div>
       <div class="kpi-bar"><div id="kpi-goal-pages-bar" class="kpi-bar-fill"></div></div>
     </article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📑</span>Est. Pages Completed</div><div id="kpi-pages-completed" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📅</span>Pages / Day</div><div id="kpi-pages-day" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🗓️</span>Pages / Week</div><div id="kpi-pages-week" class="kpi-value">0</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">⚡</span>Reading Speed</div><div id="kpi-speed" class="kpi-value">— pg/hr</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🔥</span>Current Streak</div><div id="kpi-streak" class="kpi-value">0 days</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🏆</span>Longest Streak</div><div id="kpi-streak-longest" class="kpi-value">0 days</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">⏱️</span>Avg. Days to Finish</div><div id="kpi-days-finish" class="kpi-value">—</div></article>
-    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">⌛</span>Session Hours</div><div id="kpi-session-hours" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📑</span><span data-i18n="kpi_pages_done">Est. Pages Completed</span></div><div id="kpi-pages-completed" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">📅</span><span data-i18n="kpi_pages_day">Pages / Day</span></div><div id="kpi-pages-day" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🗓️</span><span data-i18n="kpi_pages_week">Pages / Week</span></div><div id="kpi-pages-week" class="kpi-value">0</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">⚡</span><span data-i18n="kpi_speed">Reading Speed</span></div><div id="kpi-speed" class="kpi-value">— pg/hr</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🔥</span><span data-i18n="kpi_streak">Current Streak</span></div><div id="kpi-streak" class="kpi-value">0 days</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">🏆</span><span data-i18n="kpi_streak_long">Longest Streak</span></div><div id="kpi-streak-longest" class="kpi-value">0 days</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">⏱️</span><span data-i18n="kpi_days_finish">Avg. Days to Finish</span></div><div id="kpi-days-finish" class="kpi-value">—</div></article>
+    <article class="kpi"><div class="kpi-label"><span class="kpi-icon">⌛</span><span data-i18n="kpi_session_hours">Session Hours</span></div><div id="kpi-session-hours" class="kpi-value">0</div></article>
   </section>
 
-  <h2 class="section-title"><span class="section-icon">📈</span>Reading Activity</h2>
+  <h2 class="section-title"><span class="section-icon">📈</span><span data-i18n="sec_activity">Reading Activity</span></h2>
   <section class="chart-grid">
     <article class="panel panel-wide">
-      <h2>Reading Activity Heatmap <span class="panel-note">last 365 days</span></h2>
+      <h2><span data-i18n="panel_heatmap">Reading Activity Heatmap</span> <span class="panel-note" data-i18n="panel_note_365">last 365 days</span></h2>
       <div id="heatmap-plot" class="heatmap-wrap"></div>
     </article>
     <article class="panel panel-wide">
-      <h2>Monthly Activity</h2>
+      <h2 data-i18n="panel_timeline">Monthly Activity</h2>
       <div id="timeline-plot" class="plot"></div>
     </article>
     <article class="panel panel-wide">
-      <h2>Daily Reading Pace</h2>
+      <h2 data-i18n="panel_pace">Daily Reading Pace</h2>
       <div id="pace-plot" class="plot"></div>
     </article>
     <article class="panel">
-      <h2>Reading Speed per Book</h2>
+      <h2 data-i18n="panel_speed">Reading Speed per Book</h2>
       <div id="speed-plot" class="plot"></div>
     </article>
     <article class="panel">
-      <h2>Time to Finish a Book</h2>
+      <h2 data-i18n="panel_finish_time">Time to Finish a Book</h2>
       <div id="finish-time-plot" class="plot"></div>
     </article>
   </section>
 
-  <h2 class="section-title"><span class="section-icon">⭐</span>Ratings &amp; Reviews</h2>
+  <h2 class="section-title"><span class="section-icon">⭐</span><span data-i18n="sec_ratings">Ratings &amp; Reviews</span></h2>
   <section class="chart-grid">
     <article class="panel">
-      <h2>Rating Distribution</h2>
+      <h2 data-i18n="panel_ratings">Rating Distribution</h2>
       <div id="ratings-plot" class="plot"></div>
     </article>
     <article class="panel">
-      <h2>Rating Trend Over Time</h2>
+      <h2 data-i18n="panel_rating_trend">Rating Trend Over Time</h2>
       <div id="rating-trend-plot" class="plot"></div>
     </article>
     <article class="panel panel-wide">
-      <h2>Community vs Your Ratings</h2>
+      <h2 data-i18n="panel_community">Community vs Your Ratings</h2>
       <div id="community-plot" class="plot"></div>
     </article>
   </section>
 
-  <h2 class="section-title"><span class="section-icon">🧭</span>Collection Insights</h2>
+  <h2 class="section-title"><span class="section-icon">🧭</span><span data-i18n="sec_collection">Collection Insights</span></h2>
   <section class="chart-grid">
     <article class="panel">
-      <h2>Books by Status</h2>
+      <h2 data-i18n="panel_status_books">Books by Status</h2>
       <div id="status-books-plot" class="plot"></div>
     </article>
     <article class="panel">
-      <h2>Pages by Status</h2>
+      <h2 data-i18n="panel_status_pages">Pages by Status</h2>
       <div id="status-pages-plot" class="plot"></div>
     </article>
     <article class="panel">
-      <h2>Top Genres</h2>
+      <h2 data-i18n="panel_genres">Top Genres</h2>
       <div id="genres-plot" class="plot"></div>
     </article>
     <article class="panel">
-      <h2>Top Authors</h2>
+      <h2 data-i18n="panel_authors">Top Authors</h2>
       <div id="authors-plot" class="plot"></div>
     </article>
     <article class="panel">
-      <h2>Format Breakdown</h2>
+      <h2 data-i18n="panel_format">Format Breakdown</h2>
       <div id="format-plot" class="plot"></div>
     </article>
     <article class="panel">
-      <h2>Published by Decade</h2>
+      <h2 data-i18n="panel_decade">Published by Decade</h2>
       <div id="decade-plot" class="plot"></div>
     </article>
     <article class="panel">
-      <h2>Top Publishers</h2>
+      <h2 data-i18n="panel_publishers">Top Publishers</h2>
       <div id="publishers-plot" class="plot"></div>
     </article>
     <article class="panel">
-      <h2>Shelf Breakdown</h2>
+      <h2 data-i18n="panel_shelf">Shelf Breakdown</h2>
       <div id="shelf-plot" class="plot"></div>
     </article>
     <article class="panel panel-wide">
-      <h2>Genre Trends Over Time</h2>
+      <h2 data-i18n="panel_genre_trends">Genre Trends Over Time</h2>
       <div id="genre-trends-plot" class="plot"></div>
     </article>
     <article class="panel panel-wide">
-      <h2>Library Growth</h2>
+      <h2 data-i18n="panel_growth">Library Growth</h2>
       <div id="growth-plot" class="plot"></div>
     </article>
   </section>
 
-  <h2 class="section-title"><span class="section-icon">📋</span>Watchlists</h2>
+  <h2 class="section-title"><span class="section-icon">📋</span><span data-i18n="sec_watchlists">Watchlists</span></h2>
   <section class="chart-grid">
     <article class="panel">
-      <h2>Longest Unread Books</h2>
+      <h2 data-i18n="panel_unread">Longest Unread Books</h2>
       <div id="unread-table" class="table-wrap"></div>
     </article>
     <article class="panel">
-      <h2>Books Currently Loaned Out</h2>
+      <h2 data-i18n="panel_loans">Books Currently Loaned Out</h2>
       <div id="loans-table" class="table-wrap"></div>
     </article>
   </section>
@@ -676,6 +760,7 @@
 
 <script>
 let currentStatsData = null;
+let currentRange = { start_date: '', end_date: '' };
 const STATS_VIEW_STORAGE_KEY = 'pagevault-stats-view';
 
 function formatNumber(value) {
@@ -718,12 +803,13 @@ function presetToRange(preset) {
 function updateRangeLabel(range) {
   const label = document.getElementById('range-label');
   if (!range.start_date && !range.end_date) {
-    label.textContent = 'Range: All time';
+    label.textContent = t('range_all');
     return;
   }
-  const from = range.start_date || '…';
-  const to = range.end_date || '…';
-  label.textContent = `Range: ${from} → ${to}`;
+  label.textContent = t('range_fmt', {
+    from: range.start_date || '…',
+    to: range.end_date || '…',
+  });
 }
 
 // Animate a numeric KPI from its current value to a new one (respects
@@ -768,17 +854,17 @@ function setExtendedKpis(goal = {}, sessions = {}, data = {}) {
   document.getElementById('kpi-pages-day').textContent = formatNumber(sessions.pages_per_day || 0);
   document.getElementById('kpi-pages-week').textContent = formatNumber(sessions.pages_per_week || 0);
   const speed = sessions.avg_speed_pages_per_hour;
-  document.getElementById('kpi-speed').textContent = speed != null ? `${speed} pg/hr` : '— pg/hr';
-  document.getElementById('kpi-streak').textContent = `${sessions.current_streak_days || 0} days`;
-  document.getElementById('kpi-streak-longest').textContent = `${sessions.longest_streak_days || 0} days`;
+  document.getElementById('kpi-speed').textContent = t('pghr_suffix', { n: speed != null ? speed : '—' });
+  document.getElementById('kpi-streak').textContent = t('days_suffix', { n: sessions.current_streak_days || 0 });
+  document.getElementById('kpi-streak-longest').textContent = t('days_suffix', { n: sessions.longest_streak_days || 0 });
   const dnf = (data.summary || {}).dnf || 0;
   const read = (data.summary || {}).read || 0;
   const dnfRate = (dnf + read) > 0 ? Math.round((dnf / (dnf + read)) * 100) : 0;
   document.getElementById('kpi-dnf-rate').textContent = `${dnfRate}%`;
   const avgDays = (data.finish_time_stats || {}).avg_days;
-  document.getElementById('kpi-days-finish').textContent = avgDays != null ? `${avgDays} days` : '—';
+  document.getElementById('kpi-days-finish').textContent = avgDays != null ? t('days_suffix', { n: avgDays }) : '—';
   const hrs = sessions.minutes_spent ? Math.round(sessions.minutes_spent / 60) : 0;
-  document.getElementById('kpi-session-hours').textContent = `${formatNumber(hrs)} hrs`;
+  document.getElementById('kpi-session-hours').textContent = t('hrs_suffix', { n: formatNumber(hrs) });
   document.getElementById('kpi-shelves').textContent = (data.shelf_breakdown || []).length;
 }
 
@@ -853,14 +939,142 @@ function emptyPlot(id, message) {
   document.getElementById(id).innerHTML = `<div class="empty">${message}</div>`;
 }
 
+// ── Per-figure download (PNG) ────────────────────────────────────────────────
+let _heatmapSnapshot = null;
+
+function pageBackgroundColor() {
+  return document.body.classList.contains('dark-mode') ? '#271d0e' : '#f6eedb';
+}
+
+function exportFilename(chartId) {
+  return `pagevault-${chartId.replace(/-plot$/, '')}-${localIso(new Date())}`;
+}
+
+async function downloadChart(chartId) {
+  if (chartId === 'heatmap-plot') {
+    downloadHeatmapPng(exportFilename(chartId));
+    return;
+  }
+  const el = document.getElementById(chartId);
+  if (!el || !el.data) return;
+  // Charts render transparent on the page; exports need a solid paper
+  // background or dark-mode text becomes unreadable in image viewers.
+  const bg = pageBackgroundColor();
+  const prevPaper = el._fullLayout.paper_bgcolor;
+  const prevPlot = el._fullLayout.plot_bgcolor;
+  await Plotly.relayout(el, { paper_bgcolor: bg, plot_bgcolor: bg });
+  try {
+    await Plotly.downloadImage(el, {
+      format: 'png',
+      width: Math.max(el.offsetWidth, 480),
+      height: Math.max(el.offsetHeight, 300),
+      scale: 2,
+      filename: exportFilename(chartId),
+    });
+  } finally {
+    await Plotly.relayout(el, {
+      paper_bgcolor: prevPaper || 'rgba(0,0,0,0)',
+      plot_bgcolor: prevPlot || 'rgba(0,0,0,0)',
+    });
+  }
+}
+
+// The heatmap is plain DOM, not Plotly — redraw it onto a canvas from the
+// snapshot captured during rendering.
+function downloadHeatmapPng(filename) {
+  const snap = _heatmapSnapshot;
+  if (!snap || !snap.weeks.length) return;
+  const scale = 2;
+  const cell = 12, gap = 2, pitch = cell + gap;
+  const left = 32, top = 24, pad = 12;
+  const width = left + snap.weeks.length * pitch + pad;
+  const height = top + 7 * pitch + 26;
+  const dark = document.body.classList.contains('dark-mode');
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = pageBackgroundColor();
+  ctx.fillRect(0, 0, width, height);
+  ctx.font = '9px Lato, sans-serif';
+  const labelColor = dark ? '#9b8468' : '#8a6a4a';
+
+  ctx.fillStyle = labelColor;
+  snap.monthLabels.forEach((label, i) => {
+    if (label) ctx.fillText(label, left + i * pitch, 14);
+  });
+  snap.dayLabels.forEach((label, i) => {
+    if (label) ctx.fillText(label, 4, top + i * pitch + 10);
+  });
+
+  snap.weeks.forEach((colColors, w) => {
+    colColors.forEach((color, d) => {
+      if (!color || color === 'transparent') return;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(left + w * pitch, top + d * pitch, cell, cell, 2);
+      } else {
+        ctx.rect(left + w * pitch, top + d * pitch, cell, cell);
+      }
+      ctx.fill();
+    });
+  });
+
+  ctx.fillStyle = labelColor;
+  ctx.fillText(snap.summary, left, top + 7 * pitch + 16);
+
+  const link = document.createElement('a');
+  link.href = canvas.toDataURL('image/png');
+  link.download = `${filename}.png`;
+  link.click();
+}
+
+// Adds (or refreshes) a small download button in the corner of every panel
+// containing a figure; hidden while the figure has no data.
+function addChartDownloadButtons() {
+  document.querySelectorAll('main .panel').forEach(panel => {
+    const chart = panel.querySelector('div[id$="-plot"]');
+    if (!chart) return;
+    let btn = panel.querySelector('.panel-dl');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.className = 'panel-dl';
+      btn.type = 'button';
+      btn.textContent = '⤓';
+      panel.appendChild(btn);
+    }
+    btn.title = t('dl_chart');
+    btn.setAttribute('aria-label', t('dl_chart'));
+    const hasContent = !chart.querySelector('.empty')
+      && (chart.id === 'heatmap-plot' ? !!_heatmapSnapshot : !!chart.data);
+    btn.style.display = hasContent ? '' : 'none';
+    btn.onclick = () => downloadChart(chart.id);
+  });
+}
+
+// Translate a backend status key into the current UI language.
+function statusLabel(status) {
+  const map = {
+    want_to_read: t('st_want'),
+    reading: t('st_reading'),
+    read: t('st_read'),
+    dnf: t('st_dnf'),
+  };
+  return map[status] || status;
+}
+
 function renderStatusCharts(statusBreakdown) {
   if (!statusBreakdown.length) {
-    emptyPlot('status-books-plot', 'No status data yet.');
-    emptyPlot('status-pages-plot', 'No status page totals yet.');
+    emptyPlot('status-books-plot', t('empty_status'));
+    emptyPlot('status-pages-plot', t('empty_status_pages'));
     return;
   }
 
-  const labels = statusBreakdown.map(item => item.label);
+  const labels = statusBreakdown.map(item => statusLabel(item.status));
   const bookCounts = statusBreakdown.map(item => item.book_count);
   const pageCounts = statusBreakdown.map(item => item.total_pages);
   const theme = getChartTheme();
@@ -870,21 +1084,21 @@ function renderStatusCharts(statusBreakdown) {
     x: labels,
     y: bookCounts,
     marker: { color: theme.statusBooks },
-    hovertemplate: '%{x}<br>%{y} books<extra></extra>'
-  }], chartLayout({ yaxis: { ...chartLayout().yaxis, title: 'Books' } }), plotConfig);
+    hovertemplate: `%{x}<br>%{y} ${t('hover_books')}<extra></extra>`
+  }], chartLayout({ yaxis: { ...chartLayout().yaxis, title: t('ax_books') } }), plotConfig);
 
   Plotly.newPlot('status-pages-plot', [{
     type: 'bar',
     x: labels,
     y: pageCounts,
     marker: { color: theme.statusPages },
-    hovertemplate: '%{x}<br>%{y} pages<extra></extra>'
-  }], chartLayout({ yaxis: { ...chartLayout().yaxis, title: 'Pages' } }), plotConfig);
+    hovertemplate: `%{x}<br>%{y} ${t('hover_pages')}<extra></extra>`
+  }], chartLayout({ yaxis: { ...chartLayout().yaxis, title: t('ax_pages') } }), plotConfig);
 }
 
 function renderGenreChart(topGenres) {
   if (!topGenres.length) {
-    emptyPlot('genres-plot', 'Add genre tags to see genre insights.');
+    emptyPlot('genres-plot', t('empty_genres'));
     return;
   }
   const theme = getChartTheme();
@@ -894,13 +1108,13 @@ function renderGenreChart(topGenres) {
     y: topGenres.map(item => item.genre).reverse(),
     x: topGenres.map(item => item.book_count).reverse(),
     marker: { color: theme.genre },
-    hovertemplate: '%{y}<br>%{x} books<extra></extra>'
+    hovertemplate: `%{y}<br>%{x} ${t('hover_books')}<extra></extra>`
   }], chartLayout({ margin: { l: 120, r: 20, t: 10, b: 40 } }), plotConfig);
 }
 
 function renderAuthorChart(topAuthors) {
   if (!topAuthors.length) {
-    emptyPlot('authors-plot', 'Add books with author metadata to view this chart.');
+    emptyPlot('authors-plot', t('empty_authors'));
     return;
   }
   const theme = getChartTheme();
@@ -910,13 +1124,13 @@ function renderAuthorChart(topAuthors) {
     y: topAuthors.map(item => item.author).reverse(),
     x: topAuthors.map(item => item.book_count).reverse(),
     marker: { color: theme.author },
-    hovertemplate: '%{y}<br>%{x} books<extra></extra>'
+    hovertemplate: `%{y}<br>%{x} ${t('hover_books')}<extra></extra>`
   }], chartLayout({ margin: { l: 150, r: 20, t: 10, b: 40 } }), plotConfig);
 }
 
 function renderRatingChart(ratingDistribution) {
   if (!ratingDistribution.length) {
-    emptyPlot('ratings-plot', 'No ratings yet. Add reviews with stars to populate this chart.');
+    emptyPlot('ratings-plot', t('empty_ratings'));
     return;
   }
   const theme = getChartTheme();
@@ -925,8 +1139,8 @@ function renderRatingChart(ratingDistribution) {
     x: ratingDistribution.map(item => `${item.rating}★`),
     y: ratingDistribution.map(item => item.review_count),
     marker: { color: theme.rating },
-    hovertemplate: '%{x}<br>%{y} reviews<extra></extra>'
-  }], chartLayout({ yaxis: { ...chartLayout().yaxis, title: 'Reviews' } }), plotConfig);
+    hovertemplate: `%{x}<br>%{y} ${t('hover_reviews')}<extra></extra>`
+  }], chartLayout({ yaxis: { ...chartLayout().yaxis, title: t('ax_reviews') } }), plotConfig);
 }
 
 function mergeTimeline(monthlyAdditions, monthlyReviews) {
@@ -958,7 +1172,7 @@ function mergeTimeline(monthlyAdditions, monthlyReviews) {
 function renderTimeline(monthlyAdditions, monthlyReviews) {
   const timeline = mergeTimeline(monthlyAdditions, monthlyReviews);
   if (!timeline.length) {
-    emptyPlot('timeline-plot', 'No monthly activity yet.');
+    emptyPlot('timeline-plot', t('empty_timeline'));
     return;
   }
 
@@ -968,43 +1182,43 @@ function renderTimeline(monthlyAdditions, monthlyReviews) {
   Plotly.newPlot('timeline-plot', [
     {
       type: 'bar',
-      name: 'Books Added',
+      name: t('legend_added'),
       x: months,
       y: timeline.map(item => item.books_added),
       marker: { color: theme.added },
       yaxis: 'y',
-      hovertemplate: '%{x}<br>%{y} books added<extra></extra>',
+      hovertemplate: `%{x}<br>%{y} ${t('hover_books')}<extra></extra>`,
     },
     {
       type: 'scatter',
       mode: 'lines+markers',
-      name: 'Reviews',
+      name: t('legend_reviews'),
       x: months,
       y: timeline.map(item => item.review_count),
       marker: { color: theme.reviews, size: 7 },
       line: { color: theme.reviews, width: 2 },
       yaxis: 'y2',
-      hovertemplate: '%{x}<br>%{y} reviews<extra></extra>',
+      hovertemplate: `%{x}<br>%{y} ${t('hover_reviews')}<extra></extra>`,
     },
     {
       type: 'scatter',
       mode: 'lines',
-      name: 'Pages Logged',
+      name: t('legend_pages'),
       x: months,
       y: timeline.map(item => item.pages_logged),
       marker: { color: theme.pagesLogged },
       line: { color: theme.pagesLogged, width: 2, shape: 'spline' },
       yaxis: 'y2',
-      hovertemplate: '%{x}<br>%{y} pages logged<extra></extra>',
+      hovertemplate: `%{x}<br>%{y} ${t('hover_pages')}<extra></extra>`,
     }
   ], chartLayout({
     hovermode: 'x unified',
     legend: { orientation: 'h', y: 1.12, x: 0 },
-    yaxis: { ...chartLayout().yaxis, title: 'Books Added' },
+    yaxis: { ...chartLayout().yaxis, title: t('ax_books_added') },
     yaxis2: {
       overlaying: 'y',
       side: 'right',
-      title: { text: 'Reviews / Pages Logged', font: { color: theme.font } },
+      title: { text: t('ax_rev_pages'), font: { color: theme.font } },
       gridcolor: 'rgba(0,0,0,0)',
       tickfont: { color: theme.font },
     },
@@ -1013,10 +1227,14 @@ function renderTimeline(monthlyAdditions, monthlyReviews) {
 
 function renderFormatChart(formatBreakdown) {
   if (!formatBreakdown.length) {
-    emptyPlot('format-plot', 'No format data yet.');
+    emptyPlot('format-plot', t('empty_format'));
     return;
   }
-  const labelMap = { physical: 'Physical', ebook: 'E-Book', audiobook: 'Audiobook' };
+  const labelMap = {
+    physical: t('fmt_physical_plain'),
+    ebook: t('fmt_ebook_plain'),
+    audiobook: t('fmt_audiobook_plain'),
+  };
   const theme = getChartTheme();
   Plotly.newPlot('format-plot', [{
     type: 'pie',
@@ -1026,7 +1244,7 @@ function renderFormatChart(formatBreakdown) {
     marker: { colors: theme.format },
     textinfo: 'label+percent',
     textfont: { color: theme.font },
-    hovertemplate: '%{label}<br>%{value} books (%{percent})<extra></extra>',
+    hovertemplate: `%{label}<br>%{value} ${t('hover_books')} (%{percent})<extra></extra>`,
   }], {
     ...chartLayout({ margin: { l: 20, r: 20, t: 10, b: 10 } }),
     showlegend: false,
@@ -1035,7 +1253,7 @@ function renderFormatChart(formatBreakdown) {
 
 function renderDecadeChart(decadeDistribution) {
   if (!decadeDistribution.length) {
-    emptyPlot('decade-plot', 'Add books with publication year to see this chart.');
+    emptyPlot('decade-plot', t('empty_decade'));
     return;
   }
   const theme = getChartTheme();
@@ -1044,13 +1262,13 @@ function renderDecadeChart(decadeDistribution) {
     x: decadeDistribution.map(d => d.decade),
     y: decadeDistribution.map(d => d.book_count),
     marker: { color: theme.decade },
-    hovertemplate: '%{x}<br>%{y} books<extra></extra>',
+    hovertemplate: `%{x}<br>%{y} ${t('hover_books')}<extra></extra>`,
   }], chartLayout({ xaxis: { ...chartLayout().xaxis, type: 'category' } }), plotConfig);
 }
 
 function renderPublishersChart(topPublishers) {
   if (!topPublishers.length) {
-    emptyPlot('publishers-plot', 'No publisher data yet.');
+    emptyPlot('publishers-plot', t('empty_publishers'));
     return;
   }
   const theme = getChartTheme();
@@ -1060,13 +1278,13 @@ function renderPublishersChart(topPublishers) {
     y: topPublishers.map(d => d.publisher).reverse(),
     x: topPublishers.map(d => d.book_count).reverse(),
     marker: { color: theme.publisher },
-    hovertemplate: '%{y}<br>%{x} books<extra></extra>',
+    hovertemplate: `%{y}<br>%{x} ${t('hover_books')}<extra></extra>`,
   }], chartLayout({ margin: { l: 150, r: 20, t: 10, b: 40 } }), plotConfig);
 }
 
 function renderCommunityChart(communityVsPersonal) {
   if (!communityVsPersonal.length) {
-    emptyPlot('community-plot', 'No community rating data yet. Metadata is sourced from Google Books.');
+    emptyPlot('community-plot', t('empty_community'));
     return;
   }
   const withBoth = communityVsPersonal.filter(d => d.user_rating != null);
@@ -1089,23 +1307,23 @@ function renderCommunityChart(communityVsPersonal) {
   Plotly.newPlot('community-plot', [
     {
       type: 'bar',
-      name: 'Community',
+      name: t('legend_community'),
       x: titles,
       y: withBoth.map(d => d.community_rating),
       marker: { color: theme.community },
-      hovertemplate: '%{x}<br>Community: %{y}★<extra></extra>',
+      hovertemplate: `%{x}<br>${t('legend_community')}: %{y}★<extra></extra>`,
     },
     {
       type: 'bar',
-      name: 'You',
+      name: t('legend_you'),
       x: titles,
       y: withBoth.map(d => d.user_rating),
       marker: { color: theme.personal },
-      hovertemplate: '%{x}<br>Your rating: %{y}★<extra></extra>',
+      hovertemplate: `%{x}<br>${t('legend_you')}: %{y}★<extra></extra>`,
     },
   ], chartLayout({
     barmode: 'group',
-    yaxis: { ...chartLayout().yaxis, range: [0, 5.5], title: 'Rating' },
+    yaxis: { ...chartLayout().yaxis, range: [0, 5.5], title: t('ax_rating') },
     legend: { orientation: 'h', y: 1.12, x: 0 },
     margin: { l: 54, r: 22, t: 30, b: 80 },
     xaxis: { ...chartLayout().xaxis, tickangle: -30 },
@@ -1114,7 +1332,7 @@ function renderCommunityChart(communityVsPersonal) {
 
 function renderPaceChart(readingPaceDaily) {
   if (!readingPaceDaily.length) {
-    emptyPlot('pace-plot', 'Log reading sessions to see your daily reading pace.');
+    emptyPlot('pace-plot', t('empty_pace'));
     return;
   }
   const theme = getChartTheme();
@@ -1126,17 +1344,17 @@ function renderPaceChart(readingPaceDaily) {
     line: { color: theme.pace, width: 2, shape: 'spline' },
     x: readingPaceDaily.map(d => d.date),
     y: readingPaceDaily.map(d => d.pages),
-    hovertemplate: '%{x}<br>%{y} pages read<extra></extra>',
+    hovertemplate: `%{x}<br>%{y} ${t('hover_pages')}<extra></extra>`,
   }], chartLayout({
     hovermode: 'x unified',
-    yaxis: { ...chartLayout().yaxis, title: 'Pages Read' },
+    yaxis: { ...chartLayout().yaxis, title: t('ax_pages_read') },
     margin: { l: 54, r: 22, t: 18, b: 44 },
   }), plotConfig);
 }
 
 function renderGrowthChart(libraryGrowth) {
   if (!libraryGrowth.length) {
-    emptyPlot('growth-plot', 'No growth data yet.');
+    emptyPlot('growth-plot', t('empty_growth'));
     return;
   }
   const theme = getChartTheme();
@@ -1148,10 +1366,10 @@ function renderGrowthChart(libraryGrowth) {
     line: { color: theme.growth, width: 2, shape: 'spline' },
     x: libraryGrowth.map(d => d.month),
     y: libraryGrowth.map(d => d.total_books),
-    hovertemplate: '%{x}<br>%{y} books in library<extra></extra>',
+    hovertemplate: `%{x}<br>%{y} ${t('hover_books')}<extra></extra>`,
   }], chartLayout({
     hovermode: 'x unified',
-    yaxis: { ...chartLayout().yaxis, title: 'Total Books' },
+    yaxis: { ...chartLayout().yaxis, title: t('ax_total_books') },
     margin: { l: 54, r: 22, t: 18, b: 44 },
   }), plotConfig);
 }
@@ -1164,7 +1382,8 @@ function escHtml(str) {
 function renderHeatmap(readingPaceDaily) {
   const container = document.getElementById('heatmap-plot');
   if (!readingPaceDaily.length) {
-    container.innerHTML = '<div class="empty">Log reading sessions to see your activity heatmap.</div>';
+    container.innerHTML = `<div class="empty">${t('empty_heatmap')}</div>`;
+    _heatmapSnapshot = null;
     return;
   }
   container.innerHTML = '';
@@ -1183,8 +1402,8 @@ function renderHeatmap(readingPaceDaily) {
   start.setDate(start.getDate() - 364);
   start.setDate(start.getDate() - start.getDay()); // align Sunday
 
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+  const months = t('months_short').split(',');
+  const dayLabels = ['', t('day_mon'), '', t('day_wed'), '', t('day_fri'), ''];
 
   const dayCol = document.createElement('div');
   dayCol.style.cssText = `display:flex;flex-direction:column;gap:2px;margin-right:5px;padding-top:20px;`;
@@ -1204,6 +1423,10 @@ function renderHeatmap(readingPaceDaily) {
   let totalPages = 0;
   let activeDays = 0;
 
+  // Mirror of what gets rendered, so the download button can redraw the
+  // heatmap onto a canvas (it's plain DOM, not a Plotly chart).
+  const snapshot = { weeks: [], monthLabels: [], dayLabels, summary: '' };
+
   const cur = new Date(start);
   let lastMonth = -1;
   while (cur <= today) {
@@ -1212,9 +1435,11 @@ function renderHeatmap(readingPaceDaily) {
     const m = cur.getMonth();
     if (m !== lastMonth) { monthLabel.textContent = months[m]; lastMonth = m; }
     monthsRow.appendChild(monthLabel);
+    snapshot.monthLabels.push(monthLabel.textContent || '');
 
     const col = document.createElement('div');
     col.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
+    const colColors = [];
     for (let d = 0; d < 7; d++) {
       const cell = document.createElement('div');
       const dateStr = localIso(cur);  // local time — toISOString() would shift dates near midnight
@@ -1231,15 +1456,17 @@ function renderHeatmap(readingPaceDaily) {
           bg = `rgba(200,145,58,${(0.22 + intensity * 0.78).toFixed(2)})`;
         }
       }
+      colColors.push(bg);
       const todayRing = dateStr === todayStr
         ? `box-shadow:0 0 0 1.5px ${dark ? '#d4a843' : '#9b3a1c'};`
         : '';
       cell.style.cssText = `width:12px;height:12px;border-radius:2px;background:${bg};flex-shrink:0;${todayRing}`;
-      if (!isFuture) cell.title = `${dateStr}: ${pages} pages`;
+      if (!isFuture) cell.title = t('heat_pages_tip', { date: dateStr, pages });
       col.appendChild(cell);
       cur.setDate(cur.getDate() + 1);
     }
     weeksEl.appendChild(col);
+    snapshot.weeks.push(colColors);
     // advance past this Sunday to next (already done by inner loop)
     if (cur > today) break;
   }
@@ -1254,19 +1481,19 @@ function renderHeatmap(readingPaceDaily) {
   legend.className = 'heatmap-legend';
   const steps = [emptyColor, 'rgba(200,145,58,.32)', 'rgba(200,145,58,.55)', 'rgba(200,145,58,.78)', 'rgba(200,145,58,1)'];
   legend.appendChild(Object.assign(document.createElement('span'), {
-    textContent: `${formatNumber(totalPages)} pages over ${formatNumber(activeDays)} active days`,
+    textContent: t('heat_summary', { pages: formatNumber(totalPages), days: formatNumber(activeDays) }),
   }));
   const spacer = document.createElement('span');
   spacer.style.cssText = 'flex:1;';
   legend.appendChild(spacer);
-  legend.appendChild(Object.assign(document.createElement('span'), { textContent: 'Less' }));
+  legend.appendChild(Object.assign(document.createElement('span'), { textContent: t('heat_less') }));
   for (const color of steps) {
     const sw = document.createElement('span');
     sw.className = 'cell';
     sw.style.background = color;
     legend.appendChild(sw);
   }
-  legend.appendChild(Object.assign(document.createElement('span'), { textContent: 'More' }));
+  legend.appendChild(Object.assign(document.createElement('span'), { textContent: t('heat_more') }));
   right.appendChild(legend);
 
   const wrap = document.createElement('div');
@@ -1274,11 +1501,14 @@ function renderHeatmap(readingPaceDaily) {
   wrap.appendChild(dayCol);
   wrap.appendChild(right);
   container.appendChild(wrap);
+
+  snapshot.summary = t('heat_summary', { pages: formatNumber(totalPages), days: formatNumber(activeDays) });
+  _heatmapSnapshot = snapshot;
 }
 
 function renderRatingTrend(ratingTrend) {
   if (!ratingTrend.length) {
-    emptyPlot('rating-trend-plot', 'No reviews yet to show rating trend.');
+    emptyPlot('rating-trend-plot', t('empty_trend'));
     return;
   }
   const theme = getChartTheme();
@@ -1289,28 +1519,30 @@ function renderRatingTrend(ratingTrend) {
     y: ratingTrend.map(d => d.avg_rating),
     marker: { color: theme.rating, size: 7 },
     line: { color: theme.rating, width: 2, shape: 'spline' },
-    hovertemplate: '%{x}<br>Avg: %{y}★ (%{customdata} reviews)<extra></extra>',
+    hovertemplate: `%{x}<br>Ø %{y}★ (%{customdata} ${t('hover_reviews')})<extra></extra>`,
     customdata: ratingTrend.map(d => d.review_count),
   }], chartLayout({
-    yaxis: { ...chartLayout().yaxis, range: [0, 5.5], title: 'Avg Rating' },
+    yaxis: { ...chartLayout().yaxis, range: [0, 5.5], title: t('ax_avg_rating') },
   }), plotConfig);
 }
 
 function renderFinishTimeChart(dist, stats) {
   if (!stats || stats.book_count === 0) {
-    emptyPlot('finish-time-plot', 'Set start and finish dates on books to see how long they take.');
+    emptyPlot('finish-time-plot', t('empty_finish'));
     return;
   }
   const theme = getChartTheme();
-  const note = stats.avg_days != null ? `Avg: ${stats.avg_days} days  ·  n=${stats.book_count}` : '';
+  const note = stats.avg_days != null
+    ? t('finish_note', { days: stats.avg_days, n: stats.book_count })
+    : '';
   Plotly.newPlot('finish-time-plot', [{
     type: 'bar',
     x: dist.map(d => d.range),
     y: dist.map(d => d.count),
     marker: { color: theme.decade },
-    hovertemplate: '%{x}<br>%{y} books<extra></extra>',
+    hovertemplate: `%{x}<br>%{y} ${t('hover_books')}<extra></extra>`,
   }], chartLayout({
-    yaxis: { ...chartLayout().yaxis, title: 'Books' },
+    yaxis: { ...chartLayout().yaxis, title: t('ax_books') },
     annotations: note ? [{ x: 0.5, y: 1.06, xref: 'paper', yref: 'paper', text: note, showarrow: false, font: { color: theme.font, size: 11 } }] : [],
     margin: { l: 54, r: 22, t: 30, b: 44 },
   }), plotConfig);
@@ -1318,7 +1550,7 @@ function renderFinishTimeChart(dist, stats) {
 
 function renderGenreTrends(gt) {
   if (!gt.years || !gt.years.length || !gt.series || !gt.series.length) {
-    emptyPlot('genre-trends-plot', 'Add genre tags to books across multiple years to see trends.');
+    emptyPlot('genre-trends-plot', t('empty_genre_trends'));
     return;
   }
   const theme = getChartTheme();
@@ -1330,20 +1562,20 @@ function renderGenreTrends(gt) {
       x: gt.years,
       y: s.counts,
       marker: { color: palette[i % palette.length] },
-      hovertemplate: `${escHtml(s.genre)}<br>%{x}: %{y} books<extra></extra>`,
+      hovertemplate: `${escHtml(s.genre)}<br>%{x}: %{y} ${t('hover_books')}<extra></extra>`,
     })),
     chartLayout({
       barmode: 'stack',
       legend: { orientation: 'h', y: 1.1, x: 0 },
       xaxis: { ...chartLayout().xaxis, type: 'category' },
-      yaxis: { ...chartLayout().yaxis, title: 'Books' },
+      yaxis: { ...chartLayout().yaxis, title: t('ax_books') },
       margin: { l: 54, r: 22, t: 38, b: 44 },
     }), plotConfig);
 }
 
 function renderSpeedChart(speedData) {
   if (!speedData.length) {
-    emptyPlot('speed-plot', 'Log reading sessions with page counts to see speed per book.');
+    emptyPlot('speed-plot', t('empty_speed'));
     return;
   }
   const theme = getChartTheme();
@@ -1354,15 +1586,15 @@ function renderSpeedChart(speedData) {
     y: top.map(d => d.title.length > 28 ? d.title.slice(0, 26) + '…' : d.title).reverse(),
     x: top.map(d => d.pages_per_hour).reverse(),
     marker: { color: theme.pace },
-    hovertemplate: '%{y}<br>%{x} pg/hr<extra></extra>',
+    hovertemplate: '%{y}<br>%{x}<extra></extra>',
   }], chartLayout({ margin: { l: 190, r: 20, t: 10, b: 40 },
-    xaxis: { ...chartLayout().xaxis, title: 'Pages / Hour' } }), plotConfig);
+    xaxis: { ...chartLayout().xaxis, title: t('ax_pages_hour') } }), plotConfig);
 }
 
 function renderLongestUnread(longestUnread) {
   const el = document.getElementById('unread-table');
   if (!longestUnread.length) {
-    el.innerHTML = '<div class="empty">No books in your want-to-read list yet.</div>';
+    el.innerHTML = `<div class="empty">${t('empty_unread')}</div>`;
     return;
   }
   const rows = longestUnread.map(b => `<tr>
@@ -1370,13 +1602,13 @@ function renderLongestUnread(longestUnread) {
     <td style="color:var(--soft);font-size:.76rem;">${escHtml(b.author || '—')}</td>
     <td class="table-num">${b.days_waiting.toLocaleString()} d</td>
   </tr>`).join('');
-  el.innerHTML = `<table class="stat-table"><thead><tr><th>Title</th><th>Author</th><th>Waiting</th></tr></thead><tbody>${rows}</tbody></table>`;
+  el.innerHTML = `<table class="stat-table"><thead><tr><th>${t('th_title')}</th><th>${t('th_author')}</th><th>${t('th_waiting')}</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function renderLoanStatus(loansOut) {
   const el = document.getElementById('loans-table');
   if (!loansOut.length) {
-    el.innerHTML = '<div class="empty">No books currently loaned out.</div>';
+    el.innerHTML = `<div class="empty">${t('empty_loans')}</div>`;
     return;
   }
   const rows = loansOut.map(b => `<tr>
@@ -1384,12 +1616,12 @@ function renderLoanStatus(loansOut) {
     <td style="color:var(--soft);font-size:.76rem;">${escHtml(b.loan_person || '—')}</td>
     <td class="table-num">${b.days_loaned.toLocaleString()} d</td>
   </tr>`).join('');
-  el.innerHTML = `<table class="stat-table"><thead><tr><th>Title</th><th>Loaned To</th><th>Since</th></tr></thead><tbody>${rows}</tbody></table>`;
+  el.innerHTML = `<table class="stat-table"><thead><tr><th>${t('th_title')}</th><th>${t('th_loaned_to')}</th><th>${t('th_since')}</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function renderShelfChart(shelfBreakdown) {
   if (!shelfBreakdown.length) {
-    emptyPlot('shelf-plot', 'Create custom shelves and add books to see the breakdown.');
+    emptyPlot('shelf-plot', t('empty_shelf_chart'));
     return;
   }
   const theme = getChartTheme();
@@ -1399,7 +1631,7 @@ function renderShelfChart(shelfBreakdown) {
     y: shelfBreakdown.map(d => d.shelf).reverse(),
     x: shelfBreakdown.map(d => d.book_count).reverse(),
     marker: { color: theme.publisher },
-    hovertemplate: '%{y}<br>%{x} books<extra></extra>',
+    hovertemplate: `%{y}<br>%{x} ${t('hover_books')}<extra></extra>`,
   }], chartLayout({ margin: { l: 130, r: 20, t: 10, b: 40 } }), plotConfig);
 }
 
@@ -1426,6 +1658,7 @@ function renderAll(data) {
   renderShelfChart(data.shelf_breakdown || []);
   renderLongestUnread(data.longest_unread || []);
   renderLoanStatus(data.loans_out || []);
+  addChartDownloadButtons();
 }
 
 function buildQuery(range) {
@@ -1450,6 +1683,7 @@ async function loadStatsAnalysis(range) {
 }
 
 async function applyRange(range) {
+  currentRange = range;
   updateRangeLabel(range);
   persistRangeState(range);
   syncRangeUrl(range);
@@ -1590,8 +1824,8 @@ function applyTheme(theme) {
   document.body.classList.toggle('dark-mode', mode === 'dark');
   document.body.classList.toggle('light-mode', mode === 'light');
   const toggle = document.getElementById('theme-toggle');
-  toggle.textContent = mode === 'dark' ? 'Light' : 'Dark';
-  toggle.title = mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  toggle.textContent = mode === 'dark' ? t('theme_light') : t('theme_dark');
+  toggle.title = t('title_theme_toggle');
   localStorage.setItem('pagevault-theme', mode);
   if (currentStatsData) {
     renderAll(currentStatsData);
@@ -1614,6 +1848,20 @@ document.getElementById('reset-range').addEventListener('click', onResetClicked)
 document.getElementById('copy-range-link').addEventListener('click', copyCurrentRangeLink);
 document.getElementById('format-filter').addEventListener('change', onApplyClicked);
 document.getElementById('language-filter').addEventListener('change', onApplyClicked);
+
+// ─── i18n hook — re-render all charts and labels on language change ──────────
+const _origApplyLang = window.applyLang;
+window.applyLang = function (lang) {
+  _origApplyLang(lang);
+  updateRangeLabel(currentRange);
+  // Theme-toggle shows the mode you would switch TO
+  const tt = document.getElementById('theme-toggle');
+  if (tt) {
+    const isDark = document.body.classList.contains('dark-mode');
+    tt.textContent = isDark ? t('theme_light') : t('theme_dark');
+  }
+  if (currentStatsData) renderAll(currentStatsData);
+};
 
 // Staggered KPI entrance + reveal panels as they scroll into view.
 function initMotion() {
@@ -1655,7 +1903,7 @@ function initMotion() {
       'unread-table', 'loans-table',
     ];
     for (const id of targets) {
-      emptyPlot(id, 'Unable to load analytics right now.');
+      emptyPlot(id, t('empty_error'));
     }
     document.getElementById('range-label').textContent = `Range error: ${error.message}`;
     console.error(error);

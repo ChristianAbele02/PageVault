@@ -399,16 +399,12 @@ function initTheme() {
   const saved = localStorage.getItem('pv_theme');
   const dark = saved ? saved === 'dark' : true;
   document.body.classList.toggle('light-mode', !dark);
-  document.getElementById('theme-toggle').textContent =
-    dark ? (window.PV_LANG === 'de' ? 'Hell' : 'Light')
-         : (window.PV_LANG === 'de' ? 'Dunkel' : 'Dark');
+  document.getElementById('theme-toggle').textContent = dark ? t('theme_light') : t('theme_dark');
 }
 function toggleTheme() {
   const isLight = document.body.classList.toggle('light-mode');
   localStorage.setItem('pv_theme', isLight ? 'light' : 'dark');
-  document.getElementById('theme-toggle').textContent =
-    isLight ? (window.PV_LANG === 'de' ? 'Dunkel' : 'Dark')
-            : (window.PV_LANG === 'de' ? 'Hell' : 'Light');
+  document.getElementById('theme-toggle').textContent = isLight ? t('theme_dark') : t('theme_light');
 }
 
 // ─── Reader state ─────────────────────────────────────────────────────────────
@@ -586,14 +582,14 @@ function collapseSidebar() {
   _sidebarVisible = false;
   document.getElementById('reader-sidebar').classList.add('collapsed');
   const btn = document.getElementById('sidebar-toggle-btn');
-  btn.textContent = window.PV_LANG === 'de' ? 'Bücher' : 'Books';
+  btn.textContent = t('reader_show_sidebar');
   btn.dataset.i18n = 'reader_show_sidebar';
 }
 function expandSidebar() {
   _sidebarVisible = true;
   document.getElementById('reader-sidebar').classList.remove('collapsed');
   const btn = document.getElementById('sidebar-toggle-btn');
-  btn.textContent = window.PV_LANG === 'de' ? 'Ausblenden' : 'Hide';
+  btn.textContent = t('reader_close_sidebar');
   btn.dataset.i18n = 'reader_close_sidebar';
 }
 
@@ -602,11 +598,14 @@ window.addEventListener('beforeunload', () => {
   if (_pendingPosition) _doSavePosition(_pendingPosition);
 });
 
-// ─── i18n hook — re-render dynamic sidebar content on language change ────────
+// ─── i18n hook — re-render dynamic content on language change ────────────────
 const _origApplyLang = window.applyLang;
 window.applyLang = function (lang) {
   _origApplyLang(lang);
   if (!allBooks.length) renderBookList(allBooks);
+  // Theme-toggle shows the mode you would switch TO
+  const dark = !document.body.classList.contains('light-mode');
+  document.getElementById('theme-toggle').textContent = dark ? t('theme_light') : t('theme_dark');
 };
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────

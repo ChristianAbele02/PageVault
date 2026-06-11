@@ -7,9 +7,22 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [1.6.0] — 2026-06-11
 
 ### Added
+- **Goodreads import overhaul** based on a real library export:
+  - Background import jobs (`POST /api/import/csv/start`) with a live progress bar in the CSV wizard (rows processed, saved, skipped); the floating import button now routes through the same job and opens the wizard to show progress.
+  - Import settings: fetch metadata online (on/off), import books without ISBN, keep Goodreads dates and reading history.
+  - Books without an ISBN (common for Kindle/Audible editions) are imported via their Goodreads Book Id instead of being silently skipped.
+  - `Date Added` is preserved as the library timestamp (keeps growth/timeline charts historically accurate), `Date Read` becomes the finish date and a reading-history entry, `Binding` maps to book format (Kindle → e-book, Audible → audiobook), and `Owned Copies` sets the owned flag.
+  - Mojibake repair for double-encoded exports ("BrontÃ«" → "Brontë", "WeiÃŸe NÃ¤chte" → "Weiße Nächte"), including per-line rescue and a cp1252 decode fallback for non-UTF-8 files.
+  - Status shelves (`to-read`, `currently-reading`) are no longer turned into junk custom shelves.
+- **Title/author metadata lookup** for books without a real ISBN (Goodreads `GR…` placeholder ids): CSV import, "Reload metadata", and "Repair missing metadata" now resolve those books via an Open Library title search plus a Google Books title query, so Kindle/Audible editions get covers, descriptions, and community ratings too.
+- Google Books rate-limit protection: requests are throttled (`PAGEVAULT_GOOGLE_BOOKS_MIN_INTERVAL_SECONDS`, default 0.6 s) and an HTTP 429 puts the provider on a cooldown (`PAGEVAULT_GOOGLE_BOOKS_COOLDOWN_SECONDS`, default 120 s) instead of spamming failed lookups. Optional `PAGEVAULT_GOOGLE_BOOKS_API_KEY` raises the quota for large libraries.
+- "Repair missing metadata" now also backfills missing community ratings and series info, so the *Your rating vs community* stats chart fills in after a bulk import.
+- **Community ratings without an API key**: Open Library's crowd-sourced ratings (CC0) are now fetched alongside its search results and used as the primary community-rating source — Google Books is only a second opinion. No key, no rate-limit pain.
+- **Progress bars for all long-running jobs**: "Repair missing metadata" and "Reload metadata" now run as background jobs (`POST /api/metadata/repair/start`, `POST /api/books/refresh/start`) with a live progress bar in the Tools dialog — books processed, books updated — matching the CSV import experience. The synchronous endpoints remain for scripting.
+- **Figure export on the stats page**: every chart panel has a download button in its top corner that saves the figure as a 2× PNG on a solid paper background (so dark-mode exports stay readable). The DOM-based activity heatmap is redrawn onto a canvas for its export; buttons hide automatically while a figure has no data.
 - **Built-in e-book reader**: attach an EPUB or PDF file to any book (drag & drop or file picker in the detail view), read it in an in-app reader dialog or on the dedicated `/reader` page with a searchable sidebar, font-size controls, keyboard navigation, and a progress bar.
 - E-book file API: `POST/GET/DELETE /api/books/:id/file` with magic-byte content validation (only real EPUB/PDF files are accepted) and friendly download filenames.
 - Reading position sync: `PATCH /api/books/:id/position` stores the EPUB locator (`{cfi, percent}`) and, when the book has a page count, converts the percentage into `current_page` progress on the latest review — so reading in the e-reader updates the library progress bars automatically.
@@ -18,6 +31,10 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Test coverage for e-book upload/serve/delete and reading-position endpoints (78 tests total); test fixtures now isolate the book-files directory.
 
 ### Changed
+- **Physical-library visual theme** (all textures are procedural inline SVG — no binary assets, works offline):
+  - The library grid is now a wooden bookcase: dark wood-grain back panel, framed case with side rails, and 3D shelf boards that every book stands on. Card heights are fixed and the shelf rhythm is measured from the actual cover baseline, so boards and books stay perfectly aligned at any window size. Titles/authors sit below each board like shelf labels, and hovering pulls the book off the shelf.
+  - All pop-up dialogs (book details, tools, settings, mobile QR, …) are torn-out pages: textured paper with a ragged torn top edge (SVG mask), in both a daylight and a night-reading paper tone.
+  - The stats page is an open book on a wooden desk: leather cover frame, two-page paper spread with a central gutter shadow, and stacked page edges peeking out at the sides; narrow screens collapse to a single page.
 - Frontend visual refresh across all pages: staggered entrance animations for book cards and KPI tiles, cover shine on hover, skeleton loading placeholders, animated count-up statistics, scroll-reveal chart panels, refined toasts, custom scrollbars, and visible focus rings. All animation respects `prefers-reduced-motion`.
 - Deleting a book (or its file) now also removes the stored e-book file from disk instead of leaving orphans.
 - Uploading a new e-book file resets the saved reading position for that book.
@@ -31,6 +48,9 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Pinch-zoom was blocked on all pages (`maximum-scale=1.0` removed for accessibility).
 - Admin login ignored the Enter key and did not focus the password field.
 - Reader sidebar crashed when filtering books without a title.
+- Community ratings (and series info) from Google Books were dropped during metadata merging whenever Open Library answered first — books almost never received a community rating.
+- Bulk metadata jobs sent Goodreads `GR…` placeholder ids to every ISBN provider, wasting rate limit on lookups that could never succeed.
+- CSV import crashed when a metadata lookup result contained no genre tags.
 
 ---
 
@@ -160,7 +180,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Makefile** for developer convenience
 - Local SQLite database — data stays on your machine
 
-[Unreleased]: https://github.com/ChristianAbele02/PageVault/compare/v1.5.0...HEAD
+[1.6.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.6.0
 [1.5.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.5.0
 [1.4.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.4.0
 [1.3.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.3.0
