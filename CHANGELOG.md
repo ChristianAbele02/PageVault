@@ -7,7 +7,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [1.6.0] — 2026-06-11
 
 ### Added
 - **Goodreads import overhaul** based on a real library export:
@@ -180,7 +180,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Makefile** for developer convenience
 - Local SQLite database — data stays on your machine
 
-[Unreleased]: https://github.com/ChristianAbele02/PageVault/compare/v1.5.0...HEAD
+[1.6.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.6.0
 [1.5.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.5.0
 [1.4.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.4.0
 [1.3.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.3.0
