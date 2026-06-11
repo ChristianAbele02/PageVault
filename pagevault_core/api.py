@@ -15,14 +15,16 @@ import os
 import pathlib
 import sqlite3
 import tempfile
+import threading
 import zipfile
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 from flask import Blueprint, Response, current_app, jsonify, request, send_file, session
 
 from pagevault_core.db import ensure_schema
 from pagevault_core.services import admin_service, recommendations
+from pagevault_core.utils import format_from_binding, normalize_goodreads_date, repair_mojibake
 
 
 def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
@@ -34,6 +36,8 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         Dependency injection container. Required keys:
         - `get_db`: callable returning sqlite3 connection
         - `lookup_isbn`: callable ISBN lookup with fallback chain
+        - `lookup_title_author`: optional callable title/author lookup for
+          books without a real ISBN (Goodreads `GR…` placeholder ids)
         - `merge_lookup_data`: callable for metadata merging
         - `now`: callable producing UTC ISO timestamp
         - `err`: callable returning JSON error response tuple
@@ -49,6 +53,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
 
     get_db = deps["get_db"]
     lookup_isbn = deps["lookup_isbn"]
+    lookup_title_author = deps.get("lookup_title_author")
     merge_lookup_data = deps["merge_lookup_data"]
     now = deps["now"]
     err = deps["err"]
@@ -61,6 +66,21 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
     status_from_goodreads = deps["status_from_goodreads"]
     log = deps["log"]
     location_types = {"shelf", "ebook", "loaned_to", "loaned_from", "other"}
+
+    def lookup_book_metadata(
+        isbn: str | None, title: str | None = None, author: str | None = None
+    ) -> dict | None:
+        """Look up metadata by ISBN, or by title/author for synthetic GR ids.
+
+        Books imported from Goodreads without an ISBN carry a `GR…`
+        placeholder that no ISBN provider can resolve — sending it upstream
+        only burns rate limit and fills the log with failed lookups.
+        """
+        if isbn and not str(isbn).upper().startswith("GR"):
+            return cast("dict | None", lookup_isbn(isbn))
+        if lookup_title_author and title:
+            return cast("dict | None", lookup_title_author(title, author))
+        return None
 
     def parse_location_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
         if not payload:
@@ -720,77 +740,97 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         log.info("Book %d deleted.", book_id)
         return jsonify({"ok": True})
 
-    @bp.post("/books/refresh")
-    def api_refresh_books():
-        """Refresh metadata for all books without touching reviews/tags/shelves."""
-        db = get_db()
-        rows = db.execute("SELECT * FROM books ORDER BY id").fetchall()
+    refresh_fields = [
+        "title",
+        "author",
+        "cover_url",
+        "description",
+        "publisher",
+        "year",
+        "pages",
+        "genre",
+        "language",
+        "series_name",
+        "series_number",
+        "community_rating",
+        "community_rating_count",
+    ]
 
-        total = len(rows)
-        updated = 0
-        skipped = 0
+    repair_fields = [
+        "cover_url",
+        "description",
+        "publisher",
+        "year",
+        "pages",
+        "genre",
+        "language",
+        "community_rating",
+        "community_rating_count",
+        "series_name",
+        "series_number",
+    ]
 
-        for row in rows:
-            metadata = lookup_isbn(row["isbn"])
-            if not metadata:
-                skipped += 1
-                continue
-
-            updates = {}
-            for field in [
-                "title",
-                "author",
-                "cover_url",
-                "description",
-                "publisher",
-                "year",
-                "pages",
-                "genre",
-                "language",
-                "series_name",
-                "series_number",
-                "community_rating",
-                "community_rating_count",
-            ]:
-                value = metadata.get(field)
-                if value in (None, ""):
-                    continue
-                updates[field] = value
-
-            if not updates:
-                skipped += 1
-                continue
-
-            updates["updated_at"] = now()
-            set_clause = ", ".join(f"{k} = ?" for k in updates)
-            db.execute(
-                f"UPDATE books SET {set_clause} WHERE id = ?",
-                (*updates.values(), row["id"]),
-            )
-            updated += 1
-
-        db.commit()
-        return jsonify({"ok": True, "total": total, "updated": updated, "skipped": skipped})
-
-    @bp.post("/metadata/repair")
-    def api_metadata_repair():
-        db = get_db()
-        max_retries = max(1, int((request.get_json(silent=True) or {}).get("max_retries") or 2))
-        rows = db.execute(
-            """SELECT * FROM books
+    repair_candidates_sql = """SELECT * FROM books
                WHERE cover_url IS NULL OR TRIM(COALESCE(cover_url, '')) = ''
                   OR description IS NULL OR TRIM(COALESCE(description, '')) = ''
+                  OR community_rating IS NULL
                ORDER BY id"""
-        ).fetchall()
+
+    def create_metadata_job(db: sqlite3.Connection, job_type: str, total: int) -> int:
         current = now()
         db.execute(
             """INSERT INTO metadata_jobs
                (job_type, status, total_books, processed_books, updated_books, failed_books, started_at, created_at, updated_at)
-               VALUES ('repair_missing_metadata', 'running', ?, 0, 0, 0, ?, ?, ?)""",
-            (len(rows), current, current, current),
+               VALUES (?, 'running', ?, 0, 0, 0, ?, ?, ?)""",
+            (job_type, total, current, current, current),
         )
-        job_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+        return int(db.execute("SELECT last_insert_rowid()").fetchone()[0])
 
+    def refresh_books_rows(db: sqlite3.Connection, rows: list, progress=None) -> tuple[int, int]:
+        """Refresh metadata for the given book rows; returns (updated, skipped).
+
+        ``progress(processed, updated, skipped)`` is invoked after each book so
+        background jobs can persist live progress.
+        """
+        updated = 0
+        skipped = 0
+        for index, row in enumerate(rows, start=1):
+            metadata = lookup_book_metadata(row["isbn"], row["title"], row["author"])
+            updates = {}
+            if metadata:
+                for field in refresh_fields:
+                    value = metadata.get(field)
+                    if value in (None, ""):
+                        continue
+                    updates[field] = value
+            if updates:
+                updates["updated_at"] = now()
+                set_clause = ", ".join(f"{k} = ?" for k in updates)
+                db.execute(
+                    f"UPDATE books SET {set_clause} WHERE id = ?",
+                    (*updates.values(), row["id"]),
+                )
+                updated += 1
+            else:
+                skipped += 1
+            if progress:
+                progress(index, updated, skipped)
+        return updated, skipped
+
+    def repair_books_rows(
+        db: sqlite3.Connection,
+        job_id: int,
+        rows: list,
+        max_retries: int,
+        *,
+        commit_each: bool = False,
+    ) -> tuple[int, int, int]:
+        """Repair missing metadata; returns (processed, updated, failed).
+
+        Writes per-book ``metadata_job_items`` and keeps the job row's
+        progress counters current. With ``commit_each`` every book is
+        committed individually so a concurrent poller sees live progress.
+        """
         processed = 0
         updated = 0
         failed = 0
@@ -803,21 +843,13 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             while attempts < max_retries and not success:
                 attempts += 1
                 try:
-                    metadata = lookup_isbn(row["isbn"])
+                    metadata = lookup_book_metadata(row["isbn"], row["title"], row["author"])
                     if not metadata:
                         last_error = "metadata not found"
                         continue
 
                     updates = {}
-                    for field in [
-                        "cover_url",
-                        "description",
-                        "publisher",
-                        "year",
-                        "pages",
-                        "genre",
-                        "language",
-                    ]:
+                    for field in repair_fields:
                         existing_value = row[field]
                         incoming_value = metadata.get(field)
                         if incoming_value and not existing_value:
@@ -860,12 +892,95 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                    WHERE id = ?""",
                 (processed, updated, failed, stamp, job_id),
             )
+            if commit_each:
+                db.commit()
 
         finished = now()
         db.execute(
             "UPDATE metadata_jobs SET status = 'completed', finished_at = ?, updated_at = ? WHERE id = ?",
             (finished, finished, job_id),
         )
+        return processed, updated, failed
+
+    @bp.post("/books/refresh")
+    def api_refresh_books():
+        """Refresh metadata for all books without touching reviews/tags/shelves."""
+        db = get_db()
+        rows = db.execute("SELECT * FROM books ORDER BY id").fetchall()
+        updated, skipped = refresh_books_rows(db, rows)
+        db.commit()
+        return jsonify({"ok": True, "total": len(rows), "updated": updated, "skipped": skipped})
+
+    @bp.post("/books/refresh/start")
+    def api_refresh_books_start():
+        """Start a background metadata refresh job; poll /api/metadata/jobs/<id>."""
+        db = get_db()
+        total = db.execute("SELECT COUNT(*) FROM books").fetchone()[0]
+        job_id = create_metadata_job(db, "metadata_refresh", total)
+        db.commit()
+        db_path = current_app.config["DATABASE"]
+
+        def run_refresh_job() -> None:
+            conn = sqlite3.connect(db_path, detect_types=sqlite3.PARSE_DECLTYPES)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA busy_timeout=10000")
+            try:
+                rows = conn.execute("SELECT * FROM books ORDER BY id").fetchall()
+
+                def report(processed: int, updated: int, skipped: int) -> None:
+                    conn.execute(
+                        """UPDATE metadata_jobs
+                           SET processed_books = ?, updated_books = ?, failed_books = ?, updated_at = ?
+                           WHERE id = ?""",
+                        (processed, updated, skipped, now(), job_id),
+                    )
+                    # Per-book commit so the poller sees live progress.
+                    conn.commit()
+
+                updated, skipped = refresh_books_rows(conn, rows, progress=report)
+                finished = now()
+                conn.execute(
+                    "UPDATE metadata_jobs SET status = 'completed', finished_at = ?, updated_at = ? WHERE id = ?",
+                    (finished, finished, job_id),
+                )
+                conn.execute(
+                    "INSERT INTO admin_events (event_type, details_json, created_at) VALUES (?, ?, ?)",
+                    (
+                        "metadata_refresh",
+                        json.dumps({"job_id": job_id, "total": len(rows), "updated": updated}),
+                        finished,
+                    ),
+                )
+                conn.commit()
+                log.info(
+                    "Metadata refresh job %d completed: %d updated, %d skipped.",
+                    job_id,
+                    updated,
+                    skipped,
+                )
+            except Exception as exc:
+                log.exception("Metadata refresh job %d failed: %s", job_id, exc)
+                stamp = now()
+                conn.execute(
+                    "UPDATE metadata_jobs SET status = 'failed', finished_at = ?, updated_at = ? WHERE id = ?",
+                    (stamp, stamp, job_id),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+        threading.Thread(
+            target=run_refresh_job, name=f"metadata-refresh-{job_id}", daemon=True
+        ).start()
+        return jsonify({"ok": True, "job_id": job_id, "total": total}), 202
+
+    @bp.post("/metadata/repair")
+    def api_metadata_repair():
+        db = get_db()
+        max_retries = max(1, int((request.get_json(silent=True) or {}).get("max_retries") or 2))
+        rows = db.execute(repair_candidates_sql).fetchall()
+        job_id = create_metadata_job(db, "repair_missing_metadata", len(rows))
+        processed, updated, failed = repair_books_rows(db, job_id, rows, max_retries)
         db.commit()
         record_admin_event(
             "metadata_repair",
@@ -874,6 +989,64 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         return jsonify(
             {"ok": True, "job_id": job_id, "total": len(rows), "updated": updated, "failed": failed}
         )
+
+    @bp.post("/metadata/repair/start")
+    def api_metadata_repair_start():
+        """Start a background metadata repair job; poll /api/metadata/jobs/<id>."""
+        db = get_db()
+        max_retries = max(1, int((request.get_json(silent=True) or {}).get("max_retries") or 2))
+        total = len(db.execute(repair_candidates_sql).fetchall())
+        job_id = create_metadata_job(db, "repair_missing_metadata", total)
+        db.commit()
+        db_path = current_app.config["DATABASE"]
+
+        def run_repair_job() -> None:
+            conn = sqlite3.connect(db_path, detect_types=sqlite3.PARSE_DECLTYPES)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA busy_timeout=10000")
+            try:
+                rows = conn.execute(repair_candidates_sql).fetchall()
+                processed, updated, failed = repair_books_rows(
+                    conn, job_id, rows, max_retries, commit_each=True
+                )
+                conn.execute(
+                    "INSERT INTO admin_events (event_type, details_json, created_at) VALUES (?, ?, ?)",
+                    (
+                        "metadata_repair",
+                        json.dumps(
+                            {
+                                "job_id": job_id,
+                                "total": len(rows),
+                                "updated": updated,
+                                "failed": failed,
+                            }
+                        ),
+                        now(),
+                    ),
+                )
+                conn.commit()
+                log.info(
+                    "Metadata repair job %d completed: %d/%d updated, %d failed.",
+                    job_id,
+                    updated,
+                    processed,
+                    failed,
+                )
+            except Exception as exc:
+                log.exception("Metadata repair job %d failed: %s", job_id, exc)
+                stamp = now()
+                conn.execute(
+                    "UPDATE metadata_jobs SET status = 'failed', finished_at = ?, updated_at = ? WHERE id = ?",
+                    (stamp, stamp, job_id),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+        threading.Thread(
+            target=run_repair_job, name=f"metadata-repair-{job_id}", daemon=True
+        ).start()
+        return jsonify({"ok": True, "job_id": job_id, "total": total}), 202
 
     @bp.get("/metadata/jobs")
     def api_list_metadata_jobs():
@@ -2290,6 +2463,29 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
     # Maximum CSV upload size: 50 MB (issue #7)
     _MAX_CSV_BYTES = 50 * 1024 * 1024
 
+    # Goodreads "Exclusive Shelf" values that represent a reading status —
+    # these must never become custom shelves.
+    _STATUS_SHELVES = {"read", "currently-reading", "currently reading", "to-read", "to read"}
+
+    def decode_csv_upload(upload) -> tuple[str | None, str | None, int]:
+        """Read and decode an uploaded CSV.
+
+        Returns ``(text, error_message, error_status)``. Decodes UTF-8 (with
+        BOM), falls back to cp1252 for legacy exports, and repairs
+        double-encoded mojibake ("BrontÃ«" -> "Brontë") either way.
+        """
+        try:
+            raw = upload.read(_MAX_CSV_BYTES + 1)
+        except OSError as exc:
+            return None, f"Could not read CSV file: {exc}", 400
+        if len(raw) > _MAX_CSV_BYTES:
+            return None, "CSV file too large (max 50 MB)", 413
+        try:
+            text = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            text = raw.decode("cp1252", errors="replace")
+        return repair_mojibake(text), None, 0
+
     @bp.post("/import/csv/preview")
     def api_import_csv_preview():
         """Preview a CSV import without writing to the database."""
@@ -2299,15 +2495,11 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             return err("CSV file is required", 400)
 
         mapping = parse_mapping_payload(request.form.get("mapping"))
-        try:
-            raw = upload.read(_MAX_CSV_BYTES + 1)
-            if len(raw) > _MAX_CSV_BYTES:
-                return err("CSV file too large (max 50 MB)", 413)
-            text = raw.decode("utf-8-sig")
-        except UnicodeDecodeError:
-            return err("CSV file must be UTF-8 encoded", 400)
-        except OSError as exc:
-            return err(f"Could not read CSV file: {exc}", 400)
+        options = parse_import_options(request.form)
+        text, decode_error, decode_status = decode_csv_upload(upload)
+        if decode_error:
+            return err(decode_error, decode_status)
+        assert text is not None
 
         reader = csv.DictReader(io.StringIO(text))
         if not reader.fieldnames:
@@ -2328,10 +2520,17 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                     row[target_key] = normalized[source_key]
 
             isbn = (
-                normalize_isbn(row.get("isbn"))
-                or normalize_isbn(row.get("ISBN13"))
+                normalize_isbn(row.get("ISBN13"))
+                or normalize_isbn(row.get("isbn"))
                 or normalize_isbn(row.get("ISBN"))
             )
+            if not isbn and options.get("include_no_isbn"):
+                # Same fallback as the import: identify ISBN-less books by
+                # their Goodreads Book Id so they are not silently dropped.
+                gr_id = (row.get("Book Id") or "").strip()
+                title_value = row.get("title") or row.get("Title")
+                if gr_id and title_value:
+                    isbn = f"GR{gr_id}"
             if not isbn:
                 skipped += 1
                 continue
@@ -2365,37 +2564,42 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             }
         )
 
-    @bp.post("/import/csv")
-    def api_import_csv():
-        """Import books from a CSV file (Goodreads-compatible or PageVault export)."""
-        db = get_db()
-        upload = request.files.get("file")
-        if not upload:
-            return err("CSV file is required", 400)
+    _DEFAULT_IMPORT_OPTIONS = {
+        "fetch_metadata": True,  # look up covers/descriptions online (slow)
+        "include_no_isbn": True,  # import ISBN-less books via Goodreads Book Id
+        "import_dates": True,  # preserve Date Added / Date Read / reading history
+    }
 
-        mapping = parse_mapping_payload(request.form.get("mapping"))
-        dry_run = (
-            request.args.get("dry_run") or request.form.get("dry_run") or ""
-        ).strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
+    def parse_import_options(form) -> dict[str, bool]:
+        truthy = {"1", "true", "yes", "on"}
+        options = dict(_DEFAULT_IMPORT_OPTIONS)
+        for key in options:
+            raw = (form.get(key) or "").strip().lower()
+            if raw:
+                options[key] = raw in truthy
+        return options
 
-        try:
-            raw = upload.read(_MAX_CSV_BYTES + 1)
-            if len(raw) > _MAX_CSV_BYTES:
-                return err("CSV file too large (max 50 MB)", 413)
-            text = raw.decode("utf-8-sig")
-        except UnicodeDecodeError:
-            return err("CSV file must be UTF-8 encoded", 400)
-        except OSError as exc:
-            return err(f"Could not read CSV file: {exc}", 400)
+    def import_csv_text(
+        db: sqlite3.Connection,
+        text: str,
+        mapping: dict[str, str],
+        *,
+        options: dict[str, bool],
+        dry_run: bool = False,
+        progress=None,
+    ) -> dict[str, Any]:
+        """Import books from CSV text (Goodreads-compatible or PageVault export).
 
+        Shared by the synchronous endpoint and the background import job.
+        ``progress(processed, total, written, skipped)`` is invoked after each
+        row; outside of dry runs each row is committed individually so a
+        concurrent job poller sees live progress.
+        """
         reader = csv.DictReader(io.StringIO(text))
         if not reader.fieldnames:
-            return err("CSV is missing a header row", 400)
+            raise ValueError("CSV is missing a header row")
+        rows = list(reader)
+        total = len(rows)
 
         imported = 0
         updated = 0
@@ -2403,8 +2607,10 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         reviews_added = 0
         would_import = 0
         would_update = 0
+        processed = 0
 
-        for raw_row in reader:
+        for raw_row in rows:
+            processed += 1
             normalized = {
                 str(k).strip(): (v or "").strip() for k, v in raw_row.items() if k is not None
             }
@@ -2412,16 +2618,26 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             for source_key, target_key in mapping.items():
                 if source_key in normalized:
                     row[target_key] = normalized[source_key]
-            isbn = (
-                normalize_isbn(row.get("isbn"))
-                or normalize_isbn(row.get("ISBN13"))
-                or normalize_isbn(row.get("ISBN"))
-            )
-            if not isbn:
-                skipped += 1
-                continue
 
             title = row.get("title") or row.get("Title") or None
+            isbn = (
+                normalize_isbn(row.get("ISBN13"))
+                or normalize_isbn(row.get("isbn"))
+                or normalize_isbn(row.get("ISBN"))
+            )
+            if not isbn and options.get("include_no_isbn"):
+                # Goodreads exports leave ISBN empty for many Kindle/audio
+                # editions; identify those by their stable Goodreads Book Id
+                # so re-imports stay idempotent.
+                gr_id = (row.get("Book Id") or "").strip()
+                if gr_id and title:
+                    isbn = f"GR{gr_id}"
+            if not isbn:
+                skipped += 1
+                if progress:
+                    progress(processed, total, imported + updated, skipped)
+                continue
+
             author = row.get("author") or row.get("Author") or None
             publisher = row.get("publisher") or row.get("Publisher") or None
             year = (
@@ -2448,7 +2664,27 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 status_raw if validate_status(status_raw) else status_from_goodreads(status_raw)
             )
 
-            lookup_data = lookup_isbn(isbn)
+            book_format = format_from_binding(row.get("Binding"))
+            try:
+                owned = 1 if int(row.get("Owned Copies") or 0) > 0 else 0
+            except ValueError:
+                owned = 0
+            date_read = normalize_goodreads_date(row.get("Date Read"))
+            date_added = normalize_goodreads_date(row.get("Date Added"))
+            if not options.get("import_dates"):
+                date_read = None
+                date_added = None
+
+            # Dry runs only count rows — skip the network round-trip. Synthetic
+            # GR ids cannot be resolved as ISBNs; fall back to a title/author
+            # search so Kindle/Audible editions still get covers and ratings.
+            lookup_data = None
+            if options.get("fetch_metadata") and not dry_run:
+                if isbn.startswith("GR"):
+                    if lookup_title_author and title:
+                        lookup_data = lookup_title_author(title, author)
+                else:
+                    lookup_data = lookup_isbn(isbn)
             metadata = merge_lookup_data(
                 {
                     "isbn": isbn,
@@ -2470,20 +2706,21 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
 
             genre_tags = normalize_tags(
                 split_multi_value(row.get("genre_tags") or row.get("genres"))
-                + (lookup_data.get("genre_tags") if lookup_data else [])
+                + ((lookup_data.get("genre_tags") or []) if lookup_data else [])
             )[:3]
 
-            shelves_input = split_multi_value(row.get("shelves")) + split_multi_value(
-                row.get("Bookshelves")
-            )
+            # Status shelves (read/to-read/currently-reading) are reading
+            # statuses, not custom shelves — filter them everywhere.
+            shelves_input = [
+                name
+                for name in (
+                    split_multi_value(row.get("shelves"))
+                    + split_multi_value(row.get("Bookshelves"))
+                )
+                if name.strip().lower() not in _STATUS_SHELVES
+            ]
             exclusive_shelf = (row.get("Exclusive Shelf") or "").strip()
-            if exclusive_shelf and exclusive_shelf.lower() not in {
-                "read",
-                "currently-reading",
-                "currently reading",
-                "to-read",
-                "to read",
-            }:
+            if exclusive_shelf and exclusive_shelf.lower() not in _STATUS_SHELVES:
                 shelves_input.append(exclusive_shelf)
 
             shelf_ids = []
@@ -2500,6 +2737,8 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                     would_update += 1
                 else:
                     would_import += 1
+                if progress:
+                    progress(processed, total, would_import + would_update, skipped)
                 continue
 
             if existing:
@@ -2517,9 +2756,14 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                     "location_type",
                     "location_note",
                     "loan_person",
+                    "finish_date",
+                    "community_rating",
+                    "community_rating_count",
+                    "series_name",
+                    "series_number",
                 ]:
                     existing_value = existing[field]
-                    incoming_value = metadata.get(field)
+                    incoming_value = date_read if field == "finish_date" else metadata.get(field)
                     if incoming_value and not existing_value:
                         updates[field] = incoming_value
                 if updates:
@@ -2532,12 +2776,14 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                     updated += 1
                 book_id = existing["id"]
             else:
+                added_at = f"{date_added}T00:00:00+00:00" if date_added else current
                 db.execute(
                     """INSERT INTO books
                        (isbn, title, author, cover_url, description, publisher,
                                 year, pages, genre, language, location_type, location_note, loan_person,
-                                added_at, updated_at, status)
-                              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                added_at, updated_at, status, book_format, owned, finish_date,
+                                community_rating, community_rating_count, series_name, series_number)
+                              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         isbn,
                         metadata.get("title") or "Unknown",
@@ -2552,9 +2798,16 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                         metadata.get("location_type") or "shelf",
                         metadata.get("location_note"),
                         metadata.get("loan_person"),
-                        current,
+                        added_at,
                         current,
                         status,
+                        book_format or "physical",
+                        owned,
+                        date_read,
+                        metadata.get("community_rating"),
+                        metadata.get("community_rating_count"),
+                        metadata.get("series_name"),
+                        metadata.get("series_number"),
                     ),
                 )
                 book_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -2574,6 +2827,20 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                     db.execute(
                         "INSERT OR IGNORE INTO book_tags (book_id, tag_id) VALUES (?, ?)",
                         (book_id, tag_row["id"]),
+                    )
+
+            # Reading history from Goodreads "Date Read" — one entry per
+            # finished read, idempotent on re-import.
+            if date_read and status == "read":
+                history_exists = db.execute(
+                    "SELECT 1 FROM reading_history WHERE book_id = ? AND finished_at = ?",
+                    (book_id, date_read),
+                ).fetchone()
+                if not history_exists:
+                    db.execute(
+                        "INSERT INTO reading_history (book_id, started_at, finished_at, notes, created_at) "
+                        "VALUES (?, NULL, ?, NULL, ?)",
+                        (book_id, date_read, current),
                     )
 
             rating_value = row.get("my_rating") or row.get("latest_rating") or row.get("My Rating")
@@ -2603,34 +2870,161 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                     (book_id, rating, comment),
                 ).fetchone()
                 if not existing_review:
+                    review_created = f"{date_read}T00:00:00+00:00" if date_read else current
                     db.execute(
                         "INSERT INTO reviews (book_id, rating, comment, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-                        (book_id, rating, comment, current, current),
+                        (book_id, rating, comment, review_created, review_created),
                     )
                     reviews_added += 1
 
+            # Per-row commit: keeps write locks short so the job poller can
+            # read progress, and preserves completed rows if a later row fails.
+            db.commit()
+            if progress:
+                progress(processed, total, imported + updated, skipped)
+
         if dry_run:
             db.rollback()
-            return jsonify(
-                {
-                    "ok": True,
-                    "dry_run": True,
-                    "would_import": would_import,
-                    "would_update": would_update,
-                    "skipped": skipped,
-                }
-            )
+            return {
+                "ok": True,
+                "dry_run": True,
+                "would_import": would_import,
+                "would_update": would_update,
+                "skipped": skipped,
+                "total": total,
+            }
 
         db.commit()
-        return jsonify(
-            {
-                "ok": True,
-                "imported": imported,
-                "updated": updated,
-                "skipped": skipped,
-                "reviews_added": reviews_added,
-            }
+        return {
+            "ok": True,
+            "imported": imported,
+            "updated": updated,
+            "skipped": skipped,
+            "reviews_added": reviews_added,
+            "total": total,
+        }
+
+    @bp.post("/import/csv")
+    def api_import_csv():
+        """Import books from a CSV file (Goodreads-compatible or PageVault export)."""
+        db = get_db()
+        upload = request.files.get("file")
+        if not upload:
+            return err("CSV file is required", 400)
+
+        mapping = parse_mapping_payload(request.form.get("mapping"))
+        options = parse_import_options(request.form)
+        dry_run = (
+            request.args.get("dry_run") or request.form.get("dry_run") or ""
+        ).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+        text, decode_error, decode_status = decode_csv_upload(upload)
+        if decode_error:
+            return err(decode_error, decode_status)
+        assert text is not None
+
+        try:
+            result = import_csv_text(db, text, mapping, options=options, dry_run=dry_run)
+        except ValueError as exc:
+            return err(str(exc), 400)
+        return jsonify(result)
+
+    @bp.post("/import/csv/start")
+    def api_import_csv_start():
+        """Start a background CSV import job; poll /api/metadata/jobs/<id> for progress."""
+        upload = request.files.get("file")
+        if not upload:
+            return err("CSV file is required", 400)
+
+        mapping = parse_mapping_payload(request.form.get("mapping"))
+        options = parse_import_options(request.form)
+        text, decode_error, decode_status = decode_csv_upload(upload)
+        if decode_error:
+            return err(decode_error, decode_status)
+        assert text is not None
+
+        reader = csv.DictReader(io.StringIO(text))
+        if not reader.fieldnames:
+            return err("CSV is missing a header row", 400)
+        total = sum(1 for _ in reader)
+
+        db = get_db()
+        current = now()
+        db.execute(
+            """INSERT INTO metadata_jobs
+               (job_type, status, total_books, processed_books, updated_books, failed_books, started_at, created_at, updated_at)
+               VALUES ('csv_import', 'running', ?, 0, 0, 0, ?, ?, ?)""",
+            (total, current, current, current),
         )
+        job_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+        db.commit()
+
+        db_path = current_app.config["DATABASE"]
+
+        def run_import_job() -> None:
+            conn = sqlite3.connect(db_path, detect_types=sqlite3.PARSE_DECLTYPES)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA busy_timeout=10000")
+            conn.execute("PRAGMA foreign_keys=ON")
+            job_conn = sqlite3.connect(db_path)
+            job_conn.execute("PRAGMA busy_timeout=10000")
+
+            def report(processed: int, total_rows: int, written: int, skipped: int) -> None:
+                job_conn.execute(
+                    """UPDATE metadata_jobs
+                       SET processed_books = ?, updated_books = ?, failed_books = ?, updated_at = ?
+                       WHERE id = ?""",
+                    (processed, written, skipped, now(), job_id),
+                )
+                job_conn.commit()
+
+            try:
+                result = import_csv_text(
+                    conn, text, mapping, options=options, dry_run=False, progress=report
+                )
+                finished = now()
+                job_conn.execute(
+                    """UPDATE metadata_jobs
+                       SET status = 'completed', processed_books = ?, updated_books = ?,
+                           failed_books = ?, finished_at = ?, updated_at = ?
+                       WHERE id = ?""",
+                    (
+                        result["total"],
+                        result["imported"] + result["updated"],
+                        result["skipped"],
+                        finished,
+                        finished,
+                        job_id,
+                    ),
+                )
+                job_conn.commit()
+                log.info(
+                    "CSV import job %d completed: %d imported, %d updated, %d skipped.",
+                    job_id,
+                    result["imported"],
+                    result["updated"],
+                    result["skipped"],
+                )
+            except Exception as exc:
+                conn.rollback()
+                log.exception("CSV import job %d failed: %s", job_id, exc)
+                stamp = now()
+                job_conn.execute(
+                    "UPDATE metadata_jobs SET status = 'failed', finished_at = ?, updated_at = ? WHERE id = ?",
+                    (stamp, stamp, job_id),
+                )
+                job_conn.commit()
+            finally:
+                conn.close()
+                job_conn.close()
+
+        threading.Thread(target=run_import_job, name=f"csv-import-{job_id}", daemon=True).start()
+        return jsonify({"ok": True, "job_id": job_id, "total": total}), 202
 
     @bp.app_errorhandler(404)
     def not_found(_):

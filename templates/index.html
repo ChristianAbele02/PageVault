@@ -41,6 +41,22 @@
     --shadow-focus: 0 0 0 3px rgba(200,145,58,.22);
     --ease-spring: cubic-bezier(.34,1.26,.64,1);
     --transition:  180ms ease;
+    /* ── Procedural material textures (inline SVG — no binary assets) ── */
+    --wood-grain: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='420' height='420'><filter id='wg'><feTurbulence type='fractalNoise' baseFrequency='0.011 0.14' numOctaves='4' seed='8'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.5 0.22 0 0 0'/></filter><rect width='420' height='420' filter='url(%23wg)'/></svg>");
+    --paper-grain: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='pg'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='4'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.38 0 0 0 0'/></filter><rect width='240' height='240' filter='url(%23pg)'/></svg>");
+    --torn-edge: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 480 26' preserveAspectRatio='none'><path fill='black' d='M0 26 L0 9 L11.0 12.3 L22.1 9.3 L30.1 9.7 L44.9 16.4 L51.8 10.2 L58.3 12.7 L71.5 5.4 L77.7 4.5 L85.8 4.3 L96.9 11.6 L108.6 8.5 L121.9 6.5 L138.8 11.6 L152.6 6.1 L161.8 20.1 L172.2 7.5 L188.7 4.0 L197.1 8.2 L213.8 4.7 L226.8 6.4 L233.7 12.7 L248.1 16.0 L255.2 20.4 L263.1 8.0 L271.2 5.2 L284.3 17.4 L292.6 12.7 L307.5 12.0 L315.8 11.7 L328.9 21.9 L337.2 11.0 L346.8 4.7 L353.8 6.2 L366.4 8.1 L383.0 9.2 L398.5 5.4 L414.5 6.2 L422.6 12.5 L430.8 11.9 L443.4 4.9 L449.8 6.1 L463.6 11.4 L476.1 5.6 L480 15.8 L480 26 Z'/></svg>");
+    /* Torn-page paper tones */
+    --paper-hi: #fbf6ea;
+    --paper:    #f6eedb;
+    --paper-lo: #ebdcbf;
+    /* Bookcase wood tones (wood stays wood in both themes) */
+    --case-frame: #4e341b;
+    --case-back:  #2c1c10;
+    --case-back-hi: #3a2615;
+    --board-face: #5e4226;
+    --board-face-lo: #462e17;
+    --case-title: #f0e2cb;
+    --case-muted: #c9ab84;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -282,6 +298,59 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: .45rem;
   }
+  .csv-options {
+    margin-top: .4rem;
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+  }
+  .csv-option {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    font-size: .76rem;
+    color: #5a4430;
+    cursor: pointer;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+    margin: 0;
+  }
+  .csv-option input { accent-color: var(--amber); width: auto; }
+  .dark-mode .csv-option { color: #dbc8ae; }
+
+  .csv-progress { margin-top: .55rem; }
+  .csv-progress-track {
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(122,92,58,.22);
+    overflow: hidden;
+  }
+  .csv-progress-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--amber), var(--gold));
+    transition: width .45s cubic-bezier(.22,.9,.36,1);
+  }
+  .csv-progress-fill.indeterminate {
+    width: 35%;
+    animation: csv-indeterminate 1.2s ease-in-out infinite alternate;
+  }
+  @keyframes csv-indeterminate {
+    from { margin-left: 0; }
+    to   { margin-left: 65%; }
+  }
+  .csv-progress-label {
+    margin-top: .3rem;
+    font-size: .73rem;
+    color: #8a6a47;
+    font-variant-numeric: tabular-nums;
+  }
+  .dark-mode .csv-progress-track { background: rgba(245,239,230,.16); }
+  .dark-mode .csv-progress-label { color: #cfb089; }
+
   .io-input,
   .io-textarea,
   .io-select {
@@ -350,25 +419,59 @@
     vertical-align: -1px;
   }
 
-  /* ── Book grid ── */
+  /* ── Book grid: a real wooden bookcase ──
+     The grid container is the case interior (dark back panel + side-rail
+     shading); each row of books stands on a 3D shelf board drawn by a
+     repeating gradient. syncShelfLines() keeps --shelf-offset on the cover
+     baseline and --shelf-step equal to the row rhythm, and .book-info has a
+     fixed height so every card is exactly the same height — the boards can
+     therefore never drift out of alignment with the books. */
   #book-grid {
-    --shelf-offset: 245px;
-    --shelf-step: 383px;
-    --shelf-line-thickness: 6px;
+    --shelf-offset: 245px;       /* top of the board = bottom edge of covers */
+    --shelf-step: 383px;         /* card height + row gap */
+    --board-h: 16px;
+    --rail-w: 22px;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 1.25rem;
-    padding: .75rem 1.25rem 6rem;
-    background-image: repeating-linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent var(--shelf-offset),
-      var(--shelf-line) var(--shelf-offset),
-      var(--shelf-line) calc(var(--shelf-offset) + var(--shelf-line-thickness)),
-      transparent calc(var(--shelf-offset) + var(--shelf-line-thickness)),
-      transparent var(--shelf-step)
-    );
+    gap: 1.4rem 1.25rem;
+    padding: 1.6rem calc(var(--rail-w) + 1.1rem) 1.2rem;
+    margin: .25rem .75rem 6rem;
+    border: 14px solid var(--case-frame);
+    border-radius: 12px;
+    background-color: var(--case-back);
+    background-image:
+      var(--wood-grain),
+      /* side rails: vertical shading against the frame */
+      linear-gradient(90deg,
+        rgba(0,0,0,.45) 0, rgba(0,0,0,.16) var(--rail-w), transparent calc(var(--rail-w) + 30px),
+        transparent calc(100% - var(--rail-w) - 30px), rgba(0,0,0,.16) calc(100% - var(--rail-w)), rgba(0,0,0,.45) 100%),
+      /* shelf boards: highlight lip, wooden front face, shadow cast below */
+      repeating-linear-gradient(to bottom,
+        transparent 0,
+        transparent var(--shelf-offset),
+        rgba(255,228,180,.34) var(--shelf-offset),
+        rgba(255,228,180,.10) calc(var(--shelf-offset) + 2px),
+        var(--board-face) calc(var(--shelf-offset) + 2px),
+        var(--board-face-lo) calc(var(--shelf-offset) + var(--board-h) - 2px),
+        rgba(0,0,0,.55) calc(var(--shelf-offset) + var(--board-h) - 1px),
+        rgba(0,0,0,.40) calc(var(--shelf-offset) + var(--board-h)),
+        rgba(0,0,0,0) calc(var(--shelf-offset) + var(--board-h) + 16px),
+        transparent var(--shelf-step)
+      ),
+      /* soft top-light falling into the case */
+      linear-gradient(to bottom, rgba(0,0,0,.30), rgba(0,0,0,0) 130px),
+      linear-gradient(160deg, var(--case-back-hi) 0%, var(--case-back) 55%, #241509 100%);
+    box-shadow:
+      inset 0 0 0 2px rgba(255,220,170,.07),
+      inset 0 12px 30px rgba(0,0,0,.5),
+      0 1px 0 rgba(255,255,255,.07),
+      0 18px 44px rgba(26,16,8,.38);
   }
+  /* Card text sits on the dark case interior — always light, both themes */
+  #book-grid .book-title { color: var(--case-title); text-shadow: 0 1px 2px rgba(0,0,0,.55); }
+  #book-grid .book-author { color: var(--case-muted); }
+  #book-grid .book-progress-track { background: rgba(245,239,230,.18); }
+  #book-grid .book-progress-label { color: var(--case-muted); }
 
   /* Staggered entrance — each card fades up with a per-card delay (set inline) */
   @keyframes card-enter {
@@ -378,14 +481,19 @@
 
   .book-card {
     cursor: pointer;
-    transition: transform .25s var(--ease-spring), box-shadow .2s;
     position: relative;
     animation: card-enter .5s cubic-bezier(.22,.9,.36,1) both;
     animation-delay: var(--card-delay, 0ms);
   }
-  .book-card:hover { transform: translateY(-5px); }
+  /* Only the book itself is pulled off the shelf on hover — the shelf label
+     below the board stays put, like a real bookshop shelf tag. */
+  .book-card .book-cover-wrap {
+    position: relative;
+    transition: transform .25s var(--ease-spring);
+  }
+  .book-card:hover .book-cover-wrap { transform: translateY(-7px); }
   .book-card:hover .book-cover,
-  .book-card:hover .cover-placeholder { box-shadow: 0 14px 30px var(--shadow); }
+  .book-card:hover .cover-placeholder { box-shadow: -3px 0 0 rgba(0,0,0,.25), 0 16px 22px -4px rgba(0,0,0,.6); }
 
   /* Shine sweep across the cover on hover */
   .book-cover-wrap::after {
@@ -425,12 +533,20 @@
     animation: shimmer 1.4s linear infinite;
   }
   .skeleton-card .sk-line.short { width: 60%; }
+  /* Skeletons shimmer light against the dark bookcase interior */
+  #book-grid .skeleton-card .sk-cover,
+  #book-grid .skeleton-card .sk-line {
+    background: linear-gradient(100deg,
+      rgba(245,230,205,.10) 38%, rgba(245,230,205,.24) 50%, rgba(245,230,205,.10) 62%);
+    background-size: 220% 100%;
+  }
 
   .book-cover {
     width: 100%; aspect-ratio: 2/3;
     border-radius: 4px 8px 8px 4px;
     object-fit: cover;
-    box-shadow: -3px 0 0 rgba(0,0,0,.2), 3px 3px 10px var(--shadow);
+    /* spine edge + contact shadow grounding the book on its shelf board */
+    box-shadow: -3px 0 0 rgba(0,0,0,.28), 0 5px 9px -2px rgba(0,0,0,.55);
     background: var(--tan);
     display: flex; align-items: center; justify-content: center;
     transition: box-shadow .2s;
@@ -439,7 +555,7 @@
   .cover-placeholder {
     width: 100%; aspect-ratio: 2/3;
     border-radius: 4px 8px 8px 4px;
-    box-shadow: -3px 0 0 rgba(0,0,0,.2), 3px 3px 10px var(--shadow);
+    box-shadow: -3px 0 0 rgba(0,0,0,.28), 0 5px 9px -2px rgba(0,0,0,.55);
     background: linear-gradient(135deg, var(--brown) 0%, #4a3320 100%);
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
@@ -453,7 +569,15 @@
   }
   .cover-placeholder .ph-icon { font-size: 1.8rem; margin-bottom: .4rem; opacity: .6; }
 
-  .book-info { padding: .5rem .2rem 0; }
+  .book-info {
+    /* Clears the shelf board drawn by the grid background, then acts as the
+       shelf label. Fixed height keeps every card identical so the repeating
+       shelf-board gradient always lines up with the cover bottoms. */
+    margin-top: calc(var(--board-h, 16px) + 8px);
+    height: 6.1rem;
+    overflow: hidden;
+    padding: 0 .2rem;
+  }
   .book-title {
     font-family: 'Playfair Display', serif;
     font-size: .82rem; font-weight: 700;
@@ -487,6 +611,7 @@
     color: #8a7156;
   }
   .book-stars { margin-top: .3rem; display: flex; align-items: center; gap: .2rem; }
+  #book-grid .stars-count { color: var(--case-muted); }
   .stars { color: var(--gold); font-size: .75rem; letter-spacing: -.5px; }
   .stars-count { font-size: .65rem; color: #aaa; }
 
@@ -495,7 +620,10 @@
     font-size: .5rem; font-weight: 700; text-transform: uppercase;
     letter-spacing: .1em; padding: .2rem .45rem; border-radius: 999px;
     box-shadow: 0 1px 4px rgba(0,0,0,.18);
+    /* rides along when the book is pulled off the shelf */
+    transition: transform .25s var(--ease-spring);
   }
+  .book-card:hover .status-badge { transform: translateY(-7px); }
   .badge-reading   { background: var(--sage); color: #fff; }
   .badge-read      { background: var(--rust); color: #fff; }
   .badge-want      { background: var(--brown); color: var(--tan); }
@@ -598,8 +726,9 @@
     font-size: 4rem; opacity: .25; margin-bottom: 1rem;
     animation: float-soft 3.5s ease-in-out infinite;
   }
-  #empty-state p { color: var(--brown); font-family: 'Playfair Display', serif; font-size: 1.1rem; }
-  #empty-state small { color: #aaa; margin-top: .4rem; display: block; }
+  /* Empty state sits on the dark bookcase interior — always light text */
+  #empty-state p { color: var(--case-title); font-family: 'Playfair Display', serif; font-size: 1.1rem; }
+  #empty-state small { color: var(--case-muted); margin-top: .4rem; display: block; }
 
   /* ── Modal dialog (native <dialog> element) ──
      Renders in the browser's top layer — above all z-index stacking contexts,
@@ -653,20 +782,34 @@
     .modal-dialog[open]::backdrop { background: rgba(18,10,3,0); }
   }
 
-  /* The visible panel */
+  /* The visible panel — a page torn out of a book: paper texture with a
+     ragged top edge (SVG mask: jagged band up top + solid body below).
+     Box-shadow would be clipped by the mask, so depth comes from the dark
+     backdrop instead. */
   .modal-panel {
-    background: var(--cream);
-    border-radius: 28px 28px 0 0;
+    background-color: var(--paper);
+    background-image:
+      var(--paper-grain),
+      linear-gradient(180deg, var(--paper-hi) 0%, var(--paper) 36%, var(--paper-lo) 100%);
+    background-size: 240px 240px, 100% 100%;
+    border-radius: 0;
     width: 100%; max-width: 560px;
     max-height: 92vh; overflow-y: auto;
     scrollbar-width: none;
-    padding: 0 0 2rem;
+    padding: 14px 0 2rem;
     contain: layout paint;       /* skip rendering when closed */
     /* Closed: shifted down, transparent */
     transform: translateY(28px);
     opacity: 0;
     transition: transform .3s var(--ease-spring), opacity .2s ease;
-    box-shadow: 0 -6px 50px rgba(0,0,0,.3), 0 -1px 0 rgba(255,255,255,.4) inset;
+    -webkit-mask-image: var(--torn-edge), linear-gradient(#000, #000);
+    -webkit-mask-size: 100% 26px, 100% calc(100% - 25px);
+    -webkit-mask-position: top center, bottom center;
+    -webkit-mask-repeat: no-repeat;
+    mask-image: var(--torn-edge), linear-gradient(#000, #000);
+    mask-size: 100% 26px, 100% calc(100% - 25px);
+    mask-position: top center, bottom center;
+    mask-repeat: no-repeat;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
   }
@@ -1144,6 +1287,7 @@
     :root {
       --cream: #1a130a; --sepia: #211709; --tan: #3d2e1e;
       --ink: #f5efe6; --shadow: rgba(0,0,0,.5);
+      --paper-hi: #332718; --paper: #2a1f10; --paper-lo: #221809;
     }
     header { background: #0f0b05; }
     #stats-bar { background: #0f0b05; border-top-color: rgba(255,255,255,.05); }
@@ -1157,6 +1301,7 @@
     --shelf-line: rgba(111,78,44,.42);
     --toast-bg: #f5efe6;
     --toast-fg: #2a1b0f;
+    --paper-hi: #332718; --paper: #2a1f10; --paper-lo: #221809;
   }
   .dark-mode header { background: #0f0b05; }
   .dark-mode #stats-bar { background: #0f0b05; border-top-color: rgba(255,255,255,.05); }
@@ -1295,9 +1440,6 @@
   .dark-mode .about-title { color: #f4e8d0; }
   .dark-mode .about-love { color: #cfb089; }
   .dark-mode .about-block .about-k { color: #c89f5f; }
-  .dark-mode .modal-panel {
-    box-shadow: 0 -6px 60px rgba(0,0,0,.6), 0 -1px 0 rgba(255,255,255,.07) inset;
-  }
   .dark-mode .modal-header {
     background: linear-gradient(to bottom, rgba(212,168,67,.07), transparent);
   }
@@ -1334,6 +1476,7 @@
     --shelf-line: rgba(151,114,74,.28);
     --toast-bg: #1f140a;
     --toast-fg: #fdf8f2;
+    --paper-hi: #fbf6ea; --paper: #f6eedb; --paper-lo: #ebdcbf;
   }
   .light-mode header {
     background: #362213;
@@ -1487,7 +1630,7 @@
   <div style="display:flex;gap:.5rem;">
     <button id="continue-reading-btn" class="mini-btn" onclick="toggleContinueReadingFilter()">📖 <span data-i18n="btn_continue_reading">Continue reading</span></button>
     <button class="mini-btn" onclick="clearAdvancedFilters()">🧹 <span data-i18n="btn_clear_filters">Clear filters</span></button>
-    <button class="mini-btn" onclick="refreshLibraryMetadata()">🔄 <span data-i18n="btn_reload_meta">Reload metadata</span></button>
+    <button class="mini-btn" id="reload-meta-btn" onclick="refreshLibraryMetadata()">🔄 <span data-i18n="btn_reload_meta">Reload metadata</span></button>
   </div>
 </div>
 
@@ -1886,6 +2029,10 @@
           <button class="mini-btn" onclick="runMetadataRepair()" data-i18n="btn_repair_meta">Repair missing metadata</button>
           <button class="mini-btn" onclick="loadLatestMetadataJob()" data-i18n="btn_job_status">Refresh job status</button>
         </div>
+        <div id="meta-progress" class="csv-progress" style="display:none">
+          <div class="csv-progress-track"><div id="meta-progress-fill" class="csv-progress-fill"></div></div>
+          <div id="meta-progress-label" class="csv-progress-label"></div>
+        </div>
         <div class="io-line"><strong data-i18n="meta_latest_job">Latest job:</strong> <span id="io-last-job">No repair job yet.</span></div>
       </article>
 
@@ -1914,10 +2061,28 @@
         <div class="io-title" data-i18n="csv_title">CSV Import Wizard</div>
         <input id="csv-wizard-file" class="io-input" type="file" accept=".csv,text/csv">
         <textarea id="csv-wizard-mapping" class="io-textarea" placeholder='Optional JSON mapping, e.g. {"Book Id":"isbn"}' data-i18n-placeholder="ph_csv_mapping"></textarea>
+        <div class="csv-options">
+          <label class="csv-option">
+            <input type="checkbox" id="csv-opt-fetch" checked>
+            <span data-i18n="lbl_csv_fetch_meta">Fetch metadata online (covers, descriptions — slower)</span>
+          </label>
+          <label class="csv-option">
+            <input type="checkbox" id="csv-opt-noisbn" checked>
+            <span data-i18n="lbl_csv_no_isbn">Import books without ISBN (via Goodreads ID)</span>
+          </label>
+          <label class="csv-option">
+            <input type="checkbox" id="csv-opt-dates" checked>
+            <span data-i18n="lbl_csv_dates">Keep Goodreads dates &amp; reading history</span>
+          </label>
+        </div>
         <div class="io-actions">
           <button class="mini-btn" onclick="runCsvWizardPreview()" data-i18n="btn_preview">Preview</button>
           <button class="mini-btn" onclick="runCsvWizardDryRun()" data-i18n="btn_dry_run">Dry-run</button>
-          <button class="mini-btn" onclick="runCsvWizardImport()" data-i18n="btn_import">Import</button>
+          <button class="mini-btn" id="csv-import-btn" onclick="runCsvWizardImport()" data-i18n="btn_import">Import</button>
+        </div>
+        <div id="csv-progress" class="csv-progress" style="display:none">
+          <div class="csv-progress-track"><div id="csv-progress-fill" class="csv-progress-fill"></div></div>
+          <div id="csv-progress-label" class="csv-progress-label"></div>
         </div>
         <div class="io-line"><strong data-i18n="csv_preview_result">Preview result:</strong> <span id="csv-preview-result">No preview yet.</span></div>
       </article>
@@ -2146,7 +2311,7 @@ function syncSessionBookOptions() {
   const select = document.getElementById('session-book');
   if (!select) return;
   if (!books.length) {
-    select.innerHTML = '<option value="">No books available</option>';
+    select.innerHTML = `<option value="">${esc(t('no_books_available'))}</option>`;
     return;
   }
   const currentValue = select.value;
@@ -2197,7 +2362,7 @@ async function saveGoalSettings() {
   setStoredOpsDashboardState({ goalYear: year, goalBooks: targetBooks, goalPages: targetPages });
   await loadGoalSettings();
   await refreshSessionSummary();
-  showToast('Goal saved ✓');
+  showToast(t('toast_goal_saved'));
 }
 
 async function saveReadingSession() {
@@ -2230,7 +2395,7 @@ async function saveReadingSession() {
   document.getElementById('session-minutes').value = '';
   await refreshSessionSummary();
   await loadGoalSettings();
-  showToast('Session logged ✓');
+  showToast(t('toast_session_logged'));
 }
 
 async function refreshSessionSummary() {
@@ -2279,13 +2444,16 @@ function buildCsvWizardFormData() {
 }
 
 function renderCsvPreviewResult(payload) {
-  const line = `Import ${payload.would_import ?? payload.imported ?? 0}, update ${payload.would_update ?? payload.updated ?? 0}, skip ${payload.skipped ?? 0}`;
-  document.getElementById('csv-preview-result').textContent = line;
+  document.getElementById('csv-preview-result').textContent = t('csv_result', {
+    i: payload.would_import ?? payload.imported ?? 0,
+    u: payload.would_update ?? payload.updated ?? 0,
+    s: payload.skipped ?? 0,
+  });
 }
 
 async function runCsvWizardPreview() {
   try {
-    const formData = buildCsvWizardFormData();
+    const formData = appendCsvImportOptions(buildCsvWizardFormData());
     const response = await api('/api/import/csv/preview', {
       method: 'POST',
       body: formData,
@@ -2304,7 +2472,7 @@ async function runCsvWizardPreview() {
 
 async function runCsvWizardDryRun() {
   try {
-    const formData = buildCsvWizardFormData();
+    const formData = appendCsvImportOptions(buildCsvWizardFormData());
     formData.append('dry_run', '1');
     const response = await api('/api/import/csv?dry_run=1', {
       method: 'POST',
@@ -2322,28 +2490,88 @@ async function runCsvWizardDryRun() {
   }
 }
 
-async function runCsvWizardImport() {
-  try {
-    const formData = buildCsvWizardFormData();
-    const response = await api('/api/import/csv', {
-      method: 'POST',
-      body: formData,
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      showToast(payload.error || 'CSV import failed');
-      return;
-    }
-    renderCsvPreviewResult(payload);
+// Append the import-settings checkboxes to a FormData payload.
+function appendCsvImportOptions(formData) {
+  formData.append('fetch_metadata', document.getElementById('csv-opt-fetch')?.checked ? '1' : '0');
+  formData.append('include_no_isbn', document.getElementById('csv-opt-noisbn')?.checked ? '1' : '0');
+  formData.append('import_dates', document.getElementById('csv-opt-dates')?.checked ? '1' : '0');
+  return formData;
+}
+
+let _csvJobTimer = null;
+
+function setCsvProgress(visible, { percent = 0, label = '', indeterminate = false } = {}) {
+  const wrap = document.getElementById('csv-progress');
+  const fill = document.getElementById('csv-progress-fill');
+  const text = document.getElementById('csv-progress-label');
+  if (!wrap) return;
+  wrap.style.display = visible ? '' : 'none';
+  fill.classList.toggle('indeterminate', indeterminate);
+  fill.style.width = indeterminate ? '' : `${Math.min(100, percent)}%`;
+  text.textContent = label;
+  const importBtn = document.getElementById('csv-import-btn');
+  if (importBtn) importBtn.disabled = visible;
+}
+
+async function startCsvImportJob(formData) {
+  if (_csvJobTimer) { clearTimeout(_csvJobTimer); _csvJobTimer = null; }
+  setCsvProgress(true, { indeterminate: true, label: t('csv_import_running') });
+  const response = await api('/api/import/csv/start', { method: 'POST', body: formData });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    setCsvProgress(false);
+    showToast(payload.error || t('csv_import_failed'));
+    return;
+  }
+  pollCsvImportJob(payload.job_id);
+}
+
+async function pollCsvImportJob(jobId) {
+  const response = await api(`/api/metadata/jobs/${jobId}`);
+  if (!response.ok) {
+    setCsvProgress(false);
+    showToast(t('csv_import_failed'));
+    return;
+  }
+  const job = (await response.json()).job;
+  const total = job.total_books || 0;
+  const percent = total ? Math.round((job.processed_books / total) * 100) : 0;
+  const label = t('csv_progress', {
+    done: job.processed_books,
+    total,
+    written: job.updated_books,
+    skipped: job.failed_books,
+  });
+  setCsvProgress(true, { percent, label });
+
+  if (job.status === 'completed') {
+    setCsvProgress(true, { percent: 100, label });
+    showToast(t('csv_import_done', { written: job.updated_books, skipped: job.failed_books }));
     const importedAt = formatDate(new Date().toISOString());
     setStoredIoPreviewState({
-      lastImport: `${importedAt} — Imported ${payload.imported || 0}, updated ${payload.updated || 0}`,
+      lastImport: `${importedAt} — ${label}`,
     });
     await loadShelves();
     await loadBooks();
-    showToast('CSV import completed ✓');
+    await loadGoalSettings();
+    await refreshSessionSummary();
+    setTimeout(() => setCsvProgress(false), 4000);
+    return;
+  }
+  if (job.status === 'failed') {
+    setCsvProgress(false);
+    showToast(t('csv_import_failed'));
+    return;
+  }
+  _csvJobTimer = setTimeout(() => pollCsvImportJob(jobId), 800);
+}
+
+async function runCsvWizardImport() {
+  try {
+    const formData = appendCsvImportOptions(buildCsvWizardFormData());
+    await startCsvImportJob(formData);
   } catch (error) {
-    showToast(error.message || 'CSV import failed');
+    showToast(error.message || t('csv_import_failed'));
   }
 }
 
@@ -2359,25 +2587,85 @@ async function loadLatestMetadataJob() {
   document.getElementById('io-last-job').textContent = `#${latest.id} ${latest.status} • ${latest.updated_books}/${latest.total_books} updated • ${latest.failed_books} failed`;
 }
 
-async function runMetadataRepair() {
-  showToast('Running metadata repair…');
-  const response = await api('/api/metadata/repair', {
+let _metaJobTimer = null;
+
+function setMetaProgress(visible, { percent = 0, label = '', indeterminate = false } = {}) {
+  const wrap = document.getElementById('meta-progress');
+  const fill = document.getElementById('meta-progress-fill');
+  const text = document.getElementById('meta-progress-label');
+  if (!wrap) return;
+  wrap.style.display = visible ? '' : 'none';
+  fill.classList.toggle('indeterminate', indeterminate);
+  fill.style.width = indeterminate ? '' : `${Math.min(100, percent)}%`;
+  text.textContent = label;
+  document.querySelectorAll('#tools-panel-metadata .mini-btn, #reload-meta-btn')
+    .forEach(btn => { btn.disabled = visible; });
+}
+
+async function startMetadataJob(url, runningLabel) {
+  if (_metaJobTimer) { clearTimeout(_metaJobTimer); _metaJobTimer = null; }
+  openToolsModal('tools-panel-metadata');
+  setMetaProgress(true, { indeterminate: true, label: runningLabel });
+  const response = await api(url, {
     method: 'POST',
     body: JSON.stringify({ max_retries: 2 }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    showToast(payload.error || 'Metadata repair failed');
+    setMetaProgress(false);
+    showToast(payload.error || t('meta_job_failed'));
     return;
   }
-  const refreshedAt = formatDate(new Date().toISOString());
-  setStoredIoPreviewState({
-    lastRefresh: refreshedAt,
-    lastRefreshResult: `Repair updated ${payload.updated || 0}/${payload.total || 0} books`,
+  if (!payload.total) {
+    setMetaProgress(false);
+    showToast(t('meta_nothing_todo'));
+    await loadLatestMetadataJob();
+    return;
+  }
+  pollMetadataJob(payload.job_id);
+}
+
+async function pollMetadataJob(jobId) {
+  const response = await api(`/api/metadata/jobs/${jobId}`);
+  if (!response.ok) {
+    setMetaProgress(false);
+    showToast(t('meta_job_failed'));
+    return;
+  }
+  const job = (await response.json()).job;
+  const total = job.total_books || 0;
+  const percent = total ? Math.round((job.processed_books / total) * 100) : 0;
+  const label = t('meta_progress', {
+    done: job.processed_books,
+    total,
+    updated: job.updated_books,
   });
-  await loadLatestMetadataJob();
-  await loadBooks();
-  showToast('Metadata repair completed ✓');
+  setMetaProgress(true, { percent, label });
+
+  if (job.status === 'completed') {
+    setMetaProgress(true, { percent: 100, label });
+    const summary = t('meta_job_done', { updated: job.updated_books, total });
+    showToast(summary);
+    setStoredIoPreviewState({
+      lastRefresh: formatDate(new Date().toISOString()),
+      lastRefreshResult: summary,
+    });
+    await loadLatestMetadataJob();
+    await loadBooks();
+    setTimeout(() => setMetaProgress(false), 4000);
+    return;
+  }
+  if (job.status === 'failed') {
+    setMetaProgress(false);
+    showToast(t('meta_job_failed'));
+    await loadLatestMetadataJob();
+    return;
+  }
+  _metaJobTimer = setTimeout(() => pollMetadataJob(jobId), 800);
+}
+
+async function runMetadataRepair() {
+  await startMetadataJob('/api/metadata/repair/start', t('meta_repair_running'));
 }
 
 function downloadBackupArchive() {
@@ -2412,7 +2700,7 @@ async function applyRestoreArchive() {
     showToast('Select a restore archive first');
     return;
   }
-  const yes = confirm('Apply restore archive now? This replaces your current library database.');
+  const yes = confirm(t('confirm_restore'));
   if (!yes) return;
   const formData = new FormData();
   formData.append('file', file);
@@ -2542,7 +2830,12 @@ function renderBooks() {
     const safeCover = getBookCover(b);
 
     const statusMap = { reading:'badge-reading', read:'badge-read', want_to_read:'badge-want', dnf:'badge-dnf' };
-    const statusLabel = { reading:'Reading', read:'Read', want_to_read:'Soon', dnf:'DNF' };
+    const statusLabel = {
+      reading: t('badge_reading'),
+      read: t('badge_read'),
+      want_to_read: t('badge_want'),
+      dnf: t('badge_dnf'),
+    };
     const stars = b.avg_rating ? renderStars(b.avg_rating) : '';
     const progress = formatProgress(b.current_page, b.pages, b.progress_percent);
     const progressMarkup = progress
@@ -2563,7 +2856,7 @@ function renderBooks() {
       <div class="book-info">
         <div class="book-title">${esc(b.title)}</div>
         ${progressMarkup}
-        <div class="book-author">${esc(b.author||'Unknown author')}</div>
+        <div class="book-author">${esc(b.author||t('unknown_author'))}</div>
         <div class="book-author" style="font-size:.72rem;opacity:.9">${esc(formatLocation(b))}</div>
         ${stars ? `<div class="book-stars"><span class="stars">${stars}</span><span class="stars-count">${b.avg_rating}</span></div>` : ''}
       </div>
@@ -2585,17 +2878,21 @@ function syncShelfLines() {
   }
 
   // offsetHeight ignores CSS transforms, so the entrance animation's initial
-  // scale doesn't skew the shelf-line measurement.
+  // scale doesn't skew the shelf-board measurement.
   const cardHeight = firstCard.offsetHeight;
+  const cover = firstCard.querySelector('.book-cover-wrap') || firstCard.querySelector('.sk-cover');
+  const coverHeight = cover ? cover.offsetHeight : Math.round(firstCard.offsetWidth * 1.5);
   const gridStyles = getComputedStyle(grid);
   const gridPaddingTop = parseFloat(gridStyles.paddingTop) || 0;
   const rowGap = parseFloat(gridStyles.rowGap || gridStyles.gap) || 20;
 
-  const shelfOffset = Math.round(gridPaddingTop + cardHeight + 12);
+  // The shelf board's top edge sits exactly on the cover baseline so every
+  // book stands on its board; the step repeats per row of equal-height cards.
+  const shelfOffset = Math.round(gridPaddingTop + coverHeight + 1);
   const shelfStep = Math.round(cardHeight + rowGap);
 
-  grid.style.setProperty('--shelf-offset', `${Math.max(shelfOffset, 180)}px`);
-  grid.style.setProperty('--shelf-step', `${Math.max(shelfStep, 240)}px`);
+  grid.style.setProperty('--shelf-offset', `${Math.max(shelfOffset, 120)}px`);
+  grid.style.setProperty('--shelf-step', `${Math.max(shelfStep, 200)}px`);
 }
 
 let shelfResizeTimer = null;
@@ -2640,7 +2937,7 @@ function updateAddShelfSelect() {
   const addShelfSelect = document.getElementById('add-shelves');
   addShelfSelect.innerHTML = shelves.length
     ? shelves.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')
-    : '<option disabled>No shelves yet</option>';
+    : `<option disabled>${esc(t('no_shelves'))}</option>`;
   _buildShelfPills('add-shelves-pills', 'add-shelves', []);
 }
 
@@ -2648,7 +2945,7 @@ function _buildShelfPills(pillsId, selectId, selectedIds) {
   const pills = document.getElementById(pillsId);
   if (!pills) return;
   if (!shelves.length) {
-    pills.innerHTML = '<span class="shelf-pills-empty">No shelves yet</span>';
+    pills.innerHTML = `<span class="shelf-pills-empty">${esc(t('no_shelves'))}</span>`;
     return;
   }
   const idSet = new Set(selectedIds.map(Number));
@@ -2684,30 +2981,11 @@ function clearAdvancedFilters() {
 
 async function refreshLibraryMetadata() {
   if (!books.length) {
-    showToast('No books to refresh');
+    showToast(t('no_books_refresh'));
     return;
   }
-
-  const yes = confirm(
-    'Reload metadata for all books? Reviews, ratings, shelves, and your manual tags are preserved.'
-  );
-  if (!yes) return;
-
-  showToast('Refreshing metadata…');
-  const r = await api('/api/books/refresh', { method: 'POST' });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({}));
-    showToast(err.error || 'Could not refresh metadata');
-    return;
-  }
-  const result = await r.json();
-  await loadBooks();
-  const refreshedAt = formatDate(new Date().toISOString());
-  setStoredIoPreviewState({
-    lastRefresh: refreshedAt,
-    lastRefreshResult: `Updated ${result.updated}/${result.total} books`
-  });
-  showToast(`Updated ${result.updated}/${result.total} books`);
+  if (!confirm(t('confirm_refresh_meta'))) return;
+  await startMetadataJob('/api/books/refresh/start', t('meta_refresh_running'));
 }
 
 function exportCsvFile() {
@@ -2728,27 +3006,13 @@ document.getElementById('csv-import-input').addEventListener('change', async (ev
   const file = event.target.files?.[0];
   if (!file) return;
 
+  // Route the quick-import button through the background job and open the
+  // CSV wizard panel so the progress bar is visible.
   const formData = new FormData();
   formData.append('file', file);
-
-  showToast('Importing CSV…');
-  const r = await api('/api/import/csv', {
-    method: 'POST',
-    body: formData,
-  });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({}));
-    showToast(err.error || 'CSV import failed');
-    return;
-  }
-  const result = await r.json();
-  await loadShelves();
-  await loadBooks();
-  const importedAt = formatDate(new Date().toISOString());
-  setStoredIoPreviewState({
-    lastImport: `${importedAt} — Imported ${result.imported}, updated ${result.updated}`
-  });
-  showToast(`Imported ${result.imported}, updated ${result.updated}`);
+  appendCsvImportOptions(formData);
+  openToolsModal('tools-panel-csv');
+  await startCsvImportJob(formData);
 });
 
 function parseTags(text) {
@@ -2783,7 +3047,7 @@ function updateGenreCounter(kind) {
   const element = getGenreCountEl(kind);
   if (!element) return;
   const count = getGenreState(kind).length;
-  element.textContent = `${count}/${MAX_GENRE_TAGS} tags`;
+  element.textContent = t('tag_counter', { count, max: MAX_GENRE_TAGS });
 }
 
 function setGenreMessage(kind, message='') {
@@ -2797,7 +3061,7 @@ function setGenreState(kind, values) {
   const limited = parsed.slice(0, MAX_GENRE_TAGS);
   if (kind === 'add') addGenreTags = limited;
   else detailGenreTags = limited;
-  setGenreMessage(kind, parsed.length > MAX_GENRE_TAGS ? `Maximum ${MAX_GENRE_TAGS} tags allowed.` : '');
+  setGenreMessage(kind, parsed.length > MAX_GENRE_TAGS ? t('tag_max_msg', { max: MAX_GENRE_TAGS }) : '');
   renderGenreTags(kind);
   updateGenreCounter(kind);
 }
@@ -2819,12 +3083,12 @@ function addGenreTag(kind, rawTag) {
   if (!value) return;
   const current = getGenreState(kind);
   if (current.length >= MAX_GENRE_TAGS) {
-    setGenreMessage(kind, `Maximum ${MAX_GENRE_TAGS} tags allowed.`);
+    setGenreMessage(kind, t('tag_max_msg', { max: MAX_GENRE_TAGS }));
     return;
   }
   const exists = current.some(item => item.toLowerCase() === value.toLowerCase());
   if (exists) {
-    setGenreMessage(kind, `Tag "${value}" already exists.`);
+    setGenreMessage(kind, t('tag_exists_msg', { tag: value }));
     return;
   }
   const next = [...current, value];
@@ -2848,8 +3112,8 @@ function applyTheme(theme) {
   document.body.classList.toggle('dark-mode', mode === 'dark');
   document.body.classList.toggle('light-mode', mode === 'light');
   const toggle = document.getElementById('theme-toggle');
-  toggle.textContent = mode === 'dark' ? 'Light' : 'Dark';
-  toggle.title = mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  toggle.textContent = mode === 'dark' ? t('theme_light') : t('theme_dark');
+  toggle.title = t('title_theme_toggle');
   localStorage.setItem('pagevault-theme', mode);
 }
 
@@ -2981,7 +3245,7 @@ async function openMobileConnect() {
 
   const qrHolder = document.getElementById('mobile-qr');
   const urlInput = document.getElementById('mobile-url');
-  qrHolder.textContent = 'Preparing QR...';
+  qrHolder.textContent = t('mobile_preparing');
   urlInput.value = '';
 
   const response = await api('/api/mobile/connect');
@@ -3029,16 +3293,16 @@ async function copyMobileUrl() {
   }
   try {
     await navigator.clipboard.writeText(mobileConnectUrl);
-    showToast('Mobile link copied ✓');
+    showToast(t('toast_copied'));
   } catch (_) {
-    showToast('Copy failed - copy from the field');
+    showToast(t('toast_copy_failed'));
   }
 }
 
 function startScanner() {
   const container = document.getElementById('scanner-container');
   container.classList.add('active');
-  document.getElementById('scan-btn').textContent = '⏹ Stop Scanner';
+  document.getElementById('scan-btn').textContent = `⏹ ${t('stop_scanner')}`;
 
   scanner = new Html5Qrcode("reader");
   scanner.start(
@@ -3060,15 +3324,15 @@ async function stopScanner() {
     scanner = null; scannerRunning = false;
   }
   document.getElementById('scanner-container').classList.remove('active');
-  document.getElementById('scan-btn').innerHTML = '<span>📷</span> Scan ISBN Barcode';
+  document.getElementById('scan-btn').innerHTML = `<span>📷</span> <span data-i18n="scan_isbn">${esc(t('scan_isbn'))}</span>`;
 }
 
 // ─── ISBN lookup ──────────────────────────────────────────────────────────────
 async function lookupIsbn() {
   const isbn = document.getElementById('isbn-input').value.trim();
-  if (!isbn) { showToast('Please enter an ISBN'); return; }
+  if (!isbn) { showToast(t('toast_enter_isbn')); return; }
 
-  showToast('Looking up book…');
+  showToast(t('toast_looking_up'));
   const r = await api(`/api/lookup/${isbn}`);
   if (!r.ok) {
     // Not found - show manual fields
@@ -3077,7 +3341,7 @@ async function lookupIsbn() {
     document.getElementById('add-genre-input').value = '';
     document.getElementById('add-btn').disabled = false;
     currentBookData = { isbn, title: '', author: '' };
-    showToast('Book not found – fill in manually');
+    showToast(t('toast_not_found'));
     return;
   }
   const book = await r.json();
@@ -3086,7 +3350,7 @@ async function lookupIsbn() {
   document.getElementById('add-genre-input').value = '';
   showPreview(book);
   document.getElementById('add-btn').disabled = false;
-  showToast('Book found! ✓');
+  showToast(t('toast_found'));
 }
 
 function showPreview(book) {
@@ -3138,11 +3402,11 @@ async function addBook() {
       loan_person: loanPerson || null,
     })
   });
-  if (r.status === 409) { showToast('Already in your shelf!'); document.getElementById('add-btn').disabled = false; return; }
-  if (!r.ok) { showToast('Error adding book'); document.getElementById('add-btn').disabled = false; return; }
+  if (r.status === 409) { showToast(t('toast_already')); document.getElementById('add-btn').disabled = false; return; }
+  if (!r.ok) { showToast(t('toast_add_error')); document.getElementById('add-btn').disabled = false; return; }
 
   closeAdd();
-  showToast('📚 Added to your shelf!');
+  showToast(t('toast_added'));
   loadBooks();
 }
 
@@ -3178,7 +3442,7 @@ async function createShelfFromAdd() {
   if (newPill) newPill.classList.add('active');
   document.getElementById('new-shelf-name').value = '';
   document.getElementById('new-shelf-logo').value = '';
-  showToast('Shelf created ✓');
+  showToast(t('toast_shelf_created'));
 }
 
 // ─── Detail modal ──────────────────────────────────────────────────────────────
@@ -3222,7 +3486,7 @@ function _fillDetailModal(b) {
   const authorEl = document.getElementById('d-author');
   authorEl.innerHTML = b.author
     ? `<a href="#" style="color:var(--brown);text-decoration:none" onclick="filterByAuthor(${JSON.stringify(b.author)});return false">${esc(b.author)}</a>`
-    : 'Unknown author';
+    : esc(t('unknown_author'));
 
   // Series label (injected below title if present)
   let seriesEl = document.getElementById('d-series-label');
@@ -3240,7 +3504,7 @@ function _fillDetailModal(b) {
   const sub = [];
   if (b.publisher) sub.push(`<span>${esc(b.publisher)}</span>`);
   if (b.year)      sub.push(`<span>${esc(b.year)}</span>`);
-  if (b.pages)     sub.push(`<span>${b.pages} pages</span>`);
+  if (b.pages)     sub.push(`<span>${b.pages} ${esc(t('hover_pages'))}</span>`);
   if (b.current_page != null && b.pages) {
     const percent = b.progress_percent ?? Math.round((b.current_page / b.pages) * 1000) / 10;
     sub.push(`<span>${b.current_page}/${b.pages} (${percent}%)</span>`);
@@ -3260,7 +3524,7 @@ function _fillDetailModal(b) {
   }
   if (b.community_rating) {
     const stars = '★'.repeat(Math.round(b.community_rating)) + '☆'.repeat(5 - Math.round(b.community_rating));
-    comEl.innerHTML = `<span class="community-stars">${stars}</span> ${b.community_rating.toFixed(1)} community rating${b.community_rating_count ? ` (${b.community_rating_count.toLocaleString()})` : ''}`;
+    comEl.innerHTML = `<span class="community-stars">${stars}</span> ${b.community_rating.toFixed(1)} ${esc(t('community_rating'))}${b.community_rating_count ? ` (${b.community_rating_count.toLocaleString()})` : ''}`;
     comEl.style.display = '';
   } else {
     comEl.style.display = 'none';
@@ -3325,31 +3589,31 @@ function _fillDetailModal(b) {
 
 async function loadRecommendations(bookId) {
   const holder = document.getElementById('d-recommendations');
-  holder.textContent = 'Loading recommendations...';
+  holder.textContent = t('rec_loading');
   const response = await api(`/api/books/${bookId}/recommendations?limit=6`);
   if (!response.ok) {
-    holder.textContent = 'No recommendations available.';
+    holder.textContent = t('rec_unavailable');
     return;
   }
   const items = await response.json();
   if (!items.length) {
-    holder.textContent = 'No similar books found yet. Add more books and tags.';
+    holder.textContent = t('rec_no_similar');
     return;
   }
 
   holder.innerHTML = items.map(item => {
     const reasons = [];
-    if (item.author_match) reasons.push('same author');
-    if (item.shared_genres?.length) reasons.push(`genres: ${item.shared_genres.join(', ')}`);
-    if (item.shared_tags?.length) reasons.push(`tags: ${item.shared_tags.join(', ')}`);
-    return `<div style="margin:.3rem 0;"><strong>${esc(item.title)}</strong> by ${esc(item.author || 'Unknown')} <small>(${esc(reasons.join(' | ') || 'similar metadata')})</small></div>`;
+    if (item.author_match) reasons.push(t('rec_same_author'));
+    if (item.shared_genres?.length) reasons.push(`${t('rec_genres')}: ${item.shared_genres.join(', ')}`);
+    if (item.shared_tags?.length) reasons.push(`${t('rec_tags')}: ${item.shared_tags.join(', ')}`);
+    return `<div style="margin:.3rem 0;"><strong>${esc(item.title)}</strong> ${esc(t('rec_by'))} ${esc(item.author || t('unknown_author'))} <small>(${esc(reasons.join(' | ') || t('rec_similar_meta'))})</small></div>`;
   }).join('');
 }
 
 function populateDetailShelfSelect(selectedIds=[]) {
   const select = document.getElementById('d-shelves');
   if (!shelves.length) {
-    select.innerHTML = '<option disabled>No shelves yet</option>';
+    select.innerHTML = `<option disabled>${esc(t('no_shelves'))}</option>`;
     _buildShelfPills('d-shelves-pills', 'd-shelves', []);
     return;
   }
@@ -3377,7 +3641,7 @@ function buildStarPicker(containerId, labelId, currentRating) {
   const container = document.getElementById(containerId);
   const label     = document.getElementById(labelId);
   const val = currentRating || 0;
-  label.textContent = val ? `${val} avg` : 'No reviews yet';
+  label.textContent = val ? `${val} ${t('avg_suffix')}` : t('no_reviews_yet');
   container.innerHTML = [1,2,3,4,5].map(n =>
     `<span class="star" style="color:${n<=val?'var(--gold)':'#ddd'}"
       data-n="${n}">★</span>`
@@ -3413,7 +3677,11 @@ function buildNewStarPicker() {
 function _syncNewStarDisplay() {
   const container = document.getElementById('new-stars');
   const label = document.getElementById('new-rating-label');
-  const ratingLabels = {0:'No rating',0.5:'½',1:'Terrible',1.5:'Terrible+',2:'Poor',2.5:'Poor+',3:'Okay',3.5:'Okay+',4:'Good',4.5:'Good+',5:'Amazing'};
+  const ratingLabels = {
+    0: t('rating_0'), 0.5: t('rating_05'), 1: t('rating_1'), 1.5: t('rating_15'),
+    2: t('rating_2'), 2.5: t('rating_25'), 3: t('rating_3'), 3.5: t('rating_35'),
+    4: t('rating_4'), 4.5: t('rating_45'), 5: t('rating_5'),
+  };
   container.querySelectorAll('[data-star]').forEach(wrap => {
     const n = parseInt(wrap.dataset.star);
     const fg = wrap.querySelector('.star-fg');
@@ -3426,7 +3694,7 @@ function _syncNewStarDisplay() {
 
 function renderReviews(reviews) {
   const list = document.getElementById('d-reviews');
-  if (!reviews.length) { list.innerHTML = '<p style="font-size:.82rem;color:#aaa">No reviews yet.</p>'; return; }
+  if (!reviews.length) { list.innerHTML = `<p style="font-size:.82rem;color:#aaa">${esc(t('no_reviews'))}</p>`; return; }
   list.innerHTML = reviews.map(rv => `
     <div class="review-item" data-id="${rv.id}">
       <div class="review-header">
@@ -3436,7 +3704,7 @@ function renderReviews(reviews) {
           <button class="btn-delete-review" onclick="deleteReview(${rv.id})">✕</button>
         </span>
       </div>
-      ${rv.current_page != null ? `<div class="review-progress">📖 Progress: Page ${rv.current_page}</div>` : ''}
+      ${rv.current_page != null ? `<div class="review-progress">${esc(t('progress_page', { page: rv.current_page }))}</div>` : ''}
       ${rv.comment ? `<div class="review-text">${esc(rv.comment)}</div>` : ''}
     </div>
   `).join('');
@@ -3467,13 +3735,13 @@ async function submitReview() {
   document.getElementById('new-current-page').value = '';
   newRating = 0;
   buildNewStarPicker();
-  document.getElementById('new-rating-label').textContent = 'No rating';
+  document.getElementById('new-rating-label').textContent = t('rating_0');
   const r = await api(`/api/books/${currentBookId}`);
   const b = await r.json();
   renderReviews(b.reviews || []);
   buildStarPicker('d-star-picker', 'd-rating-label', b.avg_rating);
   _detailNeedsRefresh = true;  // grid will refresh when modal closes
-  showToast('Review saved ✓');
+  showToast(t('toast_review_saved'));
 }
 
 async function deleteReview(reviewId) {
@@ -3505,7 +3773,7 @@ async function updateBookShelves() {
     showToast(err.error || 'Could not update shelves');
     return;
   }
-  showToast('Shelves updated ✓');
+  showToast(t('toast_shelves_updated'));
   _detailNeedsRefresh = true;
   openDetail(currentBookId);
 }
@@ -3522,7 +3790,7 @@ async function updateBookGenres() {
     showToast(err.error || 'Could not update genres');
     return;
   }
-  showToast('Genres updated ✓');
+  showToast(t('toast_genres_updated'));
   _detailNeedsRefresh = true;
   openDetail(currentBookId);
 }
@@ -3542,17 +3810,17 @@ async function updateBookLocation() {
     showToast(err.error || 'Could not update location');
     return;
   }
-  showToast('Location updated ✓');
+  showToast(t('toast_location_updated'));
   _detailNeedsRefresh = true;
   openDetail(currentBookId);
 }
 
 async function deleteBook() {
-  if (!confirm('Remove this book from your shelf?')) return;
+  if (!confirm(t('confirm_delete_book'))) return;
   await api(`/api/books/${currentBookId}`, { method: 'DELETE' });
   closeDetail();
   loadBooks();
-  showToast('Book removed');
+  showToast(t('toast_removed'));
 }
 
 function closeDetail() {
@@ -3599,7 +3867,7 @@ async function saveDescription() {
   document.getElementById('d-desc-edit-form').classList.remove('open');
   document.getElementById('d-desc-edit-btn').textContent = 'Edit';
   _detailNeedsRefresh = true;
-  showToast('Description saved ✓');
+  showToast(t('toast_desc_saved'));
 }
 
 // ── Author filter shortcut ─────────────────────────────────────────────────
@@ -3637,13 +3905,13 @@ async function submitQuote() {
   document.getElementById('new-quote-page').value = '';
   const qr = await api(`/api/books/${currentBookId}/quotes`);
   renderQuotes(await qr.json());
-  showToast('Quote saved ✓');
+  showToast(t('toast_quote_saved'));
 }
 
 function renderQuotes(quotes) {
   const el = document.getElementById('d-quotes');
   if (!el) return;
-  if (!quotes.length) { el.innerHTML = '<p style="font-size:.82rem;color:#aaa">No quotes saved yet.</p>'; return; }
+  if (!quotes.length) { el.innerHTML = `<p style="font-size:.82rem;color:#aaa">${esc(t('no_quotes'))}</p>`; return; }
   el.innerHTML = quotes.map(q => `
     <div class="quote-item">
       <blockquote>${esc(q.text)}</blockquote>
@@ -3673,18 +3941,18 @@ async function submitRead() {
   document.getElementById('new-read-notes').value  = '';
   const rr = await api(`/api/books/${currentBookId}/reads`);
   renderReads(await rr.json());
-  showToast('Read logged ✓');
+  showToast(t('toast_read_logged'));
 }
 
 function renderReads(reads) {
   const el = document.getElementById('d-reads');
   if (!el) return;
-  if (!reads.length) { el.innerHTML = '<p style="font-size:.82rem;color:#aaa">No reads logged yet.</p>'; return; }
+  if (!reads.length) { el.innerHTML = `<p style="font-size:.82rem;color:#aaa">${esc(t('no_reads'))}</p>`; return; }
   el.innerHTML = reads.map((r, i) => {
-    const dates = [r.started_at, r.finished_at].filter(Boolean).join(' → ') || 'Undated';
+    const dates = [r.started_at, r.finished_at].filter(Boolean).join(' → ') || t('undated');
     return `
       <div class="read-item" style="position:relative">
-        <div class="read-dates">Read ${reads.length - i}: ${esc(dates)}</div>
+        <div class="read-dates">${esc(t('read_nth', { n: reads.length - i }))}: ${esc(dates)}</div>
         ${r.notes ? `<div style="margin-top:.25rem">${esc(r.notes)}</div>` : ''}
         <button class="btn-delete-read" onclick="deleteRead(${r.id})">✕</button>
       </div>`;
@@ -3743,17 +4011,17 @@ function formatProgress(currentPage, totalPages, percent) {
     : Math.round((safeCurrent / totalPages) * 1000) / 10;
   return {
     percent: safePercent,
-    label: `Page ${safeCurrent} of ${totalPages} (${safePercent}%)`
+    label: t('page_progress', { cur: safeCurrent, total: totalPages, pct: safePercent })
   };
 }
 
 function formatLocation(book) {
   const labels = {
-    shelf: 'Shelf',
-    ebook: 'E-Book',
-    loaned_to: 'Loaned to',
-    loaned_from: 'Loaned from',
-    other: 'Other',
+    shelf: t('loc_shelf'),
+    ebook: t('loc_ebook'),
+    loaned_to: t('loc_loaned_to'),
+    loaned_from: t('loc_loaned_from'),
+    other: t('loc_other'),
   };
   const type = labels[book.location_type] || labels.shelf;
   const parts = [type];
@@ -3906,13 +4174,13 @@ function updateEbookSection(b) {
 async function uploadBookFile(file) {
   if (!file || !currentBookId) return;
   const ext = file.name.split('.').pop().toLowerCase();
-  if (!['epub', 'pdf'].includes(ext)) { showToast('Only EPUB and PDF files are supported.'); return; }
+  if (!['epub', 'pdf'].includes(ext)) { showToast(t('toast_only_epub_pdf')); return; }
 
   const formData = new FormData();
   formData.append('file', file);
-  showToast('Uploading…');
+  showToast(t('toast_uploading'));
   const r = await api(`/api/books/${currentBookId}/file`, { method: 'POST', body: formData });
-  if (!r.ok) { showToast('Upload failed.'); return; }
+  if (!r.ok) { showToast(t('toast_upload_failed')); return; }
 
   const data = await r.json();
   const cached = books.find(b => b.id === currentBookId);
@@ -3924,19 +4192,19 @@ async function uploadBookFile(file) {
   updateEbookSection(Object.assign({}, cached, data));
   document.getElementById('ebook-file-input').value = '';
   _detailNeedsRefresh = true;
-  showToast('File uploaded ✓');
+  showToast(t('toast_uploaded'));
 }
 
 async function deleteBookFile() {
   if (!currentBookId) return;
-  if (!confirm('Remove the ebook file from this book?')) return;
+  if (!confirm(t('confirm_remove_file'))) return;
   const r = await api(`/api/books/${currentBookId}/file`, { method: 'DELETE' });
-  if (!r.ok) { showToast('Failed to remove file.'); return; }
+  if (!r.ok) { showToast(t('toast_file_remove_failed')); return; }
   const cached = books.find(b => b.id === currentBookId);
   if (cached) { cached.file_type = null; cached.file_path = null; cached.reader_position = null; }
   updateEbookSection({ file_type: null });
   _detailNeedsRefresh = true;
-  showToast('File removed ✓');
+  showToast(t('toast_file_removed'));
 }
 
 function setupEbookDrop() {
@@ -3952,23 +4220,33 @@ function setupEbookDrop() {
   });
 }
 
-// ─── i18n hook — refresh dynamic filter first-options on lang change ──────────
+// ─── i18n hook — re-render all dynamic content on language change ─────────────
 const _origApplyLang = window.applyLang;
 window.applyLang = function(lang) {
   _origApplyLang(lang);
-  // Refresh dynamic first-options that JS rebuilds without data-i18n
+  // Dynamic first-options that JS rebuilds without data-i18n
   const af = document.getElementById('author-filter');
   if (af && af.options[0] && af.options[0].value === '') af.options[0].textContent = t('filter_all_authors');
   const gf = document.getElementById('genre-filter');
   if (gf && gf.options[0] && gf.options[0].value === '') gf.options[0].textContent = t('filter_all_genres');
   const sf = document.getElementById('shelf-filter');
   if (sf && sf.options[0] && sf.options[0].value === '') sf.options[0].textContent = t('filter_all_shelves');
-  // Refresh theme-toggle text
+  // Theme-toggle shows the mode you would switch TO
   const tt = document.getElementById('theme-toggle');
   if (tt) {
     const isDark = !document.body.classList.contains('light-mode');
     tt.textContent = isDark ? t('theme_light') : t('theme_dark');
   }
+  // Re-render the book grid (status badges, progress labels, locations)
+  if (_booksLoadedOnce) renderBooks();
+  // Refresh tag counters, shelf pill empty states, and star-rating labels
+  updateGenreCounter('add');
+  updateGenreCounter('detail');
+  if (!shelves.length) {
+    _buildShelfPills('add-shelves-pills', 'add-shelves', []);
+    _buildShelfPills('d-shelves-pills', 'd-shelves', []);
+  }
+  _syncNewStarDisplay();
 };
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────

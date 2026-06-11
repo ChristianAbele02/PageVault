@@ -58,36 +58,38 @@
     .grid { grid-template-columns: 1fr; }
   }
 </style>
+<script src="/static/i18n.js"></script>
 </head>
 <body>
 <header>
   <strong>PageVault Admin</strong>
   <div style="display:flex;gap:.4rem;">
-    <a href="/">Library</a>
-    <button onclick="logout()">Logout</button>
+    <a href="/" data-i18n="nav_library">Library</a>
+    <button data-lang-toggle onclick="toggleLang()" title="Switch language" data-i18n-title="title_lang_toggle">DE</button>
+    <button onclick="logout()" data-i18n="nav_logout">Logout</button>
   </div>
 </header>
 <main>
   <div class="grid">
     <section class="panel">
-      <h2>Health and Storage</h2>
+      <h2 data-i18n="admin_health">Health and Storage</h2>
       <div id="health"></div>
       <div id="storage"></div>
     </section>
     <section class="panel">
-      <h2>Reading Status</h2>
+      <h2 data-i18n="admin_status">Reading Status</h2>
       <div id="reading-status"></div>
     </section>
     <section class="panel">
-      <h2>History</h2>
+      <h2 data-i18n="admin_history">History</h2>
       <ul id="history"></ul>
     </section>
     <section class="panel">
-      <h2>Restore and Metadata Jobs</h2>
+      <h2 data-i18n="admin_ops">Restore and Metadata Jobs</h2>
       <ul id="ops"></ul>
     </section>
     <section class="panel" style="grid-column:1 / -1;">
-      <h2>Application Logs</h2>
+      <h2 data-i18n="admin_logs">Application Logs</h2>
       <pre id="logs">Loading logs...</pre>
     </section>
   </div>
@@ -109,35 +111,35 @@ async function loadData() {
   }
   const diag = await diagResp.json();
   document.getElementById('health').innerHTML =
-    `<div class="kv"><strong>Status:</strong> ${diag.health.status}</div>` +
-    `<div class="kv"><strong>Time:</strong> ${diag.health.time}</div>`;
+    `<div class="kv"><strong>${t('kv_status')}:</strong> ${diag.health.status}</div>` +
+    `<div class="kv"><strong>${t('kv_time')}:</strong> ${diag.health.time}</div>`;
 
   document.getElementById('storage').innerHTML =
-    `<div class="kv"><strong>DB:</strong> ${diag.storage.database_path}</div>` +
-    `<div class="kv"><strong>DB size:</strong> ${fmtBytes(diag.storage.database_size_bytes)}</div>` +
-    `<div class="kv"><strong>Free disk:</strong> ${fmtBytes(diag.storage.disk_free_bytes)}</div>`;
+    `<div class="kv"><strong>${t('kv_db')}:</strong> ${diag.storage.database_path}</div>` +
+    `<div class="kv"><strong>${t('kv_db_size')}:</strong> ${fmtBytes(diag.storage.database_size_bytes)}</div>` +
+    `<div class="kv"><strong>${t('kv_free_disk')}:</strong> ${fmtBytes(diag.storage.disk_free_bytes)}</div>`;
 
   const rs = diag.reading_status || {};
   document.getElementById('reading-status').innerHTML =
-    `<div class="kv">Total: ${rs.total || 0}</div>` +
-    `<div class="kv">Read: ${rs.read || 0}</div>` +
-    `<div class="kv">Reading: ${rs.reading || 0}</div>` +
-    `<div class="kv">Want to read: ${rs.want_to_read || 0}</div>`;
+    `<div class="kv">${t('kv_total')}: ${rs.total || 0}</div>` +
+    `<div class="kv">${t('kv_read')}: ${rs.read || 0}</div>` +
+    `<div class="kv">${t('kv_reading')}: ${rs.reading || 0}</div>` +
+    `<div class="kv">${t('kv_want')}: ${rs.want_to_read || 0}</div>`;
 
   const historyList = document.getElementById('history');
   historyList.innerHTML = (diag.history || []).map(item =>
     `<li><strong>${item.event_type}</strong> <small>${item.created_at}</small></li>`
-  ).join('') || '<li>No history yet.</li>';
+  ).join('') || `<li>${t('admin_no_history')}</li>`;
 
   const ops = [
     ...(diag.restore_history || []).map(item => `Restore: ${item.status} (${item.created_at})`),
     ...(diag.metadata_jobs || []).map(item => `Metadata job #${item.id}: ${item.status}`),
   ];
-  document.getElementById('ops').innerHTML = ops.map(text => `<li>${text}</li>`).join('') || '<li>No operations yet.</li>';
+  document.getElementById('ops').innerHTML = ops.map(text => `<li>${text}</li>`).join('') || `<li>${t('admin_no_ops')}</li>`;
 
   const logsResp = await fetch('/api/admin/logs?lines=300');
   const logsPayload = await logsResp.json();
-  document.getElementById('logs').textContent = (logsPayload.lines || []).join('\n') || 'No logs available.';
+  document.getElementById('logs').textContent = (logsPayload.lines || []).join('\n') || t('admin_no_logs');
 }
 
 async function logout() {
@@ -145,7 +147,15 @@ async function logout() {
   window.location.href = '/';
 }
 
-loadData();
+// Re-render the dynamic diagnostics when the language changes
+const _origApplyLang = window.applyLang;
+window.applyLang = function (lang) {
+  _origApplyLang(lang);
+  loadData();
+};
+
+document.getElementById('logs').textContent = t('admin_loading_logs');
+applyLang(window.PV_LANG);
 </script>
 </body>
 </html>

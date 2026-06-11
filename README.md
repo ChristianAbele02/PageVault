@@ -334,6 +334,7 @@ All responses are JSON. The base URL is `http://localhost:5000`.
 | `DELETE` | `/api/shelves/:id` | Delete shelf (book relations cascade) |
 | `GET` | `/api/lookup/:isbn` | Preview ISBN metadata without saving |
 | `POST` | `/api/books/refresh` | Refresh metadata for all books (preserves reviews/tags/shelves) |
+| `POST` | `/api/books/refresh/start` | Same as a background job with progress (poll `/api/metadata/jobs/:id`) |
 | `POST` | `/api/books/:id/reviews` | Add review `{ rating?, comment?, current_page? }` |
 | `DELETE` | `/api/books/:id/reviews/:rid` | Remove a review |
 | `POST` | `/api/books/:id/file` | Upload an EPUB/PDF e-book file (multipart `file`) |
@@ -353,12 +354,14 @@ All responses are JSON. The base URL is `http://localhost:5000`.
 | `POST` | `/api/books/:id/sessions` | Add reading session `{ start_page, end_page, minutes_spent, session_date?, notes? }` |
 | `GET` | `/api/sessions` | List reading sessions (supports `?start_date=&end_date=`) |
 | `POST` | `/api/metadata/repair` | Run repair job for books missing metadata |
+| `POST` | `/api/metadata/repair/start` | Same as a background job with progress (poll `/api/metadata/jobs/:id`) |
 | `GET` | `/api/metadata/jobs` | List recent metadata jobs |
 | `GET` | `/api/metadata/jobs/:id` | Metadata job detail with per-book items |
 | `GET` | `/api/export` | Full library export as JSON |
 | `GET` | `/api/export/csv` | Export full library as CSV |
-| `POST` | `/api/import/csv/preview` | Preview CSV import result (`mapping` optional) |
-| `POST` | `/api/import/csv` | Import PageVault or Goodreads-compatible CSV |
+| `POST` | `/api/import/csv/preview` | Preview CSV import result (`mapping`, settings optional) |
+| `POST` | `/api/import/csv` | Import PageVault or Goodreads-compatible CSV (synchronous) |
+| `POST` | `/api/import/csv/start` | Start a background import job with progress (poll `/api/metadata/jobs/:id`) |
 | `GET` | `/api/backup/download` | Download ZIP backup of current DB |
 | `POST` | `/api/backup/restore/validate` | Validate backup archive and return summary |
 | `POST` | `/api/backup/restore/apply` | Apply backup archive to current DB |
@@ -456,7 +459,25 @@ When you look up an ISBN (or run metadata refresh), PageVault:
 2. If fields are missing, runs additional fallbacks in parallel: Google Books, Open Library Search, and Crossref.
 3. If cover image is still missing, queries Open Library Covers API.
 
-Fields are merged progressively so missing values are filled without discarding good data from earlier providers.
+Fields are merged progressively so missing values are filled without discarding good data from earlier providers. Community ratings come from Open Library's crowd-sourced ratings (CC0, no key required) with Google Books as a second source; series info comes from Google Books only.
+
+Books without a real ISBN (Goodreads imports store those under a `GR…` placeholder id) are resolved by a title/author search against Open Library and Google Books instead.
+
+#### Google Books rate limits
+
+Google Books has a very small unauthenticated quota — bulk jobs over a large
+library will hit `HTTP 429: Too Many Requests` without an API key. PageVault
+throttles requests and pauses Google Books lookups after a 429, and covers,
+descriptions, and community ratings work without Google thanks to Open
+Library. For maximum coverage (descriptions and series info especially) you
+can still set a free API key:
+
+1. Create a project at <https://console.cloud.google.com/apis/credentials>, enable the **Books API**, and create an API key.
+2. Put it in your `.env`: `PAGEVAULT_GOOGLE_BOOKS_API_KEY=your-key`.
+3. Re-run **Tools → Repair missing metadata** — it backfills missing covers, descriptions, community ratings, and series info.
+
+Tuning knobs: `PAGEVAULT_GOOGLE_BOOKS_MIN_INTERVAL_SECONDS` (default `0.6`) and
+`PAGEVAULT_GOOGLE_BOOKS_COOLDOWN_SECONDS` (default `120`).
 
 ### Metadata lookup cache
 
@@ -470,8 +491,16 @@ Fields are merged progressively so missing values are filled without discarding 
 ### CSV architecture
 
 - **Export (`/api/export/csv`)** writes library rows including book metadata, shelves, tags, and review summary fields.
-- **Import (`/api/import/csv`)** accepts both PageVault CSV and Goodreads-compatible CSV headers.
-- Import merges metadata safely and preserves existing data where appropriate.
+- **Import** accepts both PageVault CSV and Goodreads-compatible CSV headers, with
+  three settings in the wizard: fetch metadata online, import books without ISBN
+  (identified by their Goodreads Book Id), and keep Goodreads dates.
+- Goodreads specifics handled automatically: Excel-quoted ISBNs (`="..."`),
+  `Date Added`/`Date Read` (preserved as added/finish dates plus reading history),
+  `Binding` → book format, `Owned Copies`, ratings/reviews, and repair of
+  double-encoded text ("BrontÃ«" → "Brontë"). Status shelves like `to-read`
+  become reading statuses, not custom shelves.
+- Large imports run as a background job with a live progress bar; re-imports are
+  idempotent (no duplicate books, reviews, or reading history).
 
 ### Project layout
 
