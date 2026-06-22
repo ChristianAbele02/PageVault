@@ -293,6 +293,8 @@
       reader_next:          '›',
       reader_close_sidebar: 'Hide',
       reader_show_sidebar:  'Books',
+      reader_open_file:     '📂 Open file from device',
+      reader_open_failed:   'Could not open this file.',
 
       /* ── stats page — hero & filters ─────────────────────────────────── */
       stats_heading:  'Reading Analytics',
@@ -725,6 +727,8 @@
       reader_next:          '›',
       reader_close_sidebar: 'Ausblenden',
       reader_show_sidebar:  'Bücher',
+      reader_open_file:     '📂 Datei vom Gerät öffnen',
+      reader_open_failed:   'Diese Datei konnte nicht geöffnet werden.',
 
       /* ── stats page — hero & filters ─────────────────────────────────── */
       stats_heading:  'Lesestatistiken',

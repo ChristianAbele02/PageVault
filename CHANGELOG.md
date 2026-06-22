@@ -7,6 +7,44 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.7.0] — 2026-06-22
+
+### Added
+- **Native Windows desktop app.** PageVault can be built as a double-click
+  `PageVault.exe` that opens in its own window (pywebview on WebView2) backed by a
+  local waitress server — no terminal and no Python install required.
+  - `desktop.py` launcher: auto-selected free port, single-instance guard, and a
+    `--no-window` server-only mode for testing or browser use.
+  - Persists `SECRET_KEY` and the admin password to the per-user data directory, so
+    login sessions and admin access survive restarts (there is no console in a
+    windowed app to print a one-time password to).
+  - `pagevault.spec` (PyInstaller, one-folder), an Inno Setup per-user installer
+    (`installer.iss`), and `tools/make_icon.py` to render the app icon.
+  - `Desktop Release` GitHub Actions workflow builds the executable, smoke-tests it,
+    compiles the installer, and attaches the installer and a portable zip to tagged
+    releases.
+  - Optional Authenticode code signing: `tools/sign_windows.ps1` (signtool, with a
+    `Set-AuthenticodeSignature` fallback) and `tools/make_selfsigned_cert.ps1` for
+    private trust. CI signs the executable and installer when `WINDOWS_CERT_BASE64` and
+    `WINDOWS_CERT_PASSWORD` secrets are set; the private key is never committed.
+  - `desktop`, `build` optional-dependency groups and `make desktop` / `make exe` /
+    `make desktop-deps` targets.
+- **Open local files in the reader.** The standalone `/reader` page can open an EPUB
+  or PDF straight from the device through a file picker, without adding it to the
+  library. The file is read client-side (no upload, no new server route); device
+  files do not sync reading position.
+
+### Changed
+- When running as a frozen executable, the database, e-book files, and log default
+  to a per-user OS data directory (`%LOCALAPPDATA%\PageVault` on Windows); set
+  `PAGEVAULT_DATA_DIR` to override. Source checkouts and Docker are unchanged.
+
+### Fixed
+- Git-ignore the runtime `secret_key` and `admin_password.txt` files written by a
+  source checkout, so local credentials cannot be accidentally committed.
+
+---
+
 ## [1.6.0] — 2026-06-11
 
 ### Added
@@ -180,6 +218,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Makefile** for developer convenience
 - Local SQLite database — data stays on your machine
 
+[1.7.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.7.0
 [1.6.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.6.0
 [1.5.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.5.0
 [1.4.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.4.0

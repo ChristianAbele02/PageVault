@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pagevault"
 
-version = "1.6.0"
+version = "1.7.0"
 
 description = "A self-hosted, personal book catalog with ISBN barcode scanning — your local Goodreads alternative."
 readme = "README.md"
@@ -40,6 +40,17 @@ dev = [
 prod = [
     "gunicorn>=26.0.0",
 ]
+# Native desktop app: a local WSGI server (waitress, cross-platform) rendered in
+# an OS webview window (pywebview uses WebView2 on Windows, WebKit on macOS, GTK on Linux).
+desktop = [
+    "pywebview>=5.0",
+    "waitress>=3.0.0",
+]
+# Tooling to produce the frozen executable; only needed on a build machine.
+build = [
+    "pyinstaller>=6.10",
+    "pillow>=10.0",
+]
 
 [project.urls]
 Homepage    = "https://github.com/ChristianAbele02/PageVault"
@@ -49,9 +60,10 @@ Changelog   = "https://github.com/ChristianAbele02/PageVault/blob/main/CHANGELOG
 
 [project.scripts]
 pagevault = "app:main"
+pagevault-desktop = "desktop:main"
 
 [tool.setuptools]
-py-modules = ["app", "config"]
+py-modules = ["app", "config", "desktop"]
 include-package-data = true
 
 [tool.setuptools.packages.find]
@@ -91,3 +103,8 @@ warn_return_any        = true
 check_untyped_defs     = true
 warn_unused_ignores    = true
 no_implicit_optional   = true
+
+# Optional desktop/build dependencies ship without type stubs.
+[[tool.mypy.overrides]]
+module = ["waitress.*", "webview.*"]
+ignore_missing_imports = true

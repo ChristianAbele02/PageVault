@@ -39,6 +39,13 @@ venv.bak/
 # Keep the schema definition if you have one
 !schema.sql
 
+# ── PageVault runtime state (written when running from a source checkout) ──────
+# The desktop/web app persists these next to the code when not frozen. They hold
+# local secrets and user data — never commit them.
+secret_key
+admin_password.txt
+book_files/
+
 # ── Testing & coverage ─────────────────────────────────────────────────────────
 .pytest_cache/
 .coverage
@@ -56,6 +63,14 @@ htmlcov/
 .env.local
 .env.*.local
 *.secret
+
+# ── Code-signing material (NEVER commit private keys) ──────────────────────────
+certs/
+*.pfx
+*.p12
+*.cer
+*.crt
+*.key
 
 # ── IDEs ──────────────────────────────────────────────────────────────────────
 .vscode/
@@ -79,3 +94,9 @@ Thumbs.db
 # ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
 logs/
+
+# ── Desktop build artefacts ────────────────────────────────────────────────────
+# PyInstaller writes to build/ and dist/ (already ignored above); the installer
+# compiler writes here. The app icon (static/icon.ico, static/icon.png) is a
+# committed asset and is intentionally not ignored.
+installer_output/

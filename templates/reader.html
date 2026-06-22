@@ -143,6 +143,24 @@
     outline: none;
   }
   .sidebar-search:focus { border-color: var(--amber); }
+  .sidebar-open-file {
+    width: 100%;
+    margin-top: .5rem;
+    padding: .42rem .6rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card-bg);
+    color: var(--button-fg);
+    font-size: .8rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    transition: border-color .18s ease, color .18s ease;
+  }
+  .sidebar-open-file:hover { border-color: var(--amber); color: var(--amber); }
   #book-list {
     flex: 1;
     overflow-y: auto;
@@ -362,6 +380,11 @@
       <input class="sidebar-search" id="book-search" type="search"
              placeholder="Search books…" data-i18n-placeholder="reader_search_ph"
              oninput="filterBooks(this.value)">
+      <button class="sidebar-open-file" type="button" onclick="pickLocalFile()"
+              data-i18n="reader_open_file">📂 Open file from device</button>
+      <input type="file" id="local-file-input" hidden
+             accept=".epub,.pdf,application/epub+zip,application/pdf"
+             onchange="onLocalFilePicked(this)">
     </div>
     <div id="book-list"></div>
   </aside>
@@ -388,6 +411,8 @@
     <div class="reader-empty-state" id="reader-empty-state">
       <div class="reader-empty-icon">📚</div>
       <div data-i18n="reader_empty">Select a book from the sidebar to start reading.</div>
+      <button class="pill-btn" type="button" onclick="pickLocalFile()"
+              data-i18n="reader_open_file" style="margin-top:.5rem">📂 Open file from device</button>
     </div>
   </div>
 
@@ -416,6 +441,7 @@ let _readerFontSize = 100;
 let _positionSaveTimer = null;
 let _pendingPosition = null;
 let _sidebarVisible = true;
+let _localObjectUrl = null;   // blob URL for a device-opened file; revoked on close
 
 // ─── API helper ───────────────────────────────────────────────────────────────
 function api(path, opts = {}) {
@@ -503,24 +529,83 @@ function openBook(id) {
   }
 }
 
+// ─── Open a local file from the device ────────────────────────────────────────
+// Reads the chosen EPUB/PDF in the browser (no upload). A device file is not tied
+// to a library book, so reading position is not synced for it.
+function pickLocalFile() {
+  document.getElementById('local-file-input').click();
+}
+
+function onLocalFilePicked(input) {
+  const file = input.files && input.files[0];
+  input.value = '';   // reset so the same file can be re-picked later
+  if (file) openLocalFile(file);
+}
+
+async function openLocalFile(file) {
+  const name = file.name || 'Document';
+  const lower = name.toLowerCase();
+  const isPdf  = lower.endsWith('.pdf')  || file.type === 'application/pdf';
+  const isEpub = lower.endsWith('.epub') || file.type === 'application/epub+zip';
+  if (!isPdf && !isEpub) { alert(t('toast_only_epub_pdf')); return; }
+
+  destroyReader();
+  currentBookId = null;
+
+  document.querySelectorAll('.book-entry').forEach(el => el.classList.remove('active'));
+  document.getElementById('reader-book-title').textContent = name;
+  document.getElementById('reader-toolbar').style.display = '';
+  document.getElementById('reader-empty-state').style.display = 'none';
+  document.getElementById('reader-progress-fill').style.width = '0%';
+
+  const epubArea = document.getElementById('reader-epub-area');
+  const pdfArea  = document.getElementById('reader-pdf-area');
+
+  if (isEpub) {
+    pdfArea.style.display  = 'none';
+    epubArea.style.display = '';
+    epubArea.innerHTML = '';
+    try {
+      const buffer = await file.arrayBuffer();
+      _mountEpub(buffer, null, null);
+    } catch (_) {
+      epubArea.innerHTML = '';
+      alert(t('reader_open_failed'));
+    }
+  } else {
+    epubArea.style.display = 'none';
+    pdfArea.style.display  = '';
+    _localObjectUrl = URL.createObjectURL(file);
+    pdfArea.src = _localObjectUrl;
+  }
+
+  if (window.innerWidth <= 640) collapseSidebar();
+}
+
 // ─── EPUB.js ──────────────────────────────────────────────────────────────────
 function initEpubReader(readerPos) {
-  _readerBook = ePub(`/api/books/${currentBookId}/file`);
-  _readerRendition = _readerBook.renderTo('reader-epub-area', {
-    width: '100%', height: '100%', flow: 'paginated', spread: 'none'
-  });
-  _readerFontSize = 100;
-
   let startCfi = null;
   if (readerPos) {
     try { startCfi = JSON.parse(readerPos).cfi || null; } catch (_) {}
   }
+  _mountEpub(`/api/books/${currentBookId}/file`, startCfi, loc => {
+    schedulePositionSave({ cfi: loc.start.cfi, percent: loc.start.percentage || 0 });
+  });
+}
+
+// Mount an EPUB from a URL or an ArrayBuffer (device file). onRelocate may be null.
+function _mountEpub(input, startCfi, onRelocate) {
+  _readerBook = ePub(input);
+  _readerRendition = _readerBook.renderTo('reader-epub-area', {
+    width: '100%', height: '100%', flow: 'paginated', spread: 'none'
+  });
+  _readerFontSize = 100;
   _readerRendition.display(startCfi || undefined);
 
   _readerRendition.on('relocated', loc => {
     const pct = (loc.start.percentage || 0) * 100;
     document.getElementById('reader-progress-fill').style.width = pct.toFixed(1) + '%';
-    schedulePositionSave({ cfi: loc.start.cfi, percent: loc.start.percentage || 0 });
+    if (onRelocate) onRelocate(loc);
   });
 
   document.addEventListener('keydown', _keyHandler);
@@ -533,6 +618,7 @@ function destroyReader() {
   if (_readerBook)        { _readerBook.destroy(); _readerBook = null; }
   document.getElementById('reader-epub-area').innerHTML = '';
   document.getElementById('reader-pdf-area').src = '';
+  if (_localObjectUrl) { URL.revokeObjectURL(_localObjectUrl); _localObjectUrl = null; }
   document.removeEventListener('keydown', _keyHandler);
   _pendingPosition = null;
 }

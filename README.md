@@ -7,7 +7,7 @@
   Scan ISBN barcodes with your phone · Fetch covers & metadata automatically · Keep your reading life private.
 </p>
 
-<p align="center"><strong>Latest release:</strong> v1.6.0</p>
+<p align="center"><strong>Latest release:</strong> v1.7.0</p>
 
 <br/>
 
@@ -167,6 +167,64 @@ docker compose up -d
 
 PageVault starts at **http://localhost:5000**. Data persists in a named Docker volume.
 
+### Desktop app (Windows)
+
+Prefer a double-click program with no terminal and no Python install? Download
+**`PageVault-Setup-<version>.exe`** from the
+[latest release](https://github.com/ChristianAbele02/PageVault/releases), run it,
+and launch PageVault from the Start menu. It opens in its own window instead of a
+browser tab.
+
+- The installer is per-user and needs no administrator rights.
+- If the build is unsigned, Windows SmartScreen shows an "unknown publisher" prompt on
+  first run; choose **More info → Run anyway**. See [Code signing](#code-signing-optional)
+  to remove it.
+- Rendering uses **WebView2**, which ships with Windows 11. On Windows 10, install
+  the [Evergreen WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
+  once if prompted.
+- Your library lives in `%LOCALAPPDATA%\PageVault` (database, e-book files, log)
+  and survives uninstalling or reinstalling the app.
+- Prefer a no-install copy? The release also ships a portable
+  `PageVault-<version>-portable-win64.zip`; unzip and run `PageVault.exe`.
+
+**Build it yourself** (from a source checkout, on Windows):
+
+```powershell
+make desktop-deps   # installs pywebview, waitress, PyInstaller, Pillow
+make exe            # writes dist\PageVault\PageVault.exe
+```
+
+`make desktop` runs the same native app directly from source without freezing it.
+
+### Code signing (optional)
+
+Unsigned builds trigger the Windows SmartScreen "unknown publisher" prompt. Three ways
+to address it, by audience:
+
+| Goal | Approach |
+|---|---|
+| **Trust on your own PCs** | Run `tools/make_selfsigned_cert.ps1` to create a self-signed certificate, then import its `.cer` into *Trusted Root Certification Authorities* and *Trusted Publishers* on each machine. Clears the warning for your household only. |
+| **Public, free** | [SignPath](https://signpath.io) provides free code signing for open-source projects. |
+| **Public, commercial** | An OV/EV certificate from a CA (DigiCert, Sectigo, …); EV certificates gain SmartScreen reputation immediately. |
+
+The release workflow signs the executable and the installer automatically **when** two
+repository secrets are present:
+
+- `WINDOWS_CERT_BASE64` — base64 of your code-signing `.pfx`
+- `WINDOWS_CERT_PASSWORD` — its password
+
+Without them the build still runs, just unsigned. The private key stays in GitHub Secrets
+and is never committed (`*.pfx`, `*.cer`, and `certs/` are git-ignored). To sign a local
+build by hand:
+
+```powershell
+.\tools\sign_windows.ps1 -Path dist\PageVault\PageVault.exe `
+  -PfxPath certs\pagevault-codesign.pfx -Password (Read-Host -AsSecureString)
+```
+
+`sign_windows.ps1` uses `signtool` when the Windows SDK is installed and otherwise falls
+back to PowerShell's built-in `Set-AuthenticodeSignature`, so it works without the SDK.
+
 ---
 
 ## Admin Panel
@@ -174,6 +232,9 @@ PageVault starts at **http://localhost:5000**. Data persists in a named Docker v
 - Visit **`/admin/login`**.
 - A random one-time password is printed to the console on startup when `PAGEVAULT_ADMIN_PASSWORD` is not set.
 - Set `PAGEVAULT_ADMIN_PASSWORD` in your environment or `.env` to make it permanent.
+- In the **desktop app** there is no console, so a password is generated once and
+  saved to `%LOCALAPPDATA%\PageVault\admin_password.txt` (alongside a persisted
+  `secret_key` that keeps you logged in across restarts).
 
 ## Your data on disk
 
@@ -182,6 +243,10 @@ PageVault starts at **http://localhost:5000**. Data persists in a named Docker v
 | `pagevault.db` | Your entire library — books, reviews, shelves, tags, goals, sessions. **Back this up.** |
 | `book_files/` | Uploaded e-book files (EPUB/PDF), one per book, created on first upload. |
 | `pagevault.log` | Rotating application log (10 MB × 5 backups). Safe to delete. |
+
+From a source checkout these sit next to `app.py`. The **desktop app** keeps them
+(plus `secret_key` and `admin_password.txt`) in `%LOCALAPPDATA%\PageVault`. Set
+`PAGEVAULT_DATA_DIR` to override the location for either.
 
 Everything else that appears after running the app or the tests
 (`__pycache__/`, `.pytest_cache/`, `.ruff_cache/`, `.mypy_cache/`, `build/`,
