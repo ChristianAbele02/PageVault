@@ -109,7 +109,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install ".[dev]"
       - name: Run mypy
-        run: mypy app.py pagevault_core
+        run: mypy app.py desktop.py config.py pagevault_core
 
   docker:
     name: Docker build

@@ -1,4 +1,4 @@
-.PHONY: help install dev test coverage lint format clean docker docker-up docker-down
+.PHONY: help install dev desktop-deps test coverage lint format clean icon desktop exe docker docker-up docker-down
 
 PYTHON  ?= python
 PIP     := $(PYTHON) -m pip
@@ -18,6 +18,9 @@ help:
 	@echo "  make lint        Run ruff linter"
 	@echo "  make format      Auto-format code with ruff"
 	@echo "  make clean       Remove cache and build artifacts"
+	@echo "  make desktop     Run the native desktop app from source"
+	@echo "  make icon        Regenerate the app icon (static/icon.ico)"
+	@echo "  make exe         Build the Windows executable (dist/PageVault/)"
 	@echo "  make docker      Build the Docker image"
 	@echo "  make docker-up   Start with Docker Compose"
 	@echo "  make docker-down Stop Docker Compose"
@@ -31,6 +34,10 @@ install:
 dev:
 	$(PIP) install --upgrade pip
 	$(PIP) install ".[dev,prod]"
+
+desktop-deps:
+	$(PIP) install --upgrade pip
+	$(PIP) install ".[desktop,build]"
 
 # ── Run ────────────────────────────────────────────────────────────────────────
 run:
@@ -57,6 +64,17 @@ format:
 clean:
 	@$(PYTHON) -c "import pathlib, shutil; root = pathlib.Path('.'); [shutil.rmtree(p, ignore_errors=True) for p in root.rglob('__pycache__') if p.is_dir()]; [shutil.rmtree(p, ignore_errors=True) for p in root.rglob('.pytest_cache') if p.is_dir()]; [shutil.rmtree(p, ignore_errors=True) for p in root.rglob('htmlcov') if p.is_dir()]; [p.unlink(missing_ok=True) for p in root.rglob('*.pyc') if p.is_file()]; (root / '.coverage').unlink(missing_ok=True); (root / 'coverage.xml').unlink(missing_ok=True)"
 	@echo "🧹  Cleaned."
+
+# ── Desktop app ────────────────────────────────────────────────────────────────
+icon:
+	$(PYTHON) tools/make_icon.py
+
+desktop:
+	$(PYTHON) desktop.py
+
+exe: icon
+	$(PYTHON) -m PyInstaller pagevault.spec --noconfirm --clean
+	@echo "✅  Built dist/PageVault/PageVault.exe"
 
 # ── Docker ─────────────────────────────────────────────────────────────────────
 docker:

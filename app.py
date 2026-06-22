@@ -18,7 +18,7 @@ from logging.handlers import RotatingFileHandler
 
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 
-from config import _FALLBACK_ADMIN_PASSWORD, _FALLBACK_SECRET_KEY, resolve_config
+from config import _FALLBACK_ADMIN_PASSWORD, _FALLBACK_SECRET_KEY, resolve_config, resource_dir
 from pagevault_core import db as core_db
 from pagevault_core import metadata as core_metadata
 from pagevault_core import utils as core_utils
@@ -101,7 +101,14 @@ def _check_security_config(app: Flask) -> None:
 
 # ── Application factory ───────────────────────────────────────────────────────
 def create_app(config: dict | None = None) -> Flask:
-    app = Flask(__name__)
+    # Resolve templates/static through resource_dir() so they are found both from a
+    # source checkout and when unpacked from a frozen (PyInstaller) bundle.
+    resources = resource_dir()
+    app = Flask(
+        __name__,
+        template_folder=str(resources / "templates"),
+        static_folder=str(resources / "static"),
+    )
 
     config_class = resolve_config(os.getenv("PAGEVAULT_ENV"))
     app.config.from_object(config_class)

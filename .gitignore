@@ -57,6 +57,14 @@ htmlcov/
 .env.*.local
 *.secret
 
+# ── Code-signing material (NEVER commit private keys) ──────────────────────────
+certs/
+*.pfx
+*.p12
+*.cer
+*.crt
+*.key
+
 # ── IDEs ──────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
@@ -79,3 +87,9 @@ Thumbs.db
 # ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
 logs/
+
+# ── Desktop build artefacts ────────────────────────────────────────────────────
+# PyInstaller writes to build/ and dist/ (already ignored above); the installer
+# compiler writes here. The app icon (static/icon.ico, static/icon.png) is a
+# committed asset and is intentionally not ignored.
+installer_output/

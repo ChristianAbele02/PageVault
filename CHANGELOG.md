@@ -7,6 +7,36 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Native Windows desktop app.** PageVault can be built as a double-click
+  `PageVault.exe` that opens in its own window (pywebview on WebView2) backed by a
+  local waitress server — no terminal and no Python install required.
+  - `desktop.py` launcher: auto-selected free port, single-instance guard, and a
+    `--no-window` server-only mode for testing or browser use.
+  - Persists `SECRET_KEY` and the admin password to the per-user data directory, so
+    login sessions and admin access survive restarts (there is no console in a
+    windowed app to print a one-time password to).
+  - `pagevault.spec` (PyInstaller, one-folder), an Inno Setup per-user installer
+    (`installer.iss`), and `tools/make_icon.py` to render the app icon.
+  - `Desktop Release` GitHub Actions workflow builds the executable, smoke-tests it,
+    compiles the installer, and attaches the installer and a portable zip to tagged
+    releases.
+  - Optional Authenticode code signing: `tools/sign_windows.ps1` (signtool, with a
+    `Set-AuthenticodeSignature` fallback) and `tools/make_selfsigned_cert.ps1` for
+    private trust. CI signs the executable and installer when `WINDOWS_CERT_BASE64` and
+    `WINDOWS_CERT_PASSWORD` secrets are set; the private key is never committed.
+  - `desktop`, `build` optional-dependency groups and `make desktop` / `make exe` /
+    `make desktop-deps` targets.
+
+### Changed
+- When running as a frozen executable, the database, e-book files, and log default
+  to a per-user OS data directory (`%LOCALAPPDATA%\PageVault` on Windows); set
+  `PAGEVAULT_DATA_DIR` to override. Source checkouts and Docker are unchanged.
+
+---
+
 ## [1.6.0] — 2026-06-11
 
 ### Added

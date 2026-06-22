@@ -1,0 +1,116 @@
+name: Desktop Release
+
+# Builds the Windows desktop executable and installer. Runs on version tags
+# (attaching artefacts to the GitHub release) and on manual dispatch.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version label for the build (e.g. 1.6.0)"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Build Windows executable + installer
+    runs-on: windows-latest
+
+    # Signing is optional: provide WINDOWS_CERT_BASE64 (base64 of a code-signing PFX)
+    # and WINDOWS_CERT_PASSWORD as repository secrets to enable it. Without them the
+    # signing steps are skipped and the build ships unsigned.
+    env:
+      WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[desktop,build]"
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "${{ github.event.inputs.version }}"
+          if (-not $v) { $v = "${{ github.ref_name }}" -replace '^v', '' }
+          if (-not $v) { $v = "0.0.0" }
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Building version $v"
+
+      - name: Regenerate icon
+        run: python tools/make_icon.py
+
+      - name: Build executable (PyInstaller)
+        run: python -m PyInstaller pagevault.spec --noconfirm --clean
+
+      - name: Smoke-test the frozen build
+        shell: pwsh
+        run: |
+          $env:PAGEVAULT_DATA_DIR = Join-Path $env:RUNNER_TEMP "pv_ci_smoke"
+          New-Item -ItemType Directory -Force -Path $env:PAGEVAULT_DATA_DIR | Out-Null
+          $p = Start-Process -FilePath ".\dist\PageVault\PageVault.exe" `
+               -ArgumentList "--no-window","--port","8799" -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 40; $i++) {
+            try {
+              $r = Invoke-WebRequest -Uri "http://127.0.0.1:8799/api/stats" -UseBasicParsing -TimeoutSec 2
+              if ($r.StatusCode -eq 200) { $ok = $true; break }
+            } catch { Start-Sleep -Milliseconds 500 }
+          }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ok) { throw "Frozen executable failed to serve /api/stats" }
+          Write-Host "Frozen build responded with 200 OK"
+
+      - name: Sign executable
+        if: ${{ env.WINDOWS_CERT_BASE64 != '' }}
+        shell: pwsh
+        run: |
+          ./tools/sign_windows.ps1 -Path dist/PageVault/PageVault.exe `
+            -CertBase64 $env:WINDOWS_CERT_BASE64 -Password $env:WINDOWS_CERT_PASSWORD
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            /DMyAppVersion=${{ steps.ver.outputs.version }} installer.iss
+
+      - name: Sign installer
+        if: ${{ env.WINDOWS_CERT_BASE64 != '' }}
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem installer_output\PageVault-Setup-*.exe | Select-Object -First 1
+          ./tools/sign_windows.ps1 -Path $setup.FullName `
+            -CertBase64 $env:WINDOWS_CERT_BASE64 -Password $env:WINDOWS_CERT_PASSWORD
+
+      - name: Package portable build
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\PageVault\* `
+            -DestinationPath installer_output\PageVault-${{ steps.ver.outputs.version }}-portable-win64.zip
+
+      - name: Upload build artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pagevault-windows-${{ steps.ver.outputs.version }}
+          path: installer_output/*
+
+      - name: Attach to GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer_output/*
