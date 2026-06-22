@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="920" viewBox="0 0 1400 920" role="img" aria-label="PageVault e-book reader with open-from-device file picker">
+  <defs>
+    <linearGradient id="prog" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#c8913a"/><stop offset="1" stop-color="#d4a843"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1400" height="920" fill="#fdf8f2"/>
+
+  <!-- header -->
+  <rect width="1400" height="64" fill="#362213"/>
+  <text x="40" y="42" fill="#d4a843" font-size="26" font-family="Georgia,serif" font-weight="700">Page<tspan fill="#fff" font-style="italic">Vault</tspan></text>
+  <g font-family="Arial,sans-serif" font-size="13" font-weight="700">
+    <rect x="952" y="20" width="84" height="26" rx="13" fill="#4a3320"/><text x="994" y="37" text-anchor="middle" fill="#e7d6bd">Library</text>
+    <rect x="1046" y="20" width="70" height="26" rx="13" fill="#4a3320"/><text x="1081" y="37" text-anchor="middle" fill="#e7d6bd">Stats</text>
+    <rect x="1126" y="20" width="78" height="26" rx="13" fill="#4a3320" stroke="#c8913a"/><text x="1165" y="37" text-anchor="middle" fill="#d4a843">Reader</text>
+    <rect x="1214" y="20" width="46" height="26" rx="13" fill="#4a3320"/><text x="1237" y="37" text-anchor="middle" fill="#e7d6bd">DE</text>
+    <rect x="1270" y="20" width="92" height="26" rx="13" fill="#4a3320"/><text x="1316" y="37" text-anchor="middle" fill="#e7d6bd">Light</text>
+  </g>
+
+  <!-- sidebar -->
+  <rect x="0" y="64" width="380" height="856" fill="#f0e6d8"/>
+  <line x1="380" y1="64" x2="380" y2="920" stroke="#d8c3a8"/>
+  <text x="28" y="116" fill="#a9772a" font-size="24" font-family="Georgia,serif" font-weight="700">E-Books</text>
+  <rect x="28" y="132" width="324" height="40" rx="8" fill="#fff" stroke="#d8c3a8"/>
+  <text x="44" y="158" fill="#9a866e" font-size="15" font-family="Arial,sans-serif">Search books…</text>
+
+  <!-- open from device (new) -->
+  <rect x="28" y="184" width="324" height="46" rx="9" fill="#fbf4ea" stroke="#c8913a" stroke-width="2"/>
+  <text x="190" y="213" text-anchor="middle" fill="#a9772a" font-size="16" font-family="Arial,sans-serif" font-weight="700">📂 Open file from device</text>
+  <rect x="300" y="174" width="56" height="22" rx="11" fill="#9b3a1c"/>
+  <text x="328" y="190" text-anchor="middle" fill="#fff" font-size="11" font-family="Arial,sans-serif" font-weight="700">NEW</text>
+
+  <!-- book entries -->
+  <g font-family="Arial,sans-serif">
+    <rect x="0" y="252" width="380" height="72" fill="#e7d8c2"/>
+    <rect x="6" y="252" width="4" height="72" fill="#c8913a"/>
+    <rect x="28" y="261" width="38" height="54" rx="3" fill="#6c4e35"/>
+    <text x="80" y="282" fill="#2f2114" font-size="16" font-weight="700">The Hobbit</text>
+    <text x="80" y="304" fill="#8a6e4f" font-size="13">J.R.R. Tolkien</text>
+    <rect x="312" y="276" width="46" height="22" rx="4" fill="#c8913a"/><text x="335" y="291" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">EPUB</text>
+
+    <rect x="28" y="345" width="38" height="54" rx="3" fill="#4f6a53"/>
+    <text x="80" y="366" fill="#2f2114" font-size="16" font-weight="700">Dune</text>
+    <text x="80" y="388" fill="#8a6e4f" font-size="13">Frank Herbert</text>
+    <rect x="318" y="360" width="40" height="22" rx="4" fill="#9b3a1c"/><text x="338" y="375" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">PDF</text>
+
+    <rect x="28" y="429" width="38" height="54" rx="3" fill="#8b3b24"/>
+    <text x="80" y="450" fill="#2f2114" font-size="16" font-weight="700">1984</text>
+    <text x="80" y="472" fill="#8a6e4f" font-size="13">George Orwell</text>
+    <rect x="312" y="444" width="46" height="22" rx="4" fill="#c8913a"/><text x="335" y="459" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">EPUB</text>
+  </g>
+
+  <!-- reader toolbar -->
+  <rect x="380" y="64" width="1020" height="52" fill="#f6ede1"/>
+  <rect x="402" y="78" width="64" height="26" rx="6" fill="#fff" stroke="#d8c3a8"/><text x="434" y="96" text-anchor="middle" fill="#6c5238" font-size="13" font-family="Arial,sans-serif">Hide</text>
+  <text x="486" y="97" fill="#3a2a1a" font-size="17" font-family="Georgia,serif" font-weight="700">the-hobbit.epub</text>
+  <g font-family="Arial,sans-serif" font-size="15" fill="#6c5238">
+    <rect x="1196" y="78" width="40" height="26" rx="6" fill="#fff" stroke="#d8c3a8"/><text x="1216" y="96" text-anchor="middle">A−</text>
+    <rect x="1244" y="78" width="40" height="26" rx="6" fill="#fff" stroke="#d8c3a8"/><text x="1264" y="96" text-anchor="middle">A+</text>
+    <rect x="1292" y="78" width="40" height="26" rx="6" fill="#fff" stroke="#d8c3a8"/><text x="1312" y="97" text-anchor="middle">‹</text>
+    <rect x="1340" y="78" width="40" height="26" rx="6" fill="#fff" stroke="#d8c3a8"/><text x="1360" y="97" text-anchor="middle">›</text>
+  </g>
+
+  <!-- progress -->
+  <rect x="380" y="116" width="1020" height="5" fill="#e3d5c2"/>
+  <rect x="380" y="116" width="430" height="5" fill="url(#prog)"/>
+
+  <!-- page -->
+  <rect x="380" y="121" width="1020" height="799" fill="#ffffff"/>
+  <g transform="translate(560,180)">
+    <text x="0" y="34" fill="#2a1c10" font-size="30" font-family="Georgia,serif" font-weight="700">Chapter I</text>
+    <text x="0" y="64" fill="#7a5c3a" font-size="17" font-family="Georgia,serif" font-style="italic">An Unexpected Party</text>
+    <g fill="#d9cdbb">
+      <rect x="0" y="104" width="660" height="12" rx="6"/>
+      <rect x="0" y="134" width="640" height="12" rx="6"/>
+      <rect x="0" y="164" width="668" height="12" rx="6"/>
+      <rect x="0" y="194" width="610" height="12" rx="6"/>
+      <rect x="0" y="224" width="655" height="12" rx="6"/>
+      <rect x="0" y="254" width="500" height="12" rx="6"/>
+      <rect x="0" y="304" width="648" height="12" rx="6"/>
+      <rect x="0" y="334" width="664" height="12" rx="6"/>
+      <rect x="0" y="364" width="590" height="12" rx="6"/>
+      <rect x="0" y="394" width="640" height="12" rx="6"/>
+      <rect x="0" y="424" width="430" height="12" rx="6"/>
+    </g>
+  </g>
+</svg>

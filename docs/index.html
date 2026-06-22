@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PageVault — Your local Goodreads alternative</title>
-  <meta name="description" content="PageVault is a self-hosted, private book catalog with ISBN scanning, shelves, tags, reviews, and CSV import/export." />
+  <meta name="description" content="PageVault is a private, local Goodreads alternative with ISBN scanning, a built-in EPUB/PDF reader, shelves, tags, reviews, analytics, and a one-click Windows desktop app." />
   <style>
     :root {
       --ink: #1a1008;
@@ -397,6 +397,49 @@
     @media (max-width: 380px) {
       .footer-links { grid-template-columns: 1fr; }
     }
+
+    /* hero call-to-action */
+    .hero-cta { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.25rem; }
+    .cta-btn {
+      display: inline-flex; align-items: center; gap: .45rem;
+      border: 1px solid var(--line); border-radius: 11px;
+      padding: .7rem 1.05rem; font-weight: 700; font-size: .95rem;
+      text-decoration: none; color: var(--ink); background: var(--card);
+      transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+    }
+    .cta-btn:hover { transform: translateY(-1px); box-shadow: 0 12px 26px var(--shadow); border-color: rgba(122,92,58,.4); }
+    .cta-btn.primary { background: var(--ink); color: var(--cream); border-color: var(--ink); }
+    .cta-sub { font-size: .8rem; color: #6c5238; margin-top: .55rem; }
+
+    /* download band */
+    .download {
+      border: 1px solid var(--line); border-radius: 16px; background: var(--card);
+      overflow: hidden; box-shadow: 0 12px 28px var(--shadow); margin: 0 0 2rem;
+    }
+    .download .hero-strip { height: 8px; }
+    .download-inner {
+      padding: 1.1rem 1.15rem 1.25rem; display: grid;
+      grid-template-columns: 1.45fr 1fr; gap: 1.1rem; align-items: center;
+    }
+    .download h2 { margin: 0 0 .4rem; font-size: 1.3rem; letter-spacing: -.01em; }
+    .download p { margin: 0; color: #5a4430; font-size: .9rem; }
+    .download code { background: #f1e6d6; border-radius: 5px; padding: 0 .25rem; font-size: .82em; }
+    .download-actions { display: flex; flex-direction: column; gap: .5rem; }
+    .dl-btn {
+      display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+      border: 1px solid var(--line); border-radius: 11px; padding: .65rem .85rem;
+      text-decoration: none; color: var(--ink); background: #fff; font-weight: 700; font-size: .9rem;
+      transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+    }
+    .dl-btn:hover { transform: translateY(-1px); border-color: rgba(122,92,58,.4); box-shadow: 0 10px 22px var(--shadow); }
+    .dl-btn.primary { background: var(--ink); color: var(--cream); border-color: var(--ink); }
+    .dl-btn small { font-weight: 600; opacity: .72; }
+    .tag-new {
+      display: inline-block; background: var(--rust); color: #fff; font-size: .62rem;
+      font-weight: 800; letter-spacing: .06em; padding: .12rem .42rem; border-radius: 6px;
+      vertical-align: middle; margin-left: .45rem;
+    }
+    @media (max-width: 720px) { .download-inner { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -407,9 +450,9 @@
         PageVault
       </a>
       <nav class="top-links" aria-label="Top Links">
-        <a class="btn primary" href="stats-demo.html">Open Stats Demo</a>
+        <a class="btn primary" href="https://github.com/ChristianAbele02/PageVault/releases/latest">⬇ Download</a>
+        <a class="btn" href="stats-demo.html">Stats Demo</a>
         <a class="btn" href="https://github.com/ChristianAbele02/PageVault">Repository</a>
-        <a class="btn" href="https://github.com/ChristianAbele02/PageVault/releases">Releases</a>
         <a class="btn" href="https://github.com/ChristianAbele02/PageVault#readme">Get Started</a>
       </nav>
     </div>
@@ -420,9 +463,15 @@
       <div>
         <h1>Your private book universe.<br/>No cloud required.</h1>
         <p>
-          PageVault is a local, self-hosted Goodreads alternative with barcode scanning, shelves, tags, half-star ratings, CSV portability,
-          a Plotly-powered analytics dashboard with 20+ charts, reading streaks, activity heatmaps, and robust multi-provider metadata lookup — all 100% private, no cloud required.
+          PageVault is a local Goodreads alternative with ISBN barcode scanning, shelves, tags, half-star ratings,
+          a built-in EPUB/PDF reader, CSV portability, and a Plotly analytics dashboard with 20+ charts — 100% private.
+          Run it as a one-click Windows app, or self-host it with Flask.
         </p>
+        <div class="hero-cta">
+          <a class="cta-btn primary" href="https://github.com/ChristianAbele02/PageVault/releases/latest">⬇ Download for Windows</a>
+          <a class="cta-btn" href="https://github.com/ChristianAbele02/PageVault#readme">Self-host with Flask</a>
+        </div>
+        <div class="cta-sub">Free &amp; open source (MIT) · Windows installer &amp; portable build · also runs on macOS / Linux from source.</div>
       </div>
       <aside class="hero-card" aria-label="Project Snapshot">
         <div class="hero-strip"></div>
@@ -432,8 +481,8 @@
             <div class="meta-item"><strong>Stack:</strong><br/>Flask + SQLite</div>
             <div class="meta-item"><strong>Mode:</strong><br/>Self-hosted</div>
             <div class="meta-item"><strong>Metadata:</strong><br/>5-source fallback</div>
-            <div class="meta-item"><strong>Release:</strong><br/>v1.4.0</div>
-            <div class="meta-item"><strong>Python:</strong><br/>3.10+</div>
+            <div class="meta-item"><strong>Release:</strong><br/>v1.7.0</div>
+            <div class="meta-item"><strong>Desktop:</strong><br/>Windows installer</div>
             <div class="meta-item"><strong>License:</strong><br/>MIT</div>
           </div>
         </div>
@@ -449,15 +498,33 @@
       <span class="badge"><span class="badge-dot dot-blue"></span> SQLite</span>
       <span class="badge"><span class="badge-dot dot-rust"></span> MIT License</span>
       <a class="badge" href="https://github.com/ChristianAbele02/PageVault/releases" target="_blank" rel="noopener noreferrer">
-        <span class="badge-dot dot-amber"></span> v1.4.0
+        <span class="badge-dot dot-amber"></span> v1.7.0
       </a>
+      <span class="badge"><span class="badge-dot dot-amber"></span> 🖥 Desktop app</span>
+      <span class="badge"><span class="badge-dot dot-rust"></span> 📖 EPUB / PDF reader</span>
       <span class="badge"><span class="badge-dot dot-green"></span> Coverage ≥ 75%</span>
       <span class="badge"><span class="badge-dot dot-green"></span> Docker ready</span>
     </div>
 
+    <section class="download" aria-label="Download the desktop app">
+      <div class="hero-strip"></div>
+      <div class="download-inner">
+        <div>
+          <h2>Get the Windows app <span class="tag-new">NEW</span></h2>
+          <p>A native desktop build that opens in its own window — no browser tab, no Python to install. Your library stays local in <code>%LOCALAPPDATA%\PageVault</code>. Prefer the terminal? Self-host with Flask or Docker instead.</p>
+        </div>
+        <div class="download-actions">
+          <a class="dl-btn primary" href="https://github.com/ChristianAbele02/PageVault/releases/download/v1.7.0/PageVault-Setup-1.7.0.exe">⬇ Installer (.exe) <small>Windows · v1.7.0</small></a>
+          <a class="dl-btn" href="https://github.com/ChristianAbele02/PageVault/releases/latest">Portable .zip &amp; all releases <small>→</small></a>
+        </div>
+      </div>
+    </section>
+
     <section>
       <h2 class="section-title">Highlights</h2>
       <div class="cards">
+        <article class="card"><h3>🖥 Native desktop app</h3><p>One-click Windows installer or portable zip — PageVault opens in its own window via WebView2, with no browser tab and no Python required.</p></article>
+        <article class="card"><h3>📖 Built-in e-book reader</h3><p>Read EPUB and PDF in-app with paginated view, font sizing, and saved position — open files attached to a book or straight from your device.</p></article>
         <article class="card"><h3>📷 ISBN Scan & Add</h3><p>Scan from phone camera or enter ISBN manually with live metadata preview.</p></article>
         <article class="card"><h3>🗂️ Shelves + Tags</h3><p>Organize books with multi-shelf assignment and interactive genre chips.</p></article>
         <article class="card"><h3>🔎 Smart Filters</h3><p>Filter by status, author, shelf, genre, or full-text query.</p></article>
@@ -488,11 +555,11 @@
       <article class="card">
         <h3>🚀 Quick Start</h3>
         <ul class="list">
+          <li><span class="small">Easiest:</span> <a href="https://github.com/ChristianAbele02/PageVault/releases/latest">download the Windows installer</a>, then launch from the Start menu</li>
           <li><span class="small">Clone:</span> <code>git clone https://github.com/ChristianAbele02/PageVault.git</code></li>
           <li><span class="small">Install:</span> <code>pip install .</code></li>
-          <li><span class="small">Run:</span> <code>python app.py</code></li>
+          <li><span class="small">Run:</span> <code>python app.py</code> — or <code>python desktop.py</code> for the window</li>
           <li><span class="small">Library:</span> <code>http://localhost:5000</code></li>
-          <li><span class="small">Stats:</span> <code>http://localhost:5000/stats</code></li>
         </ul>
       </article>
     </section>
@@ -524,13 +591,47 @@
       <div class="cards" style="margin-top:0;">
         <article class="card"><h3>🧩 Full-stack scope</h3><p>Design + UX, Flask API, SQLite data model, Docker deployment, and CI quality gates in one cohesive project.</p></article>
         <article class="card"><h3>📈 Product analytics</h3><p>20+ Plotly charts including reading heatmap, genre trends by year, speed per book, rating trends, time-to-finish, loan tracking, shelf breakdown, and more — with date, format and language filtering.</p></article>
-        <article class="card"><h3>🧪 Engineering quality</h3><p>Comprehensive automated tests and linting support stable iteration while shipping substantial product features quickly.</p></article>
+        <article class="card"><h3>🧪 Engineering quality</h3><p>Automated tests, linting, and type checks gate every change; a CI pipeline builds and publishes the Windows installer (with optional code signing) on each release.</p></article>
       </div>
     </section>
 
     <section aria-label="Example Renders">
       <h2 class="section-title">Example Renders (Light + Dark)</h2>
       <div class="portfolio-grid">
+        <article class="showcase">
+          <div class="showcase-top"><span>Desktop App</span><span class="showcase-dots"><span></span><span></span><span></span></span></div>
+          <div class="showcase-body">
+            <div class="showcase-pair">
+              <div class="showcase-pane">
+                <div class="showcase-mode">Light</div>
+                <img class="showcase-image" src="images/screenshot-desktop.svg" alt="PageVault running as a native Windows desktop window in light mode" loading="lazy" />
+              </div>
+              <div class="showcase-pane">
+                <div class="showcase-mode">Dark</div>
+                <img class="showcase-image" src="images/screenshot-desktop-dark.svg" alt="PageVault desktop window in dark mode" loading="lazy" />
+              </div>
+            </div>
+          </div>
+          <div class="showcase-caption">The one-click Windows build runs in its own window — no browser tab, no Python.</div>
+        </article>
+
+        <article class="showcase">
+          <div class="showcase-top"><span>E-Book Reader</span><span class="showcase-dots"><span></span><span></span><span></span></span></div>
+          <div class="showcase-body">
+            <div class="showcase-pair">
+              <div class="showcase-pane">
+                <div class="showcase-mode">Light</div>
+                <img class="showcase-image" src="images/screenshot-reader.svg" alt="PageVault e-book reader with the open-from-device file picker, light mode" loading="lazy" />
+              </div>
+              <div class="showcase-pane">
+                <div class="showcase-mode">Dark</div>
+                <img class="showcase-image" src="images/screenshot-reader-dark.svg" alt="PageVault e-book reader in dark mode" loading="lazy" />
+              </div>
+            </div>
+          </div>
+          <div class="showcase-caption">Read EPUB/PDF in-app — open files attached to a book, or straight from your device.</div>
+        </article>
+
         <article class="showcase">
           <div class="showcase-top"><span>Library Grid</span><span class="showcase-dots"><span></span><span></span><span></span></span></div>
           <div class="showcase-body">
