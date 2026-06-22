@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="920" viewBox="0 0 1400 920" role="img" aria-label="PageVault running as a native Windows desktop application">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#fdf8f2"/><stop offset="1" stop-color="#f2e7d8"/>
+    </linearGradient>
+    <linearGradient id="book" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#8f6a47"/><stop offset="1" stop-color="#4f3824"/>
+    </linearGradient>
+    <linearGradient id="progress" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#c8913a"/><stop offset="1" stop-color="#5c7a5e"/>
+    </linearGradient>
+    <linearGradient id="desk" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#241710"/><stop offset="1" stop-color="#3f2c1b"/>
+    </linearGradient>
+    <clipPath id="winclip"><rect x="70" y="48" width="1260" height="826" rx="16"/></clipPath>
+    <filter id="ws" x="-10%" y="-10%" width="120%" height="128%">
+      <feDropShadow dx="0" dy="14" stdDeviation="24" flood-color="#120b05" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+
+  <!-- desktop backdrop -->
+  <rect width="1400" height="920" fill="url(#desk)"/>
+  <circle cx="1200" cy="170" r="340" fill="#c8913a" opacity="0.06"/>
+  <circle cx="210" cy="780" r="280" fill="#5c7a5e" opacity="0.07"/>
+
+  <g filter="url(#ws)">
+    <g clip-path="url(#winclip)">
+      <rect x="70" y="48" width="1260" height="826" fill="url(#bg)"/>
+
+      <!-- native title bar -->
+      <rect x="70" y="48" width="1260" height="52" fill="#130c06"/>
+      <text x="100" y="81" fill="#d4a843" font-size="21" font-family="Georgia,serif" font-weight="700">📚 Page<tspan fill="#fff" font-style="italic">Vault</tspan></text>
+      <rect x="258" y="61" width="168" height="26" rx="13" fill="#26190f"/>
+      <text x="342" y="79" text-anchor="middle" fill="#caa86a" font-size="13" font-family="Arial,sans-serif" font-weight="700">DESKTOP · OFFLINE</text>
+      <!-- window controls -->
+      <text x="1212" y="82" fill="#b7a98f" font-size="22" font-family="Arial,sans-serif">&#8211;</text>
+      <rect x="1256" y="66" width="15" height="15" rx="2" fill="none" stroke="#b7a98f" stroke-width="2"/>
+      <text x="1296" y="84" fill="#e0795f" font-size="20" font-family="Arial,sans-serif">&#10005;</text>
+
+      <!-- stats bar -->
+      <rect x="70" y="100" width="1260" height="48" fill="#2f2013"/>
+      <text x="108" y="130" fill="#f5e9d4" font-size="18" font-family="Arial,sans-serif">📚 128 books</text>
+      <text x="320" y="130" fill="#f5e9d4" font-size="18" font-family="Arial,sans-serif">✅ 43 read</text>
+      <text x="500" y="130" fill="#f5e9d4" font-size="18" font-family="Arial,sans-serif">📖 12 reading</text>
+      <text x="710" y="130" fill="#f5e9d4" font-size="18" font-family="Arial,sans-serif">⭐ 4.3 avg</text>
+      <rect x="1066" y="112" width="228" height="26" rx="13" fill="#5c7a5e"/>
+      <text x="1180" y="130" text-anchor="middle" fill="#fff" font-size="13" font-family="Arial,sans-serif" font-weight="700">No Python · No browser tab</text>
+
+      <!-- filters -->
+      <g font-family="Arial,sans-serif" font-size="16" fill="#705338">
+        <rect x="108" y="176" width="280" height="42" rx="9" fill="#fff" stroke="#ccb79f"/><text x="124" y="203">All status</text>
+        <rect x="404" y="176" width="280" height="42" rx="9" fill="#fff" stroke="#ccb79f"/><text x="420" y="203">All authors</text>
+        <rect x="700" y="176" width="280" height="42" rx="9" fill="#fff" stroke="#ccb79f"/><text x="716" y="203">All genres</text>
+        <rect x="996" y="176" width="298" height="42" rx="9" fill="#1a1008"/><text x="1012" y="203" fill="#d4a843">📖 Continue reading</text>
+      </g>
+
+      <!-- hero book -->
+      <g transform="translate(108,256)">
+        <rect width="176" height="262" rx="8" fill="url(#book)"/>
+        <rect x="8" y="8" width="160" height="246" rx="6" fill="none" stroke="rgba(255,255,255,.2)"/>
+        <rect x="124" y="12" width="44" height="22" rx="4" fill="#5c7a5e"/>
+        <text x="146" y="27" text-anchor="middle" fill="#fff" font-size="10" font-family="Arial,sans-serif" font-weight="700">READING</text>
+        <text x="18" y="196" fill="#f3dfc0" font-size="22" font-family="Georgia,serif" font-weight="700">The Great</text>
+        <text x="18" y="224" fill="#f3dfc0" font-size="22" font-family="Georgia,serif" font-weight="700">Gatsby</text>
+      </g>
+      <g transform="translate(312,262)">
+        <text x="0" y="24" fill="#2f2114" font-size="25" font-family="Georgia,serif" font-weight="700">The Great Gatsby</text>
+        <rect x="0" y="42" width="360" height="10" rx="5" fill="#d7c6b3"/>
+        <rect x="0" y="42" width="224" height="10" rx="5" fill="url(#progress)"/>
+        <text x="0" y="72" fill="#7f684f" font-size="14" font-family="Arial,sans-serif">Page 112 of 180 (62.2%)</text>
+        <text x="0" y="100" fill="#8e7151" font-size="17" font-family="Arial,sans-serif">F. Scott Fitzgerald</text>
+        <text x="0" y="130" fill="#d4a843" font-size="18" font-family="Arial,sans-serif">★★★★☆ <tspan fill="#9f8567" font-size="14">4.3</tspan></text>
+      </g>
+
+      <!-- shelf -->
+      <g transform="translate(108,560)">
+        <rect width="176" height="262" rx="8" fill="#6c4e35"/>
+        <rect x="204" width="176" height="262" rx="8" fill="#4f6a53"/>
+        <rect x="408" width="176" height="262" rx="8" fill="#8b3b24"/>
+        <rect x="612" width="176" height="262" rx="8" fill="#4f3824"/>
+        <rect x="816" width="176" height="262" rx="8" fill="#7a5c3a"/>
+        <rect x="1020" width="176" height="262" rx="8" fill="#5c7a5e"/>
+      </g>
+    </g>
+    <rect x="70" y="48" width="1260" height="826" rx="16" fill="none" stroke="#d8c4ab" stroke-width="1.5"/>
+  </g>
+</svg>
