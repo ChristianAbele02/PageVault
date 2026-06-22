@@ -7,7 +7,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [1.7.0] — 2026-06-22
 
 ### Added
 - **Native Windows desktop app.** PageVault can be built as a double-click
@@ -29,11 +29,19 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     `WINDOWS_CERT_PASSWORD` secrets are set; the private key is never committed.
   - `desktop`, `build` optional-dependency groups and `make desktop` / `make exe` /
     `make desktop-deps` targets.
+- **Open local files in the reader.** The standalone `/reader` page can open an EPUB
+  or PDF straight from the device through a file picker, without adding it to the
+  library. The file is read client-side (no upload, no new server route); device
+  files do not sync reading position.
 
 ### Changed
 - When running as a frozen executable, the database, e-book files, and log default
   to a per-user OS data directory (`%LOCALAPPDATA%\PageVault` on Windows); set
   `PAGEVAULT_DATA_DIR` to override. Source checkouts and Docker are unchanged.
+
+### Fixed
+- Git-ignore the runtime `secret_key` and `admin_password.txt` files written by a
+  source checkout, so local credentials cannot be accidentally committed.
 
 ---
 
@@ -210,6 +218,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Makefile** for developer convenience
 - Local SQLite database — data stays on your machine
 
+[1.7.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.7.0
 [1.6.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.6.0
 [1.5.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.5.0
 [1.4.0]: https://github.com/ChristianAbele02/PageVault/releases/tag/v1.4.0
