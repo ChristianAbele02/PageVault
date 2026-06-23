@@ -104,7 +104,7 @@ jobs:
             -DestinationPath installer_output\PageVault-${{ steps.ver.outputs.version }}-portable-win64.zip
 
       - name: Upload build artefacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pagevault-windows-${{ steps.ver.outputs.version }}
           path: installer_output/*
