@@ -18,9 +18,16 @@ from logging.handlers import RotatingFileHandler
 
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 
-from config import _FALLBACK_ADMIN_PASSWORD, _FALLBACK_SECRET_KEY, resolve_config, resource_dir
+from config import (
+    _FALLBACK_ADMIN_PASSWORD,
+    _FALLBACK_SECRET_KEY,
+    app_data_dir,
+    resolve_config,
+    resource_dir,
+)
 from pagevault_core import db as core_db
 from pagevault_core import metadata as core_metadata
+from pagevault_core import tls as core_tls
 from pagevault_core import utils as core_utils
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -307,20 +314,63 @@ def _api_bp():
     )
 
 
+_HTTPS_OFF_VALUES = {"0", "false", "no", "off"}
+
+
+def _https_enabled() -> bool:
+    """HTTPS is on by default; PAGEVAULT_HTTPS=0/false/no/off opts out."""
+    return (os.getenv("PAGEVAULT_HTTPS") or "auto").strip().lower() not in _HTTPS_OFF_VALUES
+
+
+def _resolve_ssl_context(local_ip: str):
+    """Return an ``ssl_context`` for ``app.run`` (cert/key tuple), or None for HTTP.
+
+    Camera access in browsers requires a secure context, so HTTPS is what makes
+    the mobile ISBN scanner work when a phone connects over the LAN IP.
+    """
+    if not _https_enabled():
+        return None
+
+    cert_dir = app_data_dir() / "certs"
+    san_ips = ["127.0.0.1", "::1"]
+    if local_ip not in san_ips:
+        san_ips.append(local_ip)
+    ssl_context = core_tls.ensure_self_signed_cert(cert_dir, ["localhost"], san_ips)
+    if ssl_context is None:
+        log.warning(
+            "Falling back to HTTP — mobile camera scanning will not work. "
+            "Install the optional dependency (pip install cryptography) or set "
+            "PAGEVAULT_HTTPS=0 to silence this."
+        )
+    return ssl_context
+
+
 def main() -> None:
     app = create_app()
     host = "0.0.0.0"
     port = int(os.getenv("PORT", "5000"))
     debug = os.getenv("FLASK_DEBUG", "0").lower() in {"1", "true", "yes", "on"}
-    try:
-        local_ip = socket.gethostbyname(socket.gethostname())
-    except OSError:  # specific exception instead of bare except (issue #6)
-        local_ip = "127.0.0.1"
+    local_ip = _detect_local_ip()
 
-    print("\n📚  PageVault is running!")
-    print(f"    Local  → http://localhost:{port}")
-    print(f"    Phone  → http://{local_ip}:{port}  (same Wi-Fi)\n")
-    app.run(host=host, port=port, debug=debug)
+    ssl_context = _resolve_ssl_context(local_ip)
+    scheme = "https" if ssl_context else "http"
+
+    lines = [
+        "\n📚  PageVault is running!",
+        f"    Local  → {scheme}://localhost:{port}",
+        f"    Phone  → {scheme}://{local_ip}:{port}  (same Wi-Fi)",
+    ]
+    if ssl_context:
+        lines.append("    Note   → self-signed certificate; accept the one-time browser warning.")
+    banner = "\n".join(lines) + "\n"
+    try:
+        print(banner, flush=True)
+    except UnicodeEncodeError:
+        # Redirected Windows consoles may use cp1252, which cannot encode the
+        # book emoji — never let the startup banner crash boot (cf. issue #1).
+        print(banner.encode("ascii", "ignore").decode("ascii"), flush=True)
+
+    app.run(host=host, port=port, debug=debug, ssl_context=ssl_context)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

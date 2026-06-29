@@ -52,7 +52,11 @@ a = Analysis(  # noqa: F821
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tkinter"],
+    # cryptography backs only the optional local-HTTPS server (app.main); the
+    # desktop app serves over loopback HTTP via waitress and imports it lazily,
+    # so it is never loaded here. Excluding it keeps the installer lean and skips
+    # bundling its compiled Rust/OpenSSL libraries.
+    excludes=["tkinter", "cryptography"],
     noarchive=False,
 )
 

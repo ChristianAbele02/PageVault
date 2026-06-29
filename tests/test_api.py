@@ -840,6 +840,14 @@ class TestFrontend:
         assert r.status_code == 200
         assert r.get_json()["url"] == "http://pagevault.local:5000/"
 
+    def test_mobile_connect_preserves_https_scheme(self, client, monkeypatch):
+        # Served over HTTPS, the QR link must be https:// so the phone gets a
+        # secure context and the camera scanner can open.
+        monkeypatch.setattr(app_module, "_detect_local_ip", lambda: "192.168.1.77")
+        r = client.get("/api/mobile/connect", base_url="https://localhost:5000")
+        assert r.status_code == 200
+        assert r.get_json()["url"] == "https://192.168.1.77:5000/"
+
     def test_404_returns_json(self, client):
         r = client.get("/api/nonexistent")
         assert r.status_code == 404

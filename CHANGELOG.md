@@ -7,6 +7,31 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.7.1] — 2026-06-30
+
+### Added
+- **Local HTTPS for mobile barcode scanning.** Browsers only expose the camera
+  (`getUserMedia`) in a secure context, so scanning an ISBN from a phone over the
+  LAN (plain HTTP) never opened the camera. `python app.py` now serves over HTTPS
+  by default using a persistent self-signed certificate generated at startup
+  (`pagevault_core/tls.py`), with the local hostnames and the detected LAN IP in
+  its SubjectAltName so the same cert is reused across restarts. The mobile QR link
+  follows the request scheme, so it now hands the phone an `https://` address. Set
+  `PAGEVAULT_HTTPS=0` to fall back to plain HTTP. The desktop app (loopback) is
+  unaffected and does not bundle the certificate library.
+
+### Fixed
+- **Mobile layout: the add button is reachable without zooming out.** The header
+  action pills and stats bar no longer force the page wider than the screen, which
+  had made phones shrink the whole layout and push the floating add button off the
+  right edge. The header now wraps to a second row on narrow screens, with
+  `overflow-x: clip` as a backstop and safe-area insets so the button clears the
+  phone's home indicator.
+- The ISBN scanner now shows a clear "camera needs HTTPS" message on an insecure
+  origin instead of a confusing access-denied error.
+
+---
+
 ## [1.7.0] — 2026-06-22
 
 ### Added
