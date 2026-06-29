@@ -193,7 +193,15 @@ def main(argv: list[str] | None = None) -> int:
     if created:
         log.info("Generated a new admin password (stored at %s).", data_dir / ADMIN_PASSWORD_FILE)
 
-    app = create_app({"SECRET_KEY": secret_key, "ADMIN_PASSWORD": admin_password})
+    app = create_app(
+        {
+            "SECRET_KEY": secret_key,
+            "ADMIN_PASSWORD": admin_password,
+            # Loopback-only server: hide the "Mobile" QR button, which a phone
+            # could not reach anyway.
+            "DESKTOP_MODE": True,
+        }
+    )
 
     host = HOST
     port = args.port or _free_port(host)

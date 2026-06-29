@@ -828,6 +828,25 @@ class TestFrontend:
         assert r.status_code == 200
         assert b"PageVault" in r.data
 
+    def test_mobile_button_shown_in_server_mode(self, client):
+        # The button carries data-i18n="nav_mobile"; the openMobileConnect() JS
+        # function is always defined, so the i18n key is the reliable marker.
+        assert 'data-i18n="nav_mobile"' in client.get("/").get_data(as_text=True)
+
+    def test_mobile_button_hidden_in_desktop_mode(self, tmp_path):
+        desktop_app = app_module.create_app(
+            {
+                "DATABASE": str(tmp_path / "d.db"),
+                "BOOK_FILES_DIR": str(tmp_path / "bf"),
+                "TESTING": True,
+                "SECRET_KEY": "k",
+                "ADMIN_PASSWORD": "p",
+                "DESKTOP_MODE": True,
+            }
+        )
+        html = desktop_app.test_client().get("/").get_data(as_text=True)
+        assert 'data-i18n="nav_mobile"' not in html
+
     def test_mobile_connect_uses_lan_ip_for_localhost(self, client, monkeypatch):
         monkeypatch.setattr(app_module, "_detect_local_ip", lambda: "192.168.1.77")
         r = client.get("/api/mobile/connect", headers={"Host": "localhost:5000"})
@@ -1218,6 +1237,18 @@ class TestAdminApis:
 
         logs = client.get("/api/admin/logs")
         assert logs.status_code == 200
+
+    def test_admin_login_throttles_brute_force(self, client):
+        # Five wrong passwords are rejected; the sixth is locked out with 429.
+        for _ in range(5):
+            bad = client.post("/api/admin/login", json={"password": "wrong"})
+            assert bad.status_code == 401
+        locked = client.post("/api/admin/login", json={"password": "wrong"})
+        assert locked.status_code == 429
+        assert "Retry-After" in locked.headers
+        # The correct password is also refused while the lockout window is open.
+        blocked = client.post("/api/admin/login", json={"password": "test-admin-password"})
+        assert blocked.status_code == 429
 
 
 # ── Goodreads CSV import ──────────────────────────────────────────────────────

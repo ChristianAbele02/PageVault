@@ -128,7 +128,13 @@ def create_app(config: dict | None = None) -> Flask:
     # Register components
     _init_db_hook(app)
     app.register_blueprint(_api_bp())
-    app.add_url_rule("/", "index", lambda: render_template("index.html"))
+
+    @app.get("/")
+    def index():
+        # desktop_mode hides the "Mobile" QR button: the desktop app serves on
+        # loopback only, so a phone on the network cannot reach that link.
+        return render_template("index.html", desktop_mode=app.config.get("DESKTOP_MODE", False))
+
     app.add_url_rule("/stats", "stats", lambda: render_template("stats.html"))
     app.add_url_rule("/reader", "reader", lambda: render_template("reader.html"))
     app.add_url_rule("/admin/login", "admin_login", lambda: render_template("admin_login.html"))
@@ -354,6 +360,11 @@ def main() -> None:
 
     ssl_context = _resolve_ssl_context(local_ip)
     scheme = "https" if ssl_context else "http"
+    if ssl_context:
+        # Served over TLS, so scope the session cookie to HTTPS. Left off when
+        # falling back to HTTP (PAGEVAULT_HTTPS=0) or behind a TLS-terminating
+        # proxy (gunicorn), where the cookie must still be sent over HTTP.
+        app.config["SESSION_COOKIE_SECURE"] = True
 
     lines = [
         "\n📚  PageVault is running!",

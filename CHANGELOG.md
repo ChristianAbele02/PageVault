@@ -20,6 +20,11 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `PAGEVAULT_HTTPS=0` to fall back to plain HTTP. The desktop app (loopback) is
   unaffected and does not bundle the certificate library.
 
+### Changed
+- The desktop app hides the **Mobile** QR button. The desktop server listens on
+  loopback only, so the QR link could never be reached from a phone; it remains
+  available in the `python app.py` server mode, where it now points to HTTPS.
+
 ### Fixed
 - **Mobile layout: the add button is reachable without zooming out.** The header
   action pills and stats bar no longer force the page wider than the screen, which
@@ -29,6 +34,13 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   phone's home indicator.
 - The ISBN scanner now shows a clear "camera needs HTTPS" message on an insecure
   origin instead of a confusing access-denied error.
+
+### Security
+- CDN scripts (html5-qrcode, qrcodejs, epub.js, Plotly) are pinned with
+  Subresource Integrity hashes, so a tampered CDN response is rejected.
+- Admin login is rate-limited: 5 failed attempts from one address within 5 minutes
+  trigger an `HTTP 429` lockout, slowing password brute-forcing.
+- The session cookie is marked `Secure` when `python app.py` serves over HTTPS.
 
 ---
 

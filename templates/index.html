@@ -9,12 +9,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin="anonymous">
 <!-- Fonts: SRI not applicable (dynamic CSS; content varies by query parameters) -->
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" crossorigin="anonymous">
-<!-- CDN scripts: crossorigin="anonymous" is required for SRI enforcement (issue #8/#26).       -->
-<!-- To compute SRI hashes, run: curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A -->
-<!-- Or use https://www.srihash.org/ and add integrity="sha384-<hash>" to each script tag.        -->
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js" crossorigin="anonymous"></script>
+<!-- CDN scripts pinned with Subresource Integrity (SRI). crossorigin="anonymous"
+     is required for the browser to enforce the hash. To recompute after a version
+     bump: curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" integrity="sha384-c9d8RFSL+u3exBOJ4Yp3HUJXS4znl9f+z66d1y54ig+ea249SpqR+w1wyvXz/lk+" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js" integrity="sha384-ZqmkDa/1AGF4SKdSmXgEG+3G+Gsb6yNqUSq2Mqp0jDf1GWk+UY5eNbEd7hgwiywI" crossorigin="anonymous"></script>
 <script src="/static/i18n.js"></script>
 <style>
   :root {
@@ -1604,7 +1604,7 @@
 <header>
   <div class="logo">Page<span>Vault</span></div>
   <div class="header-actions">
-    <button class="theme-toggle" onclick="openMobileConnect()" data-i18n="nav_mobile" title="Show mobile connection QR">Mobile</button>
+    {% if not desktop_mode %}<button class="theme-toggle" onclick="openMobileConnect()" data-i18n="nav_mobile" title="Show mobile connection QR">Mobile</button>{% endif %}
     <a id="admin-link" class="header-link" href="/admin" data-i18n="nav_admin" title="Open admin dashboard" style="display:none">Admin</a>
     <a id="admin-login-link" class="header-link" href="/admin/login" data-i18n="nav_admin_login" title="Admin login">Admin Login</a>
     <a class="header-link" href="/reader" data-i18n="nav_reader" title="Open e-book reader">Reader</a>

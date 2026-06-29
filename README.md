@@ -7,7 +7,7 @@
   Scan ISBN barcodes with your phone · Fetch covers & metadata automatically · Keep your reading life private.
 </p>
 
-<p align="center"><strong>Latest release:</strong> v1.7.0</p>
+<p align="center"><strong>Latest release:</strong> v1.7.1</p>
 
 <br/>
 
@@ -70,7 +70,7 @@ Toggle the interface language (EN/DE) from the header on every page. The prefere
 Each book's detail view suggests similar books from your own library based on shared author, genres, and tags — computed locally, no external service.
 
 **📱 Mobile QR connect**
-Tap **Mobile** in the header to show a QR code that opens PageVault on your phone over the same Wi-Fi.
+Tap **Mobile** in the header to show a QR code that opens PageVault on your phone over the same Wi-Fi. The link is HTTPS so the phone camera scanner works (see [HTTPS & phone scanning](#https--phone-scanning)).
 
 **🗂️ Custom shelves / lists**
 Create as many named shelves as you want, attach an optional logo URL, and place books in multiple shelves.
@@ -150,9 +150,17 @@ pip install .
 python app.py
 ```
 
-Open **http://localhost:5000** in your browser. The startup banner also prints a
-same-Wi-Fi URL for your phone, and — if `PAGEVAULT_ADMIN_PASSWORD` is not set —
-a one-time admin password.
+`python app.py` serves over **HTTPS by default** so phones can use the camera
+scanner (browsers only allow camera access on a secure origin). The startup
+banner prints the local and same-Wi-Fi URLs, and — if `PAGEVAULT_ADMIN_PASSWORD`
+is not set — a one-time admin password.
+
+Open **https://localhost:5000** and accept the one-time self-signed-certificate
+warning (the certificate is generated locally and never leaves your machine).
+Only use `localhost` and don't need the phone scanner? Set `PAGEVAULT_HTTPS=0`
+to serve plain HTTP at `http://localhost:5000` instead. See
+[HTTPS & phone scanning](#https--phone-scanning) for trusting the certificate so
+the warning disappears.
 
 > Optional: copy `.env.example` to `.env` and set `SECRET_KEY` and
 > `PAGEVAULT_ADMIN_PASSWORD` before exposing PageVault to your network.
@@ -232,6 +240,8 @@ back to PowerShell's built-in `Set-AuthenticodeSignature`, so it works without t
 - Visit **`/admin/login`**.
 - A random one-time password is printed to the console on startup when `PAGEVAULT_ADMIN_PASSWORD` is not set.
 - Set `PAGEVAULT_ADMIN_PASSWORD` in your environment or `.env` to make it permanent.
+- Login is rate-limited: after 5 failed attempts from one address, further tries
+  are refused with `HTTP 429` for 5 minutes to slow brute-force guessing.
 - In the **desktop app** there is no console, so a password is generated once and
   saved to `%LOCALAPPDATA%\PageVault\admin_password.txt` (alongside a persisted
   `secret_key` that keeps you logged in across restarts).
@@ -257,7 +267,12 @@ git-ignored — delete freely.
 
 ## Accessing from your phone
 
-Find your computer's local IP, then open `http://YOUR-IP:5000` on your phone (same Wi-Fi network).
+The quickest way: tap **Mobile** in the header to show a QR code, then scan it
+with your phone (both devices on the same Wi-Fi). The QR encodes an `https://`
+URL, so the camera scanner works once you accept the certificate warning once.
+
+To open it by hand, find your computer's local IP and visit
+`https://YOUR-IP:5000` on your phone:
 
 ```bash
 # macOS
@@ -270,7 +285,10 @@ ipconfig
 hostname -I
 ```
 
-> **Safari on iOS?** Apple requires HTTPS for camera access on non-localhost addresses. See the [HTTPS setup guide](#https-setup-for-ios-safari) below.
+The phone shows a "connection is not private" warning the first time because the
+certificate is self-signed; tap through it once (**Advanced → Proceed**) and the
+scanner works. To remove the warning entirely, trust the certificate with
+`mkcert` as described in [HTTPS & phone scanning](#https--phone-scanning).
 
 ---
 
@@ -359,32 +377,52 @@ curl http://localhost:5000/api/export > my_library.json
 
 ---
 
-## HTTPS Setup for iOS Safari
+## HTTPS & phone scanning
 
-Safari requires HTTPS for camera access when the host isn't `localhost`. The quickest fix:
+Browsers (Safari and Chrome alike) only allow camera access on a **secure
+origin**: `localhost`, or any HTTPS address. A phone reaches PageVault over the
+LAN, not `localhost`, so the ISBN scanner needs HTTPS.
+
+`python app.py` handles this automatically. It serves over HTTPS and, on first
+launch, generates a self-signed certificate under your data directory
+(`certs/pagevault-cert.pem`, git-ignored). The certificate's SubjectAltName
+covers `localhost` and your current LAN IP, and it is reused across restarts.
+The only cost is a one-time "not private" warning per device that you click
+through.
+
+| Want | Do this |
+|---|---|
+| Plain HTTP, localhost only (no scanner) | `PAGEVAULT_HTTPS=0 python app.py` |
+| HTTPS with **no** browser warning | Trust a `mkcert` certificate (below) |
+| Custom certificate | Drop your own `pagevault-cert.pem` / `pagevault-key.pem` into the `certs/` folder |
+
+### Removing the warning with mkcert
+
+[mkcert](https://github.com/FiloSottile/mkcert) installs a local certificate
+authority that your machine and phone trust, so PageVault's HTTPS shows no
+warning:
 
 ```bash
-# Install mkcert (creates locally-trusted certificates)
-brew install mkcert          # macOS
-# or: https://github.com/FiloSottile/mkcert#installation
-
+brew install mkcert          # macOS (see the mkcert README for Windows/Linux)
 mkcert -install
-mkcert localhost 127.0.0.1 192.168.x.x   # replace with your local IP
+mkcert -cert-file certs/pagevault-cert.pem -key-file certs/pagevault-key.pem \
+       localhost 127.0.0.1 192.168.x.x   # replace with your LAN IP
 ```
 
-Then edit the last line of `app.py`:
+PageVault reuses any certificate it finds at that path. Install the mkcert root
+CA on your phone too (export it from `mkcert -CAROOT`) to clear the warning
+there as well.
 
-```python
-app.run(host="0.0.0.0", port=5000, ssl_context=("localhost+2.pem", "localhost+2-key.pem"))
-```
-
-Open `https://192.168.x.x:5000` on your iPhone.
+> Running behind a reverse proxy or in Docker? Those serve plain HTTP (gunicorn)
+> and terminate TLS upstream, so this section does not apply.
 
 ---
 
 ## REST API
 
-All responses are JSON. The base URL is `http://localhost:5000`.
+All responses are JSON. The base URL is `http://localhost:5000` under Docker,
+gunicorn, or `PAGEVAULT_HTTPS=0`; with the default `python app.py` it is
+`https://localhost:5000` (add `curl -k` to accept the self-signed certificate).
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -504,7 +542,23 @@ plain commands in the right column — they are identical.
 | `make format` | `python -m ruff format .` then `python -m ruff check --fix .` |
 | `make clean` | removes caches, build artifacts, and coverage files |
 
-Type checking runs with `python -m mypy app.py config.py pagevault_core`.
+Type checking runs with `python -m mypy app.py desktop.py config.py pagevault_core`.
+
+### Security hardening
+
+PageVault is local-first, and a few defaults harden it for same-network use:
+
+- **CDN scripts are pinned with Subresource Integrity (SRI).** html5-qrcode,
+  qrcodejs, epub.js, and Plotly load with `integrity` hashes, so a tampered CDN
+  response is rejected by the browser. Recompute hashes after a version bump with
+  `curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A`.
+- **Admin login is rate-limited** (5 failures per address per 5 minutes).
+- **Session cookies** are `HttpOnly` and `SameSite=Lax`, and become `Secure`
+  automatically when `python app.py` serves over HTTPS.
+- **Local HTTPS** uses a self-signed certificate generated on your machine; the
+  private key is git-ignored and never leaves the device.
+
+Found a vulnerability? See [SECURITY.md](SECURITY.md) to report it privately.
 
 ## Core Infrastructure
 
@@ -578,6 +632,7 @@ pagevault/
 │   ├── api.py                    API blueprint and route handlers
 │   ├── db.py                     SQLite connection + schema bootstrap
 │   ├── metadata.py               Multi-provider lookup + parallel merge + TTL cache
+│   ├── tls.py                    Self-signed certificate for local HTTPS (phone scanning)
 │   ├── utils.py                  Shared parsing/validation helpers
 │   └── services/
 │       ├── admin_service.py      Admin console backend
@@ -591,7 +646,8 @@ pagevault/
 ├── static/                       PWA manifest, service worker, icons, i18n.js (EN/DE)
 ├── tests/
 │   ├── conftest.py               Shared pytest fixtures
-│   └── test_api.py               API + CSV + fallback coverage
+│   ├── test_api.py               API + CSV + fallback coverage
+│   └── test_tls.py               Certificate generation + HTTPS toggle
 ├── assets/
 │   ├── logo.svg                  Full wordmark logo
 │   └── icon.svg                  Square icon (GitHub avatar, favicon)

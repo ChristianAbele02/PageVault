@@ -16,6 +16,7 @@ import pathlib
 import sqlite3
 import tempfile
 import threading
+import time
 import zipfile
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
@@ -25,6 +26,12 @@ from flask import Blueprint, Response, current_app, jsonify, request, send_file,
 from pagevault_core.db import ensure_schema
 from pagevault_core.services import admin_service, recommendations
 from pagevault_core.utils import format_from_binding, normalize_goodreads_date, repair_mojibake
+
+# Admin login brute-force throttle: after this many failed attempts from one IP
+# within the window, further attempts are refused with HTTP 429 until the window
+# elapses. State is per-process and in-memory, which suits a self-hosted app.
+_LOGIN_MAX_FAILURES = 5
+_LOGIN_WINDOW_SECONDS = 300
 
 
 def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
@@ -251,20 +258,42 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
     def api_admin_me():
         return jsonify({"role": session.get("role", "user")})
 
+    login_failures: dict[str, list[float]] = {}
+
+    def login_retry_after(ip: str) -> int:
+        """Seconds the IP must wait before another attempt, or 0 if allowed now."""
+        now = time.monotonic()
+        recent = [t for t in login_failures.get(ip, []) if now - t < _LOGIN_WINDOW_SECONDS]
+        login_failures[ip] = recent
+        if len(recent) >= _LOGIN_MAX_FAILURES:
+            return max(1, int(_LOGIN_WINDOW_SECONDS - (now - recent[0])))
+        return 0
+
     @bp.post("/admin/login")
     def api_admin_login():
-        """Authenticate as admin. Regenerates the session to prevent fixation (issue #3)."""
+        """Authenticate as admin. Throttles brute force and regenerates the session
+        to prevent fixation (issues #1, #3)."""
+        ip = request.remote_addr or "unknown"
+        retry_after = login_retry_after(ip)
+        if retry_after:
+            response = jsonify({"error": "Too many failed attempts. Try again later."})
+            response.headers["Retry-After"] = str(retry_after)
+            return response, 429
+
         payload = request.get_json(force=True, silent=True) or {}
         password = str(payload.get("password") or "")
         # No insecure "1111" fallback — password comes only from config (issue #1)
         configured = str(current_app.config.get("ADMIN_PASSWORD") or "")
         if not configured or password != configured:
+            login_failures.setdefault(ip, []).append(time.monotonic())
+            record_admin_event("admin_login_failed", {"remote_addr": ip})
             return err("Invalid admin password", 401)
 
         # Clear existing session before elevating privileges to prevent session fixation (issue #3)
         session.clear()
         session["role"] = "admin"
-        record_admin_event("admin_login", {"remote_addr": request.remote_addr})
+        login_failures.pop(ip, None)
+        record_admin_event("admin_login", {"remote_addr": ip})
         return jsonify({"ok": True, "role": "admin"})
 
     @bp.post("/admin/logout")
