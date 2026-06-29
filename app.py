@@ -198,6 +198,10 @@ def _fetch_openlibrary_covers(isbn: str) -> dict | None:
     return core_metadata.fetch_openlibrary_covers(isbn)
 
 
+def _fetch_dnb(isbn: str) -> dict | None:
+    return core_metadata.fetch_dnb(isbn)
+
+
 def _fetch_openlibrary_title_search(title: str, author: str | None = None) -> dict | None:
     return core_metadata.fetch_openlibrary_title_search(title, author)
 
@@ -218,6 +222,7 @@ def lookup_isbn(isbn: str) -> dict | None:
         fetch_crossref_fn=_fetch_crossref,
         fetch_openlibrary_search_fn=_fetch_openlibrary_search,
         fetch_openlibrary_covers_fn=_fetch_openlibrary_covers,
+        fetch_dnb_fn=_fetch_dnb,
     )
 
 

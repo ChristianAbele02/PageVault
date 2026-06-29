@@ -23,6 +23,16 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   uses), so the **Mobile** QR opens PageVault on a phone with a working camera
   scanner. The QR points at that `https://<lan-ip>:<port>/` endpoint; the button
   is shown only once the HTTPS server is up.
+- **Deutsche Nationalbibliothek (DNB) metadata.** German-language ISBNs (978-3)
+  now also query the German national library, which catalogues German books that
+  Open Library lacks and the keyless Google Books quota cannot always reach. This
+  fixes ISBN lookups that returned no title/author for many German editions. DNB
+  supplies authoritative title/author/publisher/year/language; covers still come
+  from the other providers.
+
+### Changed
+- Publication years are normalised to a four-digit year, so the UI shows "1993"
+  instead of provider strings like "1993?" or "April 2021".
 
 ### Fixed
 - **Mobile layout: the add button is reachable without zooming out.** The header

@@ -49,7 +49,7 @@ Made with love for my wife Emili. ❤️
 Open PageVault on your phone browser, tap the scan button, and point at the barcode. No app install. No account.
 
 **📚 Automatic metadata**
-Title, author, cover image, publisher, year, and page count — fetched with a multi-provider fallback chain: [Open Library Books API](https://openlibrary.org/dev/docs/api/books) → [Google Books API](https://developers.google.com/books) → [Open Library Search API](https://openlibrary.org/dev/docs/api/search) → [Crossref API](https://api.crossref.org) + [Open Library Covers API](https://openlibrary.org/dev/docs/api/covers) for cover rescue.
+Title, author, cover image, publisher, year, and page count — fetched with a multi-provider fallback chain: [Open Library Books API](https://openlibrary.org/dev/docs/api/books) → [Google Books API](https://developers.google.com/books) → [Open Library Search API](https://openlibrary.org/dev/docs/api/search) → [Crossref API](https://api.crossref.org) + [Open Library Covers API](https://openlibrary.org/dev/docs/api/covers) for cover rescue. German-language ISBNs (978-3) also query the [Deutsche Nationalbibliothek (DNB)](https://www.dnb.de/sru), which Open Library frequently lacks.
 
 **⭐ Ratings, reviews & quotes**
 Give each book a half-star rating (0.5–5.0), add written notes, and save favourite quotes with page numbers. Build up a reading journal over time.
@@ -585,10 +585,12 @@ PageVault is now organized into a lightweight core package so features can grow 
 When you look up an ISBN (or run metadata refresh), PageVault:
 
 1. Starts with Open Library Books API as primary source.
-2. If fields are missing, runs additional fallbacks in parallel: Google Books, Open Library Search, and Crossref.
+2. If fields are missing, runs additional fallbacks in parallel: Google Books, Open Library Search, and Crossref. For German-language ISBNs (978-3) it also queries the **Deutsche Nationalbibliothek (DNB)**, the German national library, which catalogues German books that Open Library and the keyless Google Books quota often miss.
 3. If cover image is still missing, queries Open Library Covers API.
 
-Fields are merged progressively so missing values are filled without discarding good data from earlier providers. Community ratings come from Open Library's crowd-sourced ratings (CC0, no key required) with Google Books as a second source; series info comes from Google Books only.
+Fields are merged progressively so missing values are filled without discarding good data from earlier providers. For German books, DNB supplies authoritative title/author/publisher and Google Books fills the cover and description. Community ratings come from Open Library's crowd-sourced ratings (CC0, no key required) with Google Books as a second source; series info comes from Google Books only.
+
+> **Improving coverage for non-German books.** Open Library's catalogue is incomplete, especially for recent and non-English titles, and the keyless Google Books quota is small. If lookups come back empty, set a free [Google Books API key](#google-books-rate-limits) (`PAGEVAULT_GOOGLE_BOOKS_API_KEY`) to raise the quota substantially.
 
 Books without a real ISBN (Goodreads imports store those under a `GR…` placeholder id) are resolved by a title/author search against Open Library and Google Books instead.
 

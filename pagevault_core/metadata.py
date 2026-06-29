@@ -4,11 +4,13 @@ import importlib.metadata
 import json
 import logging
 import os
+import re
 import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, cast
@@ -64,6 +66,18 @@ def _set_cached_lookup(isbn: str, value: dict | None) -> None:
         _LOOKUP_CACHE.move_to_end(isbn)
         while len(_LOOKUP_CACHE) > LOOKUP_CACHE_MAX_ITEMS:
             _LOOKUP_CACHE.popitem(last=False)
+
+
+def _clean_year(value: Any) -> str | None:
+    """Extract a four-digit publication year from a messy date string.
+
+    Providers return years in many shapes ("1993?", "April 2021", "2011-05-01");
+    this returns just the year so the UI shows "1993" rather than "1993?".
+    """
+    if not value:
+        return None
+    match = re.search(r"(1[5-9]\d{2}|20\d{2})", str(value))
+    return match.group(1) if match else None
 
 
 def fetch_openlibrary(isbn: str) -> dict | None:
@@ -367,6 +381,104 @@ def fetch_crossref(isbn: str) -> dict | None:
         return None
 
 
+# Deutsche Nationalbibliothek (DNB): the German national library. Keyless and
+# authoritative for German-language books, which Open Library frequently lacks and
+# the keyless Google Books quota cannot always cover. The SRU service returns
+# Dublin Core XML.
+DNB_SRU_URL = "https://services.dnb.de/sru/dnb"
+_DC_NS = "{http://purl.org/dc/elements/1.1/}"
+# MARC/ISO-639-2 language codes DNB emits, mapped to PageVault's two-letter codes.
+_MARC_LANG = {"ger": "de", "eng": "en", "fre": "fr", "spa": "es", "ita": "it", "dut": "nl"}
+
+
+def is_german_isbn(isbn: str) -> bool:
+    """True for ISBNs in the German-language group (prefix 978-3 or ISBN-10 '3')."""
+    return isbn.startswith("9783") or (len(isbn) == 10 and isbn.startswith("3"))
+
+
+def _clean_dnb_title(raw: str | None) -> str | None:
+    """Normalise a DNB Dublin Core title.
+
+    DNB titles carry library apparatus, e.g.
+    "[Kehlmann] ; Lichtspiel : Roman / Daniel Kehlmann". Drop the leading sort
+    prefix and the trailing "/ statement of responsibility".
+    """
+    if not raw:
+        return None
+    title = raw.strip()
+    if title.startswith("["):
+        semicolon = title.find(";")
+        if semicolon != -1:
+            title = title[semicolon + 1 :].strip()
+    slash = title.find(" / ")
+    if slash != -1:
+        title = title[:slash].strip()
+    return title.replace(" : ", ": ").strip() or None
+
+
+def _clean_dnb_author(raw: str | None) -> str | None:
+    """Normalise a DNB creator: "Kehlmann, Daniel [Verfasser]" -> "Daniel Kehlmann"."""
+    if not raw:
+        return None
+    author = re.sub(r"\[[^\]]*\]", "", raw).strip(" ;,")
+    if "," in author:
+        last, _, first = author.partition(",")
+        author = f"{first.strip()} {last.strip()}".strip()
+    return author or None
+
+
+def fetch_dnb(isbn: str) -> dict | None:
+    """Look up book metadata in the Deutsche Nationalbibliothek by ISBN.
+
+    Returns title/author/publisher/year/language/genre, or ``None`` when DNB has
+    no record. DNB does not serve cover images, so covers come from other
+    providers in the merge chain.
+    """
+    params = urllib.parse.urlencode(
+        {
+            "version": "1.1",
+            "operation": "searchRetrieve",
+            "query": f"ISBN={isbn}",
+            "recordSchema": "oai_dc",
+            "maximumRecords": "1",
+        }
+    )
+    try:
+        req = urllib.request.Request(f"{DNB_SRU_URL}?{params}", headers=UA)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            root = ET.fromstring(resp.read())
+    except (urllib.error.URLError, OSError, ET.ParseError) as exc:
+        log.warning("DNB lookup failed for ISBN %s: %s", isbn, exc)
+        return None
+
+    titles = [e.text for e in root.iter(f"{_DC_NS}title") if e.text]
+    title = _clean_dnb_title(titles[0]) if titles else None
+    if not title:
+        return None
+
+    authors = [a for a in (_clean_dnb_author(e.text) for e in root.iter(f"{_DC_NS}creator")) if a]
+    publishers = [e.text for e in root.iter(f"{_DC_NS}publisher") if e.text]
+    dates = [e.text for e in root.iter(f"{_DC_NS}date") if e.text]
+    languages = [e.text for e in root.iter(f"{_DC_NS}language") if e.text]
+    subjects = [e.text for e in root.iter(f"{_DC_NS}subject") if e.text]
+
+    # DNB subjects are often "830 Deutsche Literatur" (DDC number + label).
+    genre_tags = normalize_tags([re.sub(r"^\d+\s*", "", s).strip() for s in subjects])[:3]
+    publisher = publishers[0].split(":")[-1].strip() if publishers else None
+    language = _MARC_LANG.get((languages[0] or "").strip().lower()) if languages else None
+
+    return {
+        "isbn": isbn,
+        "title": title,
+        "author": ", ".join(authors) or None,
+        "publisher": publisher or None,
+        "year": _clean_year(dates[0]) if dates else None,
+        "language": language,
+        "genre": genre_tags[0] if genre_tags else None,
+        "genre_tags": genre_tags,
+    }
+
+
 def merge_lookup_data(primary: dict | None, fallback: dict | None) -> dict | None:
     if not primary:
         return fallback
@@ -411,6 +523,7 @@ def lookup_isbn(
     fetch_crossref_fn=fetch_crossref,
     fetch_openlibrary_search_fn=fetch_openlibrary_search,
     fetch_openlibrary_covers_fn=fetch_openlibrary_covers,
+    fetch_dnb_fn=fetch_dnb,
 ) -> dict | None:
     clean = isbn.strip().replace("-", "").replace(" ", "")
     if not clean:
@@ -445,6 +558,10 @@ def lookup_isbn(
         "openlibrary_search": fetch_openlibrary_search_fn,
         "crossref": fetch_crossref_fn,
     }
+    # DNB is authoritative for German-language books that Open Library lacks; only
+    # query it for German-group ISBNs to spare its servers on other lookups.
+    if is_german_isbn(clean):
+        provider_jobs["dnb"] = fetch_dnb_fn
     if not openlibrary_data or not openlibrary_data.get("cover_url"):
         provider_jobs["openlibrary_covers"] = fetch_openlibrary_covers_fn
 
@@ -462,10 +579,21 @@ def lookup_isbn(
                 log.warning("%s fallback failed for ISBN %s: %s", provider_name, clean, exc)
                 results[provider_name] = None
 
+    # DNB first so its authoritative bibliographic fields win for German books;
+    # Google Books then fills cover, description, and ratings it does not carry.
     merged_data = openlibrary_data
-    for provider_name in ["googlebooks", "openlibrary_search", "crossref", "openlibrary_covers"]:
+    for provider_name in [
+        "dnb",
+        "googlebooks",
+        "openlibrary_search",
+        "crossref",
+        "openlibrary_covers",
+    ]:
         if provider_name in results:
             merged_data = merge_lookup_data(merged_data, results[provider_name])
+
+    if merged_data and merged_data.get("year"):
+        merged_data["year"] = _clean_year(merged_data["year"]) or merged_data["year"]
 
     _set_cached_lookup(clean, merged_data)
     return cast(dict[Any, Any], merged_data)
@@ -496,6 +624,9 @@ def lookup_title_author(
     openlibrary_data = fetch_openlibrary_title_fn(clean_title, author)
     googlebooks_data = fetch_googlebooks_title_fn(clean_title, author)
     merged = merge_lookup_data(openlibrary_data, googlebooks_data)
+
+    if merged and merged.get("year"):
+        merged["year"] = _clean_year(merged["year"]) or merged["year"]
 
     _set_cached_lookup(cache_key, merged)
     return cast(dict[Any, Any], merged)
