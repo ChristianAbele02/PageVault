@@ -192,6 +192,11 @@ browser tab.
   once if prompted.
 - Your library lives in `%LOCALAPPDATA%\PageVault` (database, e-book files, log)
   and survives uninstalling or reinstalling the app.
+- **Phone scanning works too.** Alongside the window's local server, the desktop
+  app starts an HTTPS server on your LAN, so tapping **Mobile** shows a QR code
+  that opens PageVault on your phone with a working camera scanner. Accept the
+  one-time certificate warning on the phone (Windows may also prompt to allow the
+  app through the firewall the first time).
 - Prefer a no-install copy? The release also ships a portable
   `PageVault-<version>-portable-win64.zip`; unzip and run `PageVault.exe`.
 
@@ -389,6 +394,11 @@ launch, generates a self-signed certificate under your data directory
 covers `localhost` and your current LAN IP, and it is reused across restarts.
 The only cost is a one-time "not private" warning per device that you click
 through.
+
+The **desktop app** does the same without any setup: it keeps its own window on
+loopback HTTP and spins up a separate HTTPS server on the LAN for phones, so the
+**Mobile** QR just works. The rest of this section applies to the `python app.py`
+server mode.
 
 | Want | Do this |
 |---|---|

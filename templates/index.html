@@ -1604,7 +1604,7 @@
 <header>
   <div class="logo">Page<span>Vault</span></div>
   <div class="header-actions">
-    {% if not desktop_mode %}<button class="theme-toggle" onclick="openMobileConnect()" data-i18n="nav_mobile" title="Show mobile connection QR">Mobile</button>{% endif %}
+    {% if mobile_qr %}<button class="theme-toggle" onclick="openMobileConnect()" data-i18n="nav_mobile" title="Show mobile connection QR">Mobile</button>{% endif %}
     <a id="admin-link" class="header-link" href="/admin" data-i18n="nav_admin" title="Open admin dashboard" style="display:none">Admin</a>
     <a id="admin-login-link" class="header-link" href="/admin/login" data-i18n="nav_admin_login" title="Admin login">Admin Login</a>
     <a class="header-link" href="/reader" data-i18n="nav_reader" title="Open e-book reader">Reader</a>

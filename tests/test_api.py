@@ -833,19 +833,38 @@ class TestFrontend:
         # function is always defined, so the i18n key is the reliable marker.
         assert 'data-i18n="nav_mobile"' in client.get("/").get_data(as_text=True)
 
-    def test_mobile_button_hidden_in_desktop_mode(self, tmp_path):
-        desktop_app = app_module.create_app(
+    def test_mobile_button_hidden_when_disabled(self, tmp_path):
+        # MOBILE_QR_ENABLED=False is how the desktop app hides the button when no
+        # phone-reachable HTTPS URL could be brought up.
+        app_no_qr = app_module.create_app(
             {
                 "DATABASE": str(tmp_path / "d.db"),
                 "BOOK_FILES_DIR": str(tmp_path / "bf"),
                 "TESTING": True,
                 "SECRET_KEY": "k",
                 "ADMIN_PASSWORD": "p",
-                "DESKTOP_MODE": True,
+                "MOBILE_QR_ENABLED": False,
             }
         )
-        html = desktop_app.test_client().get("/").get_data(as_text=True)
+        html = app_no_qr.test_client().get("/").get_data(as_text=True)
         assert 'data-i18n="nav_mobile"' not in html
+
+    def test_mobile_connect_uses_explicit_base_url(self, tmp_path):
+        # The desktop app sets MOBILE_BASE_URL to its HTTPS LAN server; the QR
+        # endpoint must return it verbatim regardless of the request host/scheme.
+        app_desktop = app_module.create_app(
+            {
+                "DATABASE": str(tmp_path / "d.db"),
+                "BOOK_FILES_DIR": str(tmp_path / "bf"),
+                "TESTING": True,
+                "SECRET_KEY": "k",
+                "ADMIN_PASSWORD": "p",
+                "MOBILE_BASE_URL": "https://192.168.1.50:8443/",
+            }
+        )
+        r = app_desktop.test_client().get("/api/mobile/connect", headers={"Host": "127.0.0.1:9000"})
+        assert r.status_code == 200
+        assert r.get_json()["url"] == "https://192.168.1.50:8443/"
 
     def test_mobile_connect_uses_lan_ip_for_localhost(self, client, monkeypatch):
         monkeypatch.setattr(app_module, "_detect_local_ip", lambda: "192.168.1.77")

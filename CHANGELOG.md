@@ -17,13 +17,12 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (`pagevault_core/tls.py`), with the local hostnames and the detected LAN IP in
   its SubjectAltName so the same cert is reused across restarts. The mobile QR link
   follows the request scheme, so it now hands the phone an `https://` address. Set
-  `PAGEVAULT_HTTPS=0` to fall back to plain HTTP. The desktop app (loopback) is
-  unaffected and does not bundle the certificate library.
-
-### Changed
-- The desktop app hides the **Mobile** QR button. The desktop server listens on
-  loopback only, so the QR link could never be reached from a phone; it remains
-  available in the `python app.py` server mode, where it now points to HTTPS.
+  `PAGEVAULT_HTTPS=0` to fall back to plain HTTP.
+- **Phone scanning from the desktop app.** The desktop app now starts a second,
+  phone-facing HTTPS server on the LAN (alongside the loopback server the window
+  uses), so the **Mobile** QR opens PageVault on a phone with a working camera
+  scanner. The QR points at that `https://<lan-ip>:<port>/` endpoint; the button
+  is shown only once the HTTPS server is up.
 
 ### Fixed
 - **Mobile layout: the add button is reachable without zooming out.** The header

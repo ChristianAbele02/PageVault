@@ -16,7 +16,16 @@ import socket
 import sqlite3
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import (
+    Flask,
+    current_app,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from config import (
     _FALLBACK_ADMIN_PASSWORD,
@@ -131,9 +140,10 @@ def create_app(config: dict | None = None) -> Flask:
 
     @app.get("/")
     def index():
-        # desktop_mode hides the "Mobile" QR button: the desktop app serves on
-        # loopback only, so a phone on the network cannot reach that link.
-        return render_template("index.html", desktop_mode=app.config.get("DESKTOP_MODE", False))
+        # mobile_qr controls the "Mobile" QR button. It is on for the networked
+        # server (python app.py) and for the desktop app once its HTTPS LAN server
+        # is up; it is off only when no phone-reachable URL exists.
+        return render_template("index.html", mobile_qr=app.config.get("MOBILE_QR_ENABLED", True))
 
     app.add_url_rule("/stats", "stats", lambda: render_template("stats.html"))
     app.add_url_rule("/reader", "reader", lambda: render_template("reader.html"))
@@ -276,6 +286,12 @@ def _detect_local_ip() -> str:
 
 
 def _mobile_base_url() -> str:
+    # Explicit full-URL override, used by the desktop app to point the QR at its
+    # separate HTTPS LAN server rather than the loopback URL the webview uses.
+    explicit = (current_app.config.get("MOBILE_BASE_URL") or "").strip()
+    if explicit:
+        return explicit if explicit.endswith("/") else explicit + "/"
+
     override_host = (os.getenv("PAGEVAULT_MOBILE_HOST") or "").strip()
     host_header = request.host or ""
     host = host_header.split(":", 1)[0].strip().lower()
