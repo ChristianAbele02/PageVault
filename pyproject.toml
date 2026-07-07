@@ -49,7 +49,7 @@ desktop = [
 # Tooling to produce the frozen executable; only needed on a build machine.
 build = [
     "pyinstaller>=6.21.0",
-    "pillow>=12.2.0",
+    "pillow>=12.3.0",
 ]
 
 [project.urls]
