@@ -7,6 +7,41 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **Reader page listed no books.** `/reader` parsed the book list as
+  `data.books`, but `/api/books` returns a plain array — the sidebar was always
+  empty, so library e-books could not be opened from the reader page (device
+  files still worked). The response is now read as the array it is.
+- **Clicking an author name in the book detail did nothing.** The author link's
+  `onclick` attribute was built with raw double quotes inside a double-quoted
+  attribute, truncating it for every author. Quotes are now HTML-escaped, so the
+  author filter shortcut works again (including names with apostrophes).
+- **Backups could silently miss recent writes.** The database runs in WAL mode,
+  where recent commits live in the `-wal` sidecar file; the backup endpoint
+  zipped only the `.db` file. It now snapshots via the SQLite backup API, so a
+  backup taken right after adding books always contains them.
+- **Restoring a corrupt archive returned a 500.** Restore now verifies the
+  SQLite header and runs a quick integrity check before touching the live
+  database, rejecting invalid uploads with a clear 400 and leaving the library
+  untouched.
+- **Stale pages after updates (PWA).** The service worker served `/` and
+  `/stats` cache-first with a fixed cache name, so an updated PageVault kept
+  showing the old UI until the browser cache was cleared. Navigations are now
+  network-first (cache only as offline fallback) and static assets revalidate in
+  the background.
+
+### Changed
+- **Listing endpoints no longer run two queries per book.** `/api/books`,
+  `/api/export/csv`, and recommendations batch-load tags, shelves, and latest
+  reviews in a fixed number of queries instead of N+1 per-book lookups, which
+  keeps large libraries fast.
+- The Docker builder stage copies `config.py`/`desktop.py`, so the wheel built
+  inside the image contains every module `pyproject.toml` declares.
+
+---
+
 ## [1.7.1] — 2026-06-30
 
 ### Added

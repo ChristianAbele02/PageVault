@@ -1635,3 +1635,63 @@ class TestReadingPosition:
         assert _upload_pdf(client, book_id, b"%PDF-1.7 new content").status_code == 200
         detail = client.get(f"/api/books/{book_id}").get_json()
         assert detail["reader_position"] is None
+
+
+class TestBackupIntegrity:
+    """Regression tests for backup download consistency and restore robustness."""
+
+    def test_backup_download_contains_wal_mode_writes(self, client, added_book, tmp_path):
+        """The backup must include writes that may still sit in the WAL sidecar."""
+        response = client.get("/api/backup/download")
+        assert response.status_code == 200
+
+        archive_path = Path(tmp_path) / "backup.zip"
+        archive_path.write_bytes(response.data)
+        with zipfile.ZipFile(archive_path) as archive:
+            archive.extract("pagevault.db", tmp_path)
+
+        with sqlite3.connect(Path(tmp_path) / "pagevault.db") as snapshot:
+            titles = [row[0] for row in snapshot.execute("SELECT title FROM books").fetchall()]
+        assert added_book["title"] in titles
+
+    def test_restore_apply_rejects_non_database_content(self, client, added_book):
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w") as zf:
+            zf.writestr("pagevault.db", b"this is not a sqlite database")
+
+        applied = client.post(
+            "/api/backup/restore/apply",
+            data={"file": (io.BytesIO(archive.getvalue()), "backup.zip")},
+            content_type="multipart/form-data",
+        )
+        assert applied.status_code == 400
+        assert "SQLite" in applied.get_json()["error"]
+
+        # The live library must be untouched after the rejected restore.
+        books = client.get("/api/books").get_json()
+        assert [b["title"] for b in books] == [added_book["title"]]
+
+
+class TestBookListRelations:
+    """The batched tag/shelf loading must match the per-book results."""
+
+    def test_list_books_includes_tags_and_shelves(self, client, sample_book_payload):
+        shelf = client.post("/api/shelves", json={"name": "Favourites"}).get_json()
+        payload = dict(sample_book_payload)
+        payload["genre_tags"] = ["Fiction", "Classic"]
+        payload["shelf_ids"] = [shelf["id"]]
+        created = client.post("/api/books", json=payload)
+        assert created.status_code == 201
+
+        second = dict(sample_book_payload)
+        second["isbn"] = "9780316769488"
+        second["book_data"] = dict(sample_book_payload["book_data"], isbn=second["isbn"])
+        assert client.post("/api/books", json=second).status_code == 201
+
+        books = {b["isbn"]: b for b in client.get("/api/books").get_json()}
+        tagged = books[sample_book_payload["isbn"]]
+        assert tagged["genre_tags"] == ["Classic", "Fiction"]
+        assert [s["name"] for s in tagged["shelves"]] == ["Favourites"]
+        untagged = books[second["isbn"]]
+        assert untagged["genre_tags"] == []
+        assert untagged["shelves"] == []

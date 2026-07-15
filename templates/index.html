@@ -2773,7 +2773,9 @@ async function loadBooks() {
   if (currentFormat) params.set('format', currentFormat);
   if (currentOwnedOnly) params.set('owned', '1');
   const r = await api(`/api/books?${params}`);
-  books = await r.json();
+  const data = await r.json().catch(() => []);
+  // An error payload is an object, not an array — never let it crash the grid.
+  books = Array.isArray(data) ? data : [];
   _booksLoadedOnce = true;
   updateFilterOptions();
   syncSessionBookOptions();
@@ -3514,8 +3516,10 @@ function _fillDetailModal(b) {
 
   // Clickable author — sets author filter on click
   const authorEl = document.getElementById('d-author');
+  // esc() turns the JSON string's double quotes into &quot; so they survive
+  // inside the double-quoted onclick attribute (raw quotes would truncate it).
   authorEl.innerHTML = b.author
-    ? `<a href="#" style="color:var(--brown);text-decoration:none" onclick="filterByAuthor(${JSON.stringify(b.author)});return false">${esc(b.author)}</a>`
+    ? `<a href="#" style="color:var(--brown);text-decoration:none" onclick="filterByAuthor(${esc(JSON.stringify(b.author))});return false">${esc(b.author)}</a>`
     : esc(t('unknown_author'));
 
   // Series label (injected below title if present)

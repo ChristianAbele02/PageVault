@@ -452,8 +452,9 @@ function api(path, opts = {}) {
 async function loadBooks() {
   const r = await api('/api/books');
   if (!r.ok) return;
+  // /api/books returns a plain array of books.
   const data = await r.json();
-  allBooks = (data.books || []).filter(b => b.file_type);
+  allBooks = (Array.isArray(data) ? data : []).filter(b => b.file_type);
   renderBookList(allBooks);
 }
 
