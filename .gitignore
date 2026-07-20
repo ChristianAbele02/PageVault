@@ -45,6 +45,7 @@ venv.bak/
 secret_key
 admin_password.txt
 book_files/
+covers/
 
 # ── Testing & coverage ─────────────────────────────────────────────────────────
 .pytest_cache/
