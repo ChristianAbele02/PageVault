@@ -1,5 +1,9 @@
-const CACHE_NAME = 'pagevault-v2';
-const CORE_ASSETS = ['/', '/stats', '/static/manifest.webmanifest', '/static/icon.svg'];
+const CACHE_NAME = 'pagevault-v3';
+const CORE_ASSETS = [
+  '/', '/stats',
+  '/static/manifest.webmanifest', '/static/icon.svg',
+  '/static/vendor/fonts/fonts.css',
+];
 
 self.addEventListener('install', event => {
   event.waitUntil(

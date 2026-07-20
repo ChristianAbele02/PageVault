@@ -6,15 +6,13 @@
 <meta name="theme-color" content="#1a1008">
 <title>PageVault</title>
 <link rel="manifest" href="/static/manifest.webmanifest">
-<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin="anonymous">
-<!-- Fonts: SRI not applicable (dynamic CSS; content varies by query parameters) -->
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" crossorigin="anonymous">
-<!-- CDN scripts pinned with Subresource Integrity (SRI). crossorigin="anonymous"
-     is required for the browser to enforce the hash. To recompute after a version
-     bump: curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A -->
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" integrity="sha384-c9d8RFSL+u3exBOJ4Yp3HUJXS4znl9f+z66d1y54ig+ea249SpqR+w1wyvXz/lk+" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js" integrity="sha384-ZqmkDa/1AGF4SKdSmXgEG+3G+Gsb6yNqUSq2Mqp0jDf1GWk+UY5eNbEd7hgwiywI" crossorigin="anonymous"></script>
+<!-- Fonts and libraries are vendored locally (static/vendor) so the app works
+     fully offline, including inside the Android WebView. Same-origin assets need
+     no Subresource Integrity, so the SRI hashes are gone with the CDN URLs. -->
+<link href="/static/vendor/fonts/fonts.css" rel="stylesheet">
+<script src="/static/vendor/html5-qrcode.min.js"></script>
+<script src="/static/vendor/qrcode.min.js"></script>
+<script src="/static/vendor/epub.min.js"></script>
 <script src="/static/i18n.js"></script>
 <style>
   :root {
