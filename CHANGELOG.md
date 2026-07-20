@@ -9,6 +9,8 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-07-20
+
 ### Added
 - **Android app (on-device).** A new `android/` project runs the existing Flask
   app on a loopback port inside the app process (embedded CPython via Chaquopy)

@@ -7,7 +7,7 @@
   Scan ISBN barcodes · fetch covers &amp; metadata automatically · keep your reading life private.
 </p>
 
-<p align="center"><strong>Latest release:</strong> v1.7.1 · Android app in development (build from source)</p>
+<p align="center"><strong>Latest release:</strong> v1.8.0 · Android app in development (build from source)</p>
 
 <br/>
 
