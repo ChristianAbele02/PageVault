@@ -3,7 +3,9 @@
 FROM python:3.12.9-slim AS builder
 
 WORKDIR /build
-COPY pyproject.toml README.md LICENSE app.py ./
+# pyproject.toml declares py-modules app, config, and desktop — copy all three
+# so the built wheel is complete (setuptools silently skips missing modules).
+COPY pyproject.toml README.md LICENSE app.py config.py desktop.py ./
 COPY pagevault_core/ pagevault_core/
 RUN pip install --upgrade pip \
  && pip install --no-cache-dir --prefix=/install ".[prod]"

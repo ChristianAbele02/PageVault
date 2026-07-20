@@ -31,16 +31,18 @@ def recommend_books(db: sqlite3.Connection, book_id: int, limit: int = 6) -> lis
         return []
 
     base = dict(base_row)
-    base_tags = {
-        row["name"].strip().lower()
-        for row in db.execute(
-            """SELECT t.name
-               FROM tags t
-               JOIN book_tags bt ON bt.tag_id = t.id
-               WHERE bt.book_id = ?""",
-            (book_id,),
-        ).fetchall()
-    }
+
+    # All book→tag pairs in one query instead of one query per candidate.
+    tags_by_book: dict[int, set[str]] = {}
+    for row in db.execute(
+        """SELECT bt.book_id, t.name
+           FROM tags t
+           JOIN book_tags bt ON bt.tag_id = t.id"""
+    ).fetchall():
+        if row["name"]:
+            tags_by_book.setdefault(row["book_id"], set()).add(row["name"].strip().lower())
+
+    base_tags = tags_by_book.get(book_id, set())
     base["genre_tags"] = sorted(base_tags)
     base_genres = _genre_set(base)
     base_author = (base.get("author") or "").strip().lower()
@@ -62,14 +64,7 @@ def recommend_books(db: sqlite3.Connection, book_id: int, limit: int = 6) -> lis
     scored: list[tuple[float, dict[str, Any]]] = []
     for row in candidates:
         candidate = dict(row)
-        tag_rows = db.execute(
-            """SELECT t.name
-               FROM tags t
-               JOIN book_tags bt ON bt.tag_id = t.id
-               WHERE bt.book_id = ?""",
-            (candidate["id"],),
-        ).fetchall()
-        candidate_tags = {tag["name"].strip().lower() for tag in tag_rows if tag["name"]}
+        candidate_tags = tags_by_book.get(candidate["id"], set())
         candidate["genre_tags"] = sorted(candidate_tags)
         candidate_genres = _genre_set(candidate)
         candidate_author = (candidate.get("author") or "").strip().lower()

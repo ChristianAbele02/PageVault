@@ -1,0 +1,10 @@
+<resources>
+    <!-- Brand palette, matching the web app's design tokens. -->
+    <color name="brand_bg">#FF1A130A</color>
+    <color name="brand_surface">#FF362213</color>
+    <color name="brand_gold">#FFD4A843</color>
+    <color name="brand_gold_bright">#FFE7BE5E</color>
+    <color name="brand_text">#FFF0E8DA</color>
+    <color name="brand_text_dim">#FFB8A88E</color>
+    <color name="ic_launcher_background">#FF1A1008</color>
+</resources>

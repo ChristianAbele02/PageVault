@@ -3,11 +3,11 @@
 </p>
 
 <p align="center">
-  <strong>A self-hosted, local Goodreads alternative.</strong><br/>
-  Scan ISBN barcodes with your phone · Fetch covers & metadata automatically · Keep your reading life private.
+  <strong>A self-hosted, fully local Goodreads alternative.</strong><br/>
+  Scan ISBN barcodes · fetch covers &amp; metadata automatically · keep your reading life private.
 </p>
 
-<p align="center"><strong>Latest release:</strong> v1.7.0</p>
+<p align="center"><strong>Latest release:</strong> v1.7.1 · Android app in development (build from source)</p>
 
 <br/>
 
@@ -26,626 +26,278 @@
   &nbsp;
   <img src="https://img.shields.io/badge/database-SQLite-blue?logo=sqlite" alt="SQLite"/>
   &nbsp;
-  <a href="LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-green" alt="License"/>
-  </a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"/></a>
 </p>
 
 ---
 
 ## What is PageVault?
 
-PageVault is a lightweight, **100% local** book catalog that runs on your own machine. Point your phone camera at any ISBN barcode — the app fetches the title, author, cover, and metadata instantly, and stores everything in a single SQLite file that never leaves your device.
+PageVault is a book catalogue that runs entirely on your own hardware. Point a camera at
+any ISBN barcode and it fetches the title, author, cover, and metadata, then stores
+everything in a single SQLite file that never leaves your device. Think Goodreads, but
+yours, with no account and no cloud.
 
-Think Goodreads, but yours.
+The same Flask app powers three builds: a **web server**, a **native desktop app**, and an
+**Android app**. All three share one codebase and one feature set.
 
 Made with love for my wife Emili. ❤️
 
 ---
 
-## Features
+## Three ways to run it
 
-**📷 Scan any book in seconds**
-Open PageVault on your phone browser, tap the scan button, and point at the barcode. No app install. No account.
+| Build | Best for | How |
+|---|---|---|
+| **Web server** | Any device on your network, self-hosting, Docker | `python app.py`, or `docker compose up` |
+| **Desktop app** (Windows) | A double-click program, no terminal | Install the `.exe` from [Releases](https://github.com/ChristianAbele02/PageVault/releases) |
+| **Android app** | A phone app that runs fully offline on-device | Build `android/` in Android Studio ([guide](android/README.md)) |
 
-**📚 Automatic metadata**
-Title, author, cover image, publisher, year, and page count — fetched with a multi-provider fallback chain: [Open Library Books API](https://openlibrary.org/dev/docs/api/books) → [Google Books API](https://developers.google.com/books) → [Open Library Search API](https://openlibrary.org/dev/docs/api/search) → [Crossref API](https://api.crossref.org) + [Open Library Covers API](https://openlibrary.org/dev/docs/api/covers) for cover rescue.
-
-**⭐ Ratings, reviews & quotes**
-Give each book a half-star rating (0.5–5.0), add written notes, and save favourite quotes with page numbers. Build up a reading journal over time.
-
-**📖 Reading progress (current page)**
-Save page progress together with each review entry and see a live progress bar on the library grid.
-
-**🔖 Reading status**
-Track every book as *Want to Read*, *Currently Reading*, *Read*, or *Did Not Finish (DNF)*.
-
-**📖 Built-in e-book reader**
-Attach an EPUB or PDF to any book (drag & drop in the detail view) and read it right in the app — in a full-screen reader dialog or on the dedicated `/reader` page. Your reading position is saved automatically and synced into the book's page progress.
-
-**🌍 English / German interface**
-Toggle the interface language (EN/DE) from the header on every page. The preference is remembered locally.
-
-**🤝 Local recommendations**
-Each book's detail view suggests similar books from your own library based on shared author, genres, and tags — computed locally, no external service.
-
-**📱 Mobile QR connect**
-Tap **Mobile** in the header to show a QR code that opens PageVault on your phone over the same Wi-Fi.
-
-**🗂️ Custom shelves / lists**
-Create as many named shelves as you want, attach an optional logo URL, and place books in multiple shelves.
-
-**🏷️ Genre tags**
-Attach multiple genre tags to each book for cleaner categorization and better discovery.
-Tags are managed as interactive chips (add/remove individually), with duplicate protection and a max of 10 tags.
-
-**🌗 Day/Night library themes**
-Dark mode (default) uses a candlelit library look; light mode switches to a daylight library style.
-Theme preference is remembered locally.
-
-**🔍 Search & filter**
-Filter by status, author, genre tag, shelf, and text search.
-
-**📊 Advanced stats dashboard with Plotly**
-Open `/stats` for 20+ interactive analytics charts: books/pages by status (including DNF), top genres/authors, rating distribution, monthly activity, format breakdown, decade distribution, publisher insights, community vs personal ratings, daily reading pace, library growth, reading activity heatmap (GitHub-style), rating trend over time, genre trends by year, time-to-finish distribution, reading speed per book, shelf breakdown, longest unread shelf, and active loans tracker.
-Includes preset + custom date range filters, format and language filters, and automatic dark/light theme inheritance.
-
-**🎯 Annual goals & reading sessions**
-Set yearly targets for books/pages, log reading sessions with start/end pages and time, and track pace, streak, and speed metrics directly in analytics.
-
-**📚 Series, reading history & book metadata**
-Track series name and number, log re-reads with start/finish dates, record book format (physical/ebook/audiobook), community ratings from Google Books, and owned/wishlist status.
-
-**🧪 Import mapping preview + dry-run**
-Preview CSV imports with optional column mapping before writing data, then run a safe dry-run to verify import/update counts.
-
-**🛠️ Metadata repair jobs**
-Run repair jobs for missing metadata fields and inspect job history/status from the dashboard.
-
-**🧯 One-click backup/restore workflow**
-Download a ZIP backup, validate restore archives, and apply restores from inside the app.
-
-**📱 PWA-ready baseline**
-Manifest + service worker support enables install-friendly behavior and caching for core pages.
-
-**🔄 Metadata refresh**
-Reload metadata for all saved books without touching your reviews, star ratings, shelves, or manual tags.
-
-**📤📥 CSV export/import**
-Export your full library to CSV and import CSV files back into PageVault. Goodreads CSV export files are supported.
-
-**💾 Fully private, fully local**
-Your entire library lives in one file: `pagevault.db`. Back it up by copying it. Restore by pasting it back.
-
-**🐳 Docker ready**
-One command to run, persistent volume for your data.
+The web and desktop builds also let a phone scan barcodes over the LAN; the Android build
+puts the whole app on the phone, using its camera directly with no network needed (except
+to look up metadata).
 
 ---
 
-## Quick Start
+## Features
 
-### Python (recommended)
+**Scanning &amp; metadata.** Scan an ISBN with the camera (or type it) and PageVault fills in
+title, author, cover, publisher, year, page count, genre, language, and community rating
+through a multi-provider fallback chain: Open Library → Google Books → Open Library Search →
+Crossref, with Open Library Covers for cover rescue. German-group ISBNs (978-3) also query
+the Deutsche Nationalbibliothek. Books without a real ISBN are resolved by title/author.
 
-> Requires Python 3.10 or newer.
+**Reading tracking.** Status (*want to read* / *reading* / *read* / *DNF*), per-review page
+progress with a live progress bar, reading sessions (pages + time), annual goals with pace
+and streak metrics, re-read history with dates, series name/number, and format
+(physical / e-book / audiobook) with owned/wishlist state.
 
-**Windows (PowerShell):**
+**Reviews, ratings &amp; quotes.** Half-star ratings (0.5–5.0), written notes over time, and
+saved quotes with page numbers.
 
-```powershell
-git clone https://github.com/ChristianAbele02/PageVault.git
-cd PageVault
-python -m venv .pagevault
-.\.pagevault\Scripts\activate
-pip install .
-python app.py
-```
+**Built-in e-book reader.** Attach an EPUB or PDF to any book and read it in-app, in a
+full-screen dialog or on the dedicated `/reader` page. Position is saved automatically and
+folded into page progress.
 
-**macOS / Linux:**
+**Organisation &amp; discovery.** Custom shelves (with optional logos), genre-tag chips
+(deduped, max 10), full search and filtering by status/author/genre/shelf/text, and local
+similarity recommendations computed from your own library, no external service.
+
+**Stats dashboard.** `/stats` renders 20+ interactive Plotly charts: books/pages by status,
+top genres and authors, rating distribution, monthly activity, format and decade breakdowns,
+publisher insights, community-vs-personal ratings, reading pace and speed, a GitHub-style
+activity heatmap, library growth, rating and genre trends, time-to-finish, shelf breakdown,
+and active loans. Preset and custom date ranges; inherits your light/dark theme.
+
+**Import / export / backup.** CSV export and import (Goodreads `My Books` format supported,
+with mapping preview and dry-run), full JSON export, and a one-click ZIP backup / validated
+restore. Large imports run as background jobs with a progress bar and are idempotent.
+
+**Interface.** English / German toggle and light / dark library themes, both remembered
+locally. Responsive layout with native-app polish on the Android build.
+
+**Fully local &amp; offline-capable.** Your whole library is one `pagevault.db` file. All
+front-end libraries and fonts are vendored (no CDN at runtime), a service worker caches the
+app shell and book covers, so everything except online metadata lookup works offline.
+
+---
+
+## Quick start
+
+### Web server (Python)
+
+Requires Python 3.10+.
 
 ```bash
 git clone https://github.com/ChristianAbele02/PageVault.git
 cd PageVault
-python3 -m venv .pagevault
-source .pagevault/bin/activate
+python -m venv .pagevault
+.\.pagevault\Scripts\activate      # Windows;  source .pagevault/bin/activate on macOS/Linux
 pip install .
 python app.py
 ```
 
-Open **http://localhost:5000** in your browser. The startup banner also prints a
-same-Wi-Fi URL for your phone, and — if `PAGEVAULT_ADMIN_PASSWORD` is not set —
-a one-time admin password.
+`python app.py` serves over **HTTPS by default** so phones can use the camera scanner
+(browsers only allow the camera on a secure origin). The banner prints the local and
+same-Wi-Fi URLs and, unless `PAGEVAULT_ADMIN_PASSWORD` is set, a one-time admin password.
+Open **https://localhost:5000** and accept the one-time self-signed-certificate warning.
+Don't need the phone scanner? `PAGEVAULT_HTTPS=0 python app.py` serves plain HTTP.
 
-> Optional: copy `.env.example` to `.env` and set `SECRET_KEY` and
-> `PAGEVAULT_ADMIN_PASSWORD` before exposing PageVault to your network.
+> Copy `.env.example` to `.env` and set `SECRET_KEY` and `PAGEVAULT_ADMIN_PASSWORD` before
+> exposing PageVault to your network.
 
 ### Docker
 
 ```bash
-git clone https://github.com/ChristianAbele02/PageVault.git
-cd PageVault
-docker compose up -d
+docker compose up -d      # http://localhost:5000, data in a named volume
 ```
-
-PageVault starts at **http://localhost:5000**. Data persists in a named Docker volume.
 
 ### Desktop app (Windows)
 
-Prefer a double-click program with no terminal and no Python install? Download
-**`PageVault-Setup-<version>.exe`** from the
-[latest release](https://github.com/ChristianAbele02/PageVault/releases), run it,
-and launch PageVault from the Start menu. It opens in its own window instead of a
-browser tab.
+Download **`PageVault-Setup-<version>.exe`** from the
+[latest release](https://github.com/ChristianAbele02/PageVault/releases) and launch from the
+Start menu; it opens in its own WebView2 window. The installer is per-user (no admin rights),
+data lives in `%LOCALAPPDATA%\PageVault`, and a portable ZIP is also provided. Phone scanning
+works: the app runs a LAN HTTPS server, so **Mobile** shows a QR the phone can open with a
+working scanner. Build from source with `make exe` (see [Development](#development)).
 
-- The installer is per-user and needs no administrator rights.
-- If the build is unsigned, Windows SmartScreen shows an "unknown publisher" prompt on
-  first run; choose **More info → Run anyway**. See [Code signing](#code-signing-optional)
-  to remove it.
-- Rendering uses **WebView2**, which ships with Windows 11. On Windows 10, install
-  the [Evergreen WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
-  once if prompted.
-- Your library lives in `%LOCALAPPDATA%\PageVault` (database, e-book files, log)
-  and survives uninstalling or reinstalling the app.
-- Prefer a no-install copy? The release also ships a portable
-  `PageVault-<version>-portable-win64.zip`; unzip and run `PageVault.exe`.
+### Android app
 
-**Build it yourself** (from a source checkout, on Windows):
-
-```powershell
-make desktop-deps   # installs pywebview, waitress, PyInstaller, Pillow
-make exe            # writes dist\PageVault\PageVault.exe
-```
-
-`make desktop` runs the same native app directly from source without freezing it.
-
-### Code signing (optional)
-
-Unsigned builds trigger the Windows SmartScreen "unknown publisher" prompt. Three ways
-to address it, by audience:
-
-| Goal | Approach |
-|---|---|
-| **Trust on your own PCs** | Run `tools/make_selfsigned_cert.ps1` to create a self-signed certificate, then import its `.cer` into *Trusted Root Certification Authorities* and *Trusted Publishers* on each machine. Clears the warning for your household only. |
-| **Public, free** | [SignPath](https://signpath.io) provides free code signing for open-source projects. |
-| **Public, commercial** | An OV/EV certificate from a CA (DigiCert, Sectigo, …); EV certificates gain SmartScreen reputation immediately. |
-
-The release workflow signs the executable and the installer automatically **when** two
-repository secrets are present:
-
-- `WINDOWS_CERT_BASE64` — base64 of your code-signing `.pfx`
-- `WINDOWS_CERT_PASSWORD` — its password
-
-Without them the build still runs, just unsigned. The private key stays in GitHub Secrets
-and is never committed (`*.pfx`, `*.cer`, and `certs/` are git-ignored). To sign a local
-build by hand:
-
-```powershell
-.\tools\sign_windows.ps1 -Path dist\PageVault\PageVault.exe `
-  -PfxPath certs\pagevault-codesign.pfx -Password (Read-Host -AsSecureString)
-```
-
-`sign_windows.ps1` uses `signtool` when the Windows SDK is installed and otherwise falls
-back to PowerShell's built-in `Set-AuthenticodeSignature`, so it works without the SDK.
+A fully on-device build lives in [`android/`](android/): the Flask app runs on a loopback
+port inside the app via embedded CPython (Chaquopy) and the UI renders in a WebView, so the
+catalogue, scanner, reader, stats, import/export, and backups all run locally. Admin login is
+omitted. Open the `android/` folder in Android Studio and Run. See
+[android/README.md](android/README.md) and [ANDROID_APP_PLAN.md](ANDROID_APP_PLAN.md).
 
 ---
 
-## Admin Panel
+## Phone scanning &amp; HTTPS
 
-- Visit **`/admin/login`**.
-- A random one-time password is printed to the console on startup when `PAGEVAULT_ADMIN_PASSWORD` is not set.
-- Set `PAGEVAULT_ADMIN_PASSWORD` in your environment or `.env` to make it permanent.
-- In the **desktop app** there is no console, so a password is generated once and
-  saved to `%LOCALAPPDATA%\PageVault\admin_password.txt` (alongside a persisted
-  `secret_key` that keeps you logged in across restarts).
+Browsers expose the camera only on a **secure origin** (`localhost` or HTTPS). A phone reaches
+the web/desktop build over the LAN, so those serve HTTPS with a self-signed certificate
+generated on first launch under your data directory (git-ignored, reused across restarts,
+covering `localhost` and your LAN IP). Accept the one-time warning per device, or trust a
+[mkcert](https://github.com/FiloSottile/mkcert) certificate to remove it:
 
-## Your data on disk
+```bash
+mkcert -install
+mkcert -cert-file certs/pagevault-cert.pem -key-file certs/pagevault-key.pem localhost 127.0.0.1 192.168.x.x
+```
+
+The Android build needs none of this: `http://127.0.0.1` is already a secure origin, so the
+on-device camera works with no certificate. Behind a reverse proxy or Docker, TLS is
+terminated upstream and this does not apply.
+
+---
+
+## Your data &amp; privacy
 
 | File / folder | What it is |
 |---|---|
 | `pagevault.db` | Your entire library — books, reviews, shelves, tags, goals, sessions. **Back this up.** |
-| `book_files/` | Uploaded e-book files (EPUB/PDF), one per book, created on first upload. |
-| `pagevault.log` | Rotating application log (10 MB × 5 backups). Safe to delete. |
+| `book_files/` | Uploaded e-book files (EPUB/PDF), one per book. |
+| `pagevault.log` | Rotating log (10 MB × 5). Safe to delete. |
 
-From a source checkout these sit next to `app.py`. The **desktop app** keeps them
-(plus `secret_key` and `admin_password.txt`) in `%LOCALAPPDATA%\PageVault`. Set
-`PAGEVAULT_DATA_DIR` to override the location for either.
+From a source checkout these sit next to `app.py`. The desktop app keeps them (plus
+`secret_key` and `admin_password.txt`) in `%LOCALAPPDATA%\PageVault`; the Android app keeps
+them in its private storage. Set `PAGEVAULT_DATA_DIR` to override the location. Nothing is
+sent anywhere except the metadata providers you look ISBNs up against.
 
-Everything else that appears after running the app or the tests
-(`__pycache__/`, `.pytest_cache/`, `.ruff_cache/`, `.mypy_cache/`, `build/`,
-`*.egg-info/`, `.coverage`, `coverage.xml`) is a regenerable artifact and is
-git-ignored — delete freely.
-
----
-
-## Accessing from your phone
-
-Find your computer's local IP, then open `http://YOUR-IP:5000` on your phone (same Wi-Fi network).
-
-```bash
-# macOS
-ipconfig getifaddr en0
-
-# Windows (in PowerShell)
-ipconfig
-
-# Linux
-hostname -I
-```
-
-> **Safari on iOS?** Apple requires HTTPS for camera access on non-localhost addresses. See the [HTTPS setup guide](#https-setup-for-ios-safari) below.
-
----
-
-## Usage
-
-### Adding a book
-
-| Step | Action |
-|------|--------|
-| 1 | Tap **+** (bottom right) |
-| 2 | Tap **Scan ISBN Barcode** and allow camera access |
-| 3 | Point at the barcode on the back cover |
-| 4 | Confirm the fetched details and tap **Add to My Shelf** |
-
-Can't scan? Type the ISBN manually and tap **Look up**. If the book isn't in Open Library, fill in the title and author yourself.
-
-### Rating a book
-
-Tap any book → pick a star rating → write an optional note → **Save Review**. Add as many notes as you like over time.
-
-Review timestamps are displayed in `DD.MM.YYYY HH:MM` format.
-
-### Reading e-books
-
-| Step | Action |
-|------|--------|
-| 1 | Open a book's detail view and find the **E-Book File** section |
-| 2 | Drop an EPUB/PDF onto the zone (or **Browse Files…**) |
-| 3 | Click **Open** — or use the 📖 **Read** overlay on the book cover |
-| 4 | Navigate with the on-screen arrows or ← / → keys; adjust font size with A− / A+ |
-
-Your position is saved automatically (and converted into page progress when the
-book has a page count). The **Reader** link in the header opens a dedicated
-full-page reader with a searchable sidebar of all your e-books.
-
-### Language switching
-
-Use the **DE/EN** toggle in the header to switch the interface between English
-and German. The choice is stored in your browser.
-
-### Theme switching
-
-- Use the **Light/Dark** toggle in the header.
-- Dark mode is the default appearance.
-- The selected theme is persisted in your browser.
-
-### Stats dashboard
-
-- Open **http://localhost:5000/stats** from the main **Stats** link in the header.
-- Use quick presets (30/90/180/365 days, YTD) or a custom date range.
-- Charts are powered by Plotly and update from `/api/stats/analysis`.
-- The stats page follows your saved Light/Dark theme automatically.
-- Saved views persist locally and can be shared via range URL parameters.
-
-### Goal, session, and operations panel
-
-- Use the dashboard operation cards to set annual goals and log reading sessions.
-- Run metadata repair jobs for incomplete book metadata and inspect latest job status.
-- Use the CSV wizard controls to preview mapping, dry-run, then import.
-- Use backup/restore controls to download backup ZIPs and validate/apply restore archives.
-
-### Genre tag chips
-
-- Add tags with **Enter**, **comma (,)**, or **Tab**.
-- Remove tags with the **✕** on each chip.
-- Duplicate tags are prevented and show an inline message.
-- Max 10 tags per book, with a live counter (`x/10`).
-
-### Exporting your library
-
-```bash
-curl http://localhost:5000/api/export > my_library.json
-```
-
-### Exporting / importing CSV
-
-- Use the floating **⇩** button next to **+** to export CSV.
-- Use the floating **⇧** button next to **+** to import a CSV file.
-- Goodreads CSV exports are supported (`My Books` export format).
-
-### Reloading metadata for all books
-
-- Use the **Reload metadata** button in the top controls.
-- This updates only core metadata fields (title, author, cover, description, publisher, year, pages, language, genre).
-- Reviews/stars, shelves, and manual tags stay untouched.
-
----
-
-## HTTPS Setup for iOS Safari
-
-Safari requires HTTPS for camera access when the host isn't `localhost`. The quickest fix:
-
-```bash
-# Install mkcert (creates locally-trusted certificates)
-brew install mkcert          # macOS
-# or: https://github.com/FiloSottile/mkcert#installation
-
-mkcert -install
-mkcert localhost 127.0.0.1 192.168.x.x   # replace with your local IP
-```
-
-Then edit the last line of `app.py`:
-
-```python
-app.run(host="0.0.0.0", port=5000, ssl_context=("localhost+2.pem", "localhost+2-key.pem"))
-```
-
-Open `https://192.168.x.x:5000` on your iPhone.
+**Admin panel** (web/desktop only): visit `/admin/login`. The password is printed on startup
+(or saved to `admin_password.txt` in the desktop app) unless `PAGEVAULT_ADMIN_PASSWORD` is
+set. Login is rate-limited (5 failures per address → HTTP 429 for 5 minutes).
 
 ---
 
 ## REST API
 
-All responses are JSON. The base URL is `http://localhost:5000`.
+All responses are JSON. Base URL is `http://localhost:5000` under Docker/gunicorn/`PAGEVAULT_HTTPS=0`,
+otherwise `https://localhost:5000` (add `curl -k`).
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/books` | List books — supports `?status=`, `?author=`, `?genre=`, `?shelf_id=`, `?q=`, `?sort=`, `?order=` |
+| `GET` | `/api/books` | List books — `?status=&author=&genre=&shelf_id=&q=&sort=&order=` |
 | `POST` | `/api/books` | Add a book `{ isbn, status?, genre_tags?, shelf_ids?, book_data? }` |
-| `GET` | `/api/books/:id` | Book detail including all reviews |
-| `PATCH` | `/api/books/:id` | Update `status`, `title`, `author`, `description`, `genre_tags`, `shelf_ids` |
-| `DELETE` | `/api/books/:id` | Delete a book (reviews cascade) |
-| `GET` | `/api/shelves` | List custom shelves with book counts |
-| `POST` | `/api/shelves` | Create shelf `{ name, logo_url? }` |
-| `PATCH` | `/api/shelves/:id` | Rename shelf and/or update logo URL |
-| `DELETE` | `/api/shelves/:id` | Delete shelf (book relations cascade) |
-| `GET` | `/api/lookup/:isbn` | Preview ISBN metadata without saving |
-| `POST` | `/api/books/refresh` | Refresh metadata for all books (preserves reviews/tags/shelves) |
-| `POST` | `/api/books/refresh/start` | Same as a background job with progress (poll `/api/metadata/jobs/:id`) |
-| `POST` | `/api/books/:id/reviews` | Add review `{ rating?, comment?, current_page? }` |
-| `DELETE` | `/api/books/:id/reviews/:rid` | Remove a review |
-| `POST` | `/api/books/:id/file` | Upload an EPUB/PDF e-book file (multipart `file`) |
-| `GET` | `/api/books/:id/file` | Download/stream the attached e-book file |
-| `DELETE` | `/api/books/:id/file` | Remove the attached e-book file |
+| `GET` `PATCH` `DELETE` | `/api/books/:id` | Book detail / update / delete |
+| `GET` | `/api/books/:id/recommendations` | Similar books from your library (`?limit=`) |
+| `GET` `POST` `DELETE` | `/api/books/:id/reviews[/:rid]` | Reviews `{ rating?, comment?, current_page? }` |
+| `GET` `POST` `DELETE` | `/api/books/:id/quotes[/:qid]` | Quotes with page numbers |
+| `GET` `POST` `DELETE` | `/api/books/:id/reads[/:rid]` | Re-read history |
+| `POST` `GET` `DELETE` | `/api/books/:id/file` | Upload / stream / remove the e-book file |
 | `PATCH` | `/api/books/:id/position` | Save reader position `{ cfi?, percent?, current_page? }` |
-| `GET` | `/api/books/:id/recommendations` | Similar books from your own library (`?limit=`) |
-| `GET` | `/api/books/:id/quotes` · `POST` · `DELETE /:qid` | Quotes & highlights per book |
-| `GET` | `/api/books/:id/reads` · `POST` · `DELETE /:rid` | Re-read history per book |
-| `GET` | `/api/mobile/connect` | Same-network URL for the mobile QR code |
-| `POST` | `/api/admin/login` · `/api/admin/logout` | Admin session management |
-| `GET` | `/api/admin/diagnostics` · `/api/admin/logs` | Admin diagnostics & log tail (admin only) |
-| `GET` | `/api/stats` | Library statistics |
-| `GET` | `/api/stats/analysis` | Plot-ready analytics dataset (supports `?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`) |
-| `GET` | `/api/goals/current` | Fetch yearly reading goal + progress (`?year=` optional) |
-| `PUT` | `/api/goals/current` | Upsert yearly reading goal `{ goal_year, target_books, target_pages }` |
-| `POST` | `/api/books/:id/sessions` | Add reading session `{ start_page, end_page, minutes_spent, session_date?, notes? }` |
-| `GET` | `/api/sessions` | List reading sessions (supports `?start_date=&end_date=`) |
-| `POST` | `/api/metadata/repair` | Run repair job for books missing metadata |
-| `POST` | `/api/metadata/repair/start` | Same as a background job with progress (poll `/api/metadata/jobs/:id`) |
-| `GET` | `/api/metadata/jobs` | List recent metadata jobs |
-| `GET` | `/api/metadata/jobs/:id` | Metadata job detail with per-book items |
-| `GET` | `/api/export` | Full library export as JSON |
-| `GET` | `/api/export/csv` | Export full library as CSV |
-| `POST` | `/api/import/csv/preview` | Preview CSV import result (`mapping`, settings optional) |
-| `POST` | `/api/import/csv` | Import PageVault or Goodreads-compatible CSV (synchronous) |
-| `POST` | `/api/import/csv/start` | Start a background import job with progress (poll `/api/metadata/jobs/:id`) |
-| `GET` | `/api/backup/download` | Download ZIP backup of current DB |
-| `POST` | `/api/backup/restore/validate` | Validate backup archive and return summary |
-| `POST` | `/api/backup/restore/apply` | Apply backup archive to current DB |
-
-**Example — add a book and review it:**
+| `POST` | `/api/books/:id/sessions` · `GET /api/sessions` | Reading sessions |
+| `GET` `POST` `PATCH` `DELETE` | `/api/shelves[/:id]` | Custom shelves |
+| `GET` | `/api/lookup/:isbn` | Preview ISBN metadata without saving |
+| `POST` | `/api/books/refresh[/start]` | Refresh metadata for all books (preserves reviews/tags/shelves) |
+| `POST` | `/api/metadata/repair[/start]` · `GET /api/metadata/jobs[/:id]` | Repair jobs + progress |
+| `GET` `PUT` | `/api/goals/current` | Yearly reading goal + progress |
+| `GET` | `/api/stats` · `/api/stats/analysis` | Statistics + plot-ready dataset (`?start_date=&end_date=`) |
+| `GET` | `/api/export` · `/api/export/csv` | Full library export (JSON / CSV) |
+| `POST` | `/api/import/csv[/preview][/start]` | Import PageVault or Goodreads CSV (preview / sync / background) |
+| `GET` `POST` | `/api/backup/download` · `/api/backup/restore/{validate,apply}` | Backup / restore |
+| `POST` | `/api/admin/{login,logout}` · `GET /api/admin/{diagnostics,logs}` | Admin session + diagnostics |
+| `GET` | `/api/mobile/connect` | Same-network URL for the mobile QR |
 
 ```bash
-# Add by ISBN (metadata fetched automatically)
-curl -X POST http://localhost:5000/api/books \
-  -H "Content-Type: application/json" \
+# Add by ISBN (metadata fetched automatically), then review it
+curl -X POST http://localhost:5000/api/books -H "Content-Type: application/json" \
   -d '{"isbn": "9780451524935", "status": "read"}'
-
-# Add a review
-curl -X POST http://localhost:5000/api/books/1/reviews \
-  -H "Content-Type: application/json" \
+curl -X POST http://localhost:5000/api/books/1/reviews -H "Content-Type: application/json" \
   -d '{"rating": 5, "comment": "Essential reading."}'
 ```
 
 ---
 
-## Backup & Restore
+## Metadata &amp; performance notes
 
-Everything is in one file and now also exposed via one-click API/UI workflows.
+Lookups start with the Open Library Books API; if fields are missing, Google Books, Open
+Library Search, Crossref, and (for 978-3 ISBNs) the DNB run **in parallel**, then merge
+progressively so good data is never discarded. Community ratings come from Open Library's
+CC0 ratings (keyless) with Google Books as backup; series info is Google-Books-only. Results
+are cached in-process (TTL `PAGEVAULT_LOOKUP_CACHE_TTL_SECONDS`, default 900 s).
 
-### In-app/API backup workflow
-
-```bash
-# Download backup archive
-curl -L http://localhost:5000/api/backup/download -o pagevault_backup.zip
-
-# Validate restore archive
-curl -X POST http://localhost:5000/api/backup/restore/validate \
-  -F "file=@pagevault_backup.zip"
-
-# Apply restore archive
-curl -X POST http://localhost:5000/api/backup/restore/apply \
-  -F "file=@pagevault_backup.zip"
-```
-
-### Manual file backup
-
-```bash
-# Backup
-cp pagevault.db pagevault_backup.db
-
-# Restore
-cp pagevault_backup.db pagevault.db
-```
-
-With Docker:
-
-```bash
-# Backup
-docker cp pagevault:/data/pagevault.db ./pagevault_backup.db
-
-# Restore
-docker cp ./pagevault_backup.db pagevault:/data/pagevault.db
-```
+Google Books has a small keyless quota; bulk jobs throttle and pause after an HTTP 429. Set a
+free `PAGEVAULT_GOOGLE_BOOKS_API_KEY` for higher coverage, then run **Tools → Repair missing
+metadata**. SQLite runs in WAL mode with `busy_timeout` so the desktop build's two servers
+never collide on a write.
 
 ---
 
 ## Development
 
-The `Makefile` bundles common developer commands for environments with GNU
-`make` (macOS, Linux, Git Bash, Codespaces). On Windows PowerShell, use the
-plain commands in the right column — they are identical.
+```bash
+pip install ".[dev,prod]"     # or: make dev
+python -m pytest              # 129 tests;  make test
+python -m ruff check .        # lint;        make lint
+python -m mypy app.py desktop.py config.py pagevault_core
+```
 
-| `make` shortcut | Plain command (works everywhere) |
-|---|---|
-| `make dev` | `pip install ".[dev,prod]"` |
-| `make run` | `python app.py` |
-| `make test` | `python -m pytest` |
-| `make coverage` | `python -m pytest --cov=app --cov-report=html` |
-| `make lint` | `python -m ruff check .` |
-| `make format` | `python -m ruff format .` then `python -m ruff check --fix .` |
-| `make clean` | removes caches, build artifacts, and coverage files |
-
-Type checking runs with `python -m mypy app.py config.py pagevault_core`.
-
-## Core Infrastructure
-
-PageVault is now organized into a lightweight core package so features can grow without a single massive script.
-
-- **`app.py`**: app factory + dependency wiring + entrypoint.
-- **`pagevault_core/api.py`**: REST blueprint (`/api`) with all route handlers.
-- **`pagevault_core/db.py`**: SQLite lifecycle (`get_db`, hooks, schema bootstrap).
-- **`pagevault_core/metadata.py`**: ISBN metadata providers + parallel merge chain + TTL cache.
-- **`pagevault_core/utils.py`**: shared validation and parsing helpers.
-
-### Metadata fallback chain
-
-When you look up an ISBN (or run metadata refresh), PageVault:
-
-1. Starts with Open Library Books API as primary source.
-2. If fields are missing, runs additional fallbacks in parallel: Google Books, Open Library Search, and Crossref.
-3. If cover image is still missing, queries Open Library Covers API.
-
-Fields are merged progressively so missing values are filled without discarding good data from earlier providers. Community ratings come from Open Library's crowd-sourced ratings (CC0, no key required) with Google Books as a second source; series info comes from Google Books only.
-
-Books without a real ISBN (Goodreads imports store those under a `GR…` placeholder id) are resolved by a title/author search against Open Library and Google Books instead.
-
-#### Google Books rate limits
-
-Google Books has a very small unauthenticated quota — bulk jobs over a large
-library will hit `HTTP 429: Too Many Requests` without an API key. PageVault
-throttles requests and pauses Google Books lookups after a 429, and covers,
-descriptions, and community ratings work without Google thanks to Open
-Library. For maximum coverage (descriptions and series info especially) you
-can still set a free API key:
-
-1. Create a project at <https://console.cloud.google.com/apis/credentials>, enable the **Books API**, and create an API key.
-2. Put it in your `.env`: `PAGEVAULT_GOOGLE_BOOKS_API_KEY=your-key`.
-3. Re-run **Tools → Repair missing metadata** — it backfills missing covers, descriptions, community ratings, and series info.
-
-Tuning knobs: `PAGEVAULT_GOOGLE_BOOKS_MIN_INTERVAL_SECONDS` (default `0.6`) and
-`PAGEVAULT_GOOGLE_BOOKS_COOLDOWN_SECONDS` (default `120`).
-
-### Metadata lookup cache
-
-- ISBN lookups are cached in-process with a lightweight TTL cache to speed up repeated lookups during refresh/import.
-- Default TTL: `900` seconds (15 minutes).
-- Default max cache size: `2000` ISBN entries.
-- Configure via environment variables:
-  - `PAGEVAULT_LOOKUP_CACHE_TTL_SECONDS`
-  - `PAGEVAULT_LOOKUP_CACHE_MAX_ITEMS`
-
-### CSV architecture
-
-- **Export (`/api/export/csv`)** writes library rows including book metadata, shelves, tags, and review summary fields.
-- **Import** accepts both PageVault CSV and Goodreads-compatible CSV headers, with
-  three settings in the wizard: fetch metadata online, import books without ISBN
-  (identified by their Goodreads Book Id), and keep Goodreads dates.
-- Goodreads specifics handled automatically: Excel-quoted ISBNs (`="..."`),
-  `Date Added`/`Date Read` (preserved as added/finish dates plus reading history),
-  `Binding` → book format, `Owned Copies`, ratings/reviews, and repair of
-  double-encoded text ("BrontÃ«" → "Brontë"). Status shelves like `to-read`
-  become reading statuses, not custom shelves.
-- Large imports run as a background job with a live progress bar; re-imports are
-  idempotent (no duplicate books, reviews, or reading history).
+CI (GitHub Actions) runs tests, ruff, mypy, and a Docker build. The `Makefile` wraps the same
+commands. Front-end libraries are vendored under `static/vendor` (no CDN at runtime); the
+desktop build freezes with PyInstaller (`make exe`); the Android build embeds CPython via
+Chaquopy.
 
 ### Project layout
 
 ```
 pagevault/
-├── app.py                        App factory + dependency wiring + entrypoint
-├── config.py                     Config resolution + admin password bootstrap
+├── app.py · config.py · desktop.py     Web factory · config/data dirs · desktop launcher
 ├── pagevault_core/
-│   ├── __init__.py
-│   ├── api.py                    API blueprint and route handlers
-│   ├── db.py                     SQLite connection + schema bootstrap
-│   ├── metadata.py               Multi-provider lookup + parallel merge + TTL cache
-│   ├── utils.py                  Shared parsing/validation helpers
-│   └── services/
-│       ├── admin_service.py      Admin console backend
-│       └── recommendations.py   Local similarity-based recommendations
-├── templates/
-│   ├── index.html                Main library frontend
-│   ├── stats.html                Stats dashboard (Plotly)
-│   ├── reader.html               Full-page e-book reader (EPUB/PDF)
-│   ├── admin.html                Admin dashboard
-│   └── admin_login.html          Admin login
-├── static/                       PWA manifest, service worker, icons, i18n.js (EN/DE)
-├── tests/
-│   ├── conftest.py               Shared pytest fixtures
-│   └── test_api.py               API + CSV + fallback coverage
-├── assets/
-│   ├── logo.svg                  Full wordmark logo
-│   └── icon.svg                  Square icon (GitHub avatar, favicon)
-├── docs/                         GitHub Pages site
-├── .github/
-│   ├── workflows/ci.yml          GitHub Actions: test · lint · typecheck · Docker
-│   ├── ISSUE_TEMPLATE/           Bug report & feature request forms
-│   ├── PULL_REQUEST_TEMPLATE.md
-│   └── dependabot.yml
-├── .devcontainer/
-│   └── devcontainer.json         One-click GitHub Codespaces setup
-├── Dockerfile                    Multi-stage, non-root, gunicorn
-├── docker-compose.yml
-├── Makefile
-├── pyproject.toml
-├── CHANGELOG.md
-├── CONTRIBUTING.md
-└── SECURITY.md
+│   ├── api.py                          REST blueprint (all routes)
+│   ├── db.py · metadata.py · utils.py  SQLite · multi-provider lookup · helpers
+│   ├── tls.py                          Self-signed cert for local HTTPS (phone scanning)
+│   └── services/                       admin_service.py · recommendations.py
+├── templates/                          index · stats · reader · admin (Jinja2)
+├── static/                             PWA manifest · service worker · i18n.js · vendor/
+├── android/                            On-device Android app (Chaquopy + WebView)
+├── tests/                              129 tests (API · metadata · TLS)
+├── Dockerfile · docker-compose.yml     Multi-stage, non-root, gunicorn
+├── Makefile · pyproject.toml           Tooling and packaging
+└── ANDROID_APP_PLAN.md · CHANGELOG.md · CONTRIBUTING.md · SECURITY.md
 ```
 
 ---
 
 ## Roadmap
 
-- [ ] Goodreads import mapping presets (regional variants)
 - [x] Built-in e-book reader (EPUB/PDF) with position sync
-- [x] English/German interface translation
-- [x] Annual reading goal tracker
-- [x] Optional password protection (admin console)
-- [x] Mobile QR connect for same-network access
-- [x] Local book recommendations
+- [x] English/German interface · annual goal tracker · admin console
+- [x] Mobile QR connect · local recommendations · desktop app
+- [x] Offline front-end (vendored libraries, cover cache)
+- [ ] Android app: first on-device release (foundation built, see `android/`)
+- [ ] Goodreads import mapping presets (regional variants)
 
 Have an idea? [Open a feature request](https://github.com/ChristianAbele02/PageVault/issues/new/choose).
 
----
+## Contributing &amp; license
 
-## Contributing
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues
+privately per [SECURITY.md](SECURITY.md). Licensed under [MIT](LICENSE).
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
-
-Found a security issue? See [SECURITY.md](SECURITY.md) for how to report it privately.
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE).
-
----
-
-<p align="center">
+<p align="center"><br/>
   Built with <a href="https://flask.palletsprojects.com">Flask</a> ·
   <a href="https://www.sqlite.org">SQLite</a> ·
-  <a href="https://openlibrary.org">Open Library API</a>
+  <a href="https://openlibrary.org">Open Library</a>
   <br/><br/>
   <img src="assets/icon.svg" width="28" alt="PageVault icon"/>
 </p>

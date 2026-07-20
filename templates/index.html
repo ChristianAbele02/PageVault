@@ -2,19 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1a1008">
 <title>PageVault</title>
 <link rel="manifest" href="/static/manifest.webmanifest">
-<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin="anonymous">
-<!-- Fonts: SRI not applicable (dynamic CSS; content varies by query parameters) -->
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" crossorigin="anonymous">
-<!-- CDN scripts: crossorigin="anonymous" is required for SRI enforcement (issue #8/#26).       -->
-<!-- To compute SRI hashes, run: curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A -->
-<!-- Or use https://www.srihash.org/ and add integrity="sha384-<hash>" to each script tag.        -->
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js" crossorigin="anonymous"></script>
+<!-- Fonts and libraries are vendored locally (static/vendor) so the app works
+     fully offline, including inside the Android WebView. Same-origin assets need
+     no Subresource Integrity, so the SRI hashes are gone with the CDN URLs. -->
+<link href="/static/vendor/fonts/fonts.css" rel="stylesheet">
+<script src="/static/vendor/html5-qrcode.min.js"></script>
+<script src="/static/vendor/qrcode.min.js"></script>
+<script src="/static/vendor/epub.min.js"></script>
 <script src="/static/i18n.js"></script>
 <style>
   :root {
@@ -61,13 +59,16 @@
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; overflow-x: clip; }
 
   body {
     font-family: 'Lato', sans-serif;
     background: var(--cream);
     color: var(--ink);
     min-height: 100vh;
+    /* Guard against any element wider than the screen forcing a zoom-out on
+       mobile. clip (not hidden) keeps the sticky header working. */
+    overflow-x: clip;
     background-image:
       radial-gradient(ellipse at 20% 0%, rgba(255,226,168,.26) 0%, transparent 62%),
       radial-gradient(ellipse at 80% 100%, rgba(214,232,255,.2) 0%, transparent 66%),
@@ -106,11 +107,15 @@
   /* ── Header ── */
   header {
     background: var(--ink);
-    padding: 0 1.5rem;
+    padding: .3rem 1.5rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 56px;
+    flex-wrap: wrap;
+    row-gap: .4rem;
+    /* min-height keeps the desktop bar at 56px; on mobile the action pills wrap
+       to a second row and the header grows instead of overflowing sideways. */
+    min-height: 56px;
     position: sticky; top: 0; z-index: 100;
     box-shadow: 0 2px 12px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.05);
     border-bottom: 1px solid rgba(255,255,255,.04);
@@ -137,6 +142,8 @@
   .header-actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: .45rem;
   }
   .header-link {
@@ -158,7 +165,8 @@
     border-top: 1px solid rgba(255,255,255,.06);
     display: flex;
     justify-content: center;
-    gap: 2rem;
+    flex-wrap: wrap;
+    gap: .5rem 2rem;
     padding: .5rem 1rem;
     font-size: .7rem;
     letter-spacing: .12em;
@@ -632,8 +640,10 @@
   /* ── FAB ── */
   .fab-stack {
     position: fixed;
-    bottom: 1.5rem;
-    right: 1.5rem;
+    /* Add the safe-area inset so the button clears the phone's home indicator
+       and any bottom browser chrome. */
+    bottom: calc(1.5rem + env(safe-area-inset-bottom));
+    right: calc(1.5rem + env(safe-area-inset-right));
     z-index: 50;
     display: flex;
     align-items: center;
@@ -1508,6 +1518,15 @@
     .about-footer {
       grid-template-columns: 1fr;
     }
+    header { padding-left: .9rem; padding-right: .9rem; }
+    .header-actions { gap: .3rem; }
+    #stats-bar { gap: .35rem 1rem; padding: .5rem .75rem; }
+    .filter-bar { padding-left: .9rem; padding-right: .9rem; }
+    .search-wrap { padding-left: .9rem; padding-right: .9rem; }
+    .fab-stack {
+      bottom: calc(1rem + env(safe-area-inset-bottom));
+      right: calc(1rem + env(safe-area-inset-right));
+    }
   }
 
   /* ── E-Book reader ─────────────────────────────────────────────────────── */
@@ -1576,16 +1595,50 @@
   .dark-mode .reader-btn:hover { background: #3d2e1c; }
   .dark-mode #reader-epub-area { background: #1a1008; }
   .dark-mode .ebook-file-info { background: #2a1f14; }
+
+  /* ─── Smooth scanner reveal (all builds) ────────────────────────────────── */
+  #scanner-container.active {
+    animation: scannerReveal .3s var(--ease-spring, ease) both;
+  }
+  @keyframes scannerReveal {
+    from { opacity: 0; transform: translateY(-8px) scale(.98); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* ─── Native app polish (Android WebView) ───────────────────────────────────
+     Scoped to body.mobile-app so the web and desktop builds are untouched. */
+  body.mobile-app {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    /* Stop the WebView's pull-to-refresh bounce from reloading the app. */
+    overscroll-behavior-y: none;
+  }
+  /* Tactile press feedback: :hover does not apply cleanly on touch. */
+  body.mobile-app button:active,
+  body.mobile-app .book-card:active,
+  body.mobile-app .tag-chip:active {
+    transform: scale(.97);
+    transition: transform .08s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #scanner-container.active { animation: none; }
+    body.mobile-app button:active,
+    body.mobile-app .book-card:active,
+    body.mobile-app .tag-chip:active { transform: none; }
+  }
 </style>
 </head>
-<body class="dark-mode">
+<body class="dark-mode{% if is_mobile_app %} mobile-app{% endif %}">
 
 <header>
   <div class="logo">Page<span>Vault</span></div>
   <div class="header-actions">
-    <button class="theme-toggle" onclick="openMobileConnect()" data-i18n="nav_mobile" title="Show mobile connection QR">Mobile</button>
+    {% if mobile_qr %}<button class="theme-toggle" onclick="openMobileConnect()" data-i18n="nav_mobile" title="Show mobile connection QR">Mobile</button>{% endif %}
+    {% if not is_mobile_app %}
     <a id="admin-link" class="header-link" href="/admin" data-i18n="nav_admin" title="Open admin dashboard" style="display:none">Admin</a>
     <a id="admin-login-link" class="header-link" href="/admin/login" data-i18n="nav_admin_login" title="Admin login">Admin Login</a>
+    {% endif %}
     <a class="header-link" href="/reader" data-i18n="nav_reader" title="Open e-book reader">Reader</a>
     <a class="header-link" href="/stats" data-i18n="nav_stats" title="Open reading analytics">Stats</a>
     <button class="theme-toggle" data-lang-toggle onclick="toggleLang()" title="Switch language">DE</button>
@@ -2752,7 +2805,9 @@ async function loadBooks() {
   if (currentFormat) params.set('format', currentFormat);
   if (currentOwnedOnly) params.set('owned', '1');
   const r = await api(`/api/books?${params}`);
-  books = await r.json();
+  const data = await r.json().catch(() => []);
+  // An error payload is an object, not an array — never let it crash the grid.
+  books = Array.isArray(data) ? data : [];
   _booksLoadedOnce = true;
   updateFilterOptions();
   syncSessionBookOptions();
@@ -3300,6 +3355,15 @@ async function copyMobileUrl() {
 }
 
 function startScanner() {
+  // Camera access (getUserMedia) is only available in a secure context: HTTPS,
+  // or localhost. Over plain HTTP on a LAN IP (e.g. a phone opening the QR link)
+  // navigator.mediaDevices is undefined, so fail with a clear message rather
+  // than a confusing TypeError toast from the scanner library.
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast(t('toast_camera_insecure'));
+    return;
+  }
+
   const container = document.getElementById('scanner-container');
   container.classList.add('active');
   document.getElementById('scan-btn').textContent = `⏹ ${t('stop_scanner')}`;
@@ -3484,8 +3548,10 @@ function _fillDetailModal(b) {
 
   // Clickable author — sets author filter on click
   const authorEl = document.getElementById('d-author');
+  // esc() turns the JSON string's double quotes into &quot; so they survive
+  // inside the double-quoted onclick attribute (raw quotes would truncate it).
   authorEl.innerHTML = b.author
-    ? `<a href="#" style="color:var(--brown);text-decoration:none" onclick="filterByAuthor(${JSON.stringify(b.author)});return false">${esc(b.author)}</a>`
+    ? `<a href="#" style="color:var(--brown);text-decoration:none" onclick="filterByAuthor(${esc(JSON.stringify(b.author))});return false">${esc(b.author)}</a>`
     : esc(t('unknown_author'));
 
   // Series label (injected below title if present)
@@ -4031,12 +4097,14 @@ function formatLocation(book) {
 }
 
 async function loadRoleState() {
+  const adminLink = document.getElementById('admin-link');
+  const adminLoginLink = document.getElementById('admin-login-link');
+  // The admin links are omitted in the mobile app build; nothing to update.
+  if (!adminLink || !adminLoginLink) return;
   const response = await api('/api/admin/me');
   if (!response.ok) return;
   const data = await response.json();
   currentRole = data.role || 'user';
-  const adminLink = document.getElementById('admin-link');
-  const adminLoginLink = document.getElementById('admin-login-link');
   const isAdmin = currentRole === 'admin';
   adminLink.style.display = isAdmin ? 'inline-block' : 'none';
   adminLoginLink.style.display = isAdmin ? 'none' : 'inline-block';
