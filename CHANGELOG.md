@@ -47,6 +47,11 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the background.
 
 ### Changed
+- **SQLite tuning.** Connections now use `synchronous=NORMAL` (the recommended,
+  faster pairing with WAL) and a 5-second `busy_timeout`, so the desktop build's
+  two servers queue on writes instead of failing with "database is locked".
+- **Faster title lookups.** For books without a real ISBN, the Open Library and
+  Google Books title searches now run in parallel, matching the ISBN path.
 - **Listing endpoints no longer run two queries per book.** `/api/books`,
   `/api/export/csv`, and recommendations batch-load tags, shelves, and latest
   reviews in a fixed number of queries instead of N+1 per-book lookups, which

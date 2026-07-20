@@ -36,6 +36,7 @@ ISBN barcode scanning, reaching feature parity with the desktop and web builds. 
 deliberately excluded.
 
 ### In scope
+
 - Local SQLite database and book-file storage in the app's private directory.
 - Camera ISBN scanning through the existing html5-qrcode scanner.
 - Full catalogue workflow: book CRUD, shelves, tags, half-star reviews, quotes, reading history,
@@ -45,11 +46,13 @@ deliberately excluded.
 - Offline operation for every workflow that does not inherently need the internet.
 
 ### Out of scope
+
 - Admin console and admin login (not needed on a single-user device).
 - The LAN "connect a phone" flow and its QR code (the phone is the device).
 - Self-signed TLS and the `cryptography` dependency (loopback needs no certificate).
 
 ### The one online dependency, stated honestly
+
 Resolving a scanned ISBN into title, author, and cover reaches Open Library, Google Books, the
 Deutsche Nationalbibliothek, and Crossref, exactly as the desktop build does today. Cover
 thumbnails are fetched from the same sources. Offline, scanning still captures the barcode and a
@@ -99,6 +102,7 @@ flowchart TB
 ```
 
 Boot sequence:
+
 1. `MainActivity` requests the `CAMERA` runtime permission.
 2. It calls into Chaquopy: `mobile_server.start(filesDir)`, which sets `PAGEVAULT_DATA_DIR` and
    `PAGEVAULT_HTTPS=0`, builds the Flask app, binds waitress to a free loopback port, and returns
@@ -138,7 +142,9 @@ and `pagevault_core/` are on the Python path, together with `templates/` and `st
 ## 5. Component detail
 
 ### 5.1 Python entry point (`mobile_server.py`, new)
+
 Small module, the Android analogue of `desktop.py`:
+
 - Set `PAGEVAULT_DATA_DIR` to the Android `filesDir` passed from Kotlin.
 - Set `PAGEVAULT_HTTPS=0` so the TLS path is never taken.
 - Persist a stable `SECRET_KEY` in the data directory (reuse the helper logic from `desktop.py`).
@@ -146,6 +152,7 @@ Small module, the Android analogue of `desktop.py`:
 - Run the server on a daemon thread so it does not block the Android main thread.
 
 ### 5.2 Android shell (`MainActivity.kt`, new)
+
 - Start Python through Chaquopy and obtain the port.
 - Configure the `WebView`: JavaScript enabled, DOM storage enabled, media playback allowed
   without a user gesture, file access for the reader as needed.
@@ -154,25 +161,28 @@ Small module, the Android analogue of `desktop.py`:
 - Handle the hardware back button as in-app navigation (`WebView.goBack()`).
 
 ### 5.3 Storage
+
 `config.py` already resolves the database, book files, and log location from `PAGEVAULT_DATA_DIR`.
 Pointing that at `filesDir` is the only change, so all writable state lands in the app's private,
 per-install directory. No schema or path-handling changes.
 
 ### 5.4 Asset vendoring (required for offline)
+
 These load from CDNs today and must be bundled into `static/` (and the templates repointed):
 
-| Library | Used by | Action |
-|---|---|---|
-| html5-qrcode 2.3.8 | scanner (`index.html`) | vendor to `static/vendor/` |
-| Plotly 2.35.2 | stats (`stats.html`) | vendor to `static/vendor/` |
-| epub.js 0.3.93 | reader (`reader.html`, `index.html`) | vendor to `static/vendor/` |
-| qrcodejs 1.0.0 | phone-connect QR (`index.html`) | drop (feature removed on device) |
-| Google Fonts (Playfair Display, Lato) | all pages | vendor as local `@font-face`, or fall back to system serif/sans |
+| Library                               | Used by                                  | Action                                                           |
+| ------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------- |
+| html5-qrcode 2.3.8                    | scanner (`index.html`)                 | vendor to`static/vendor/`                                      |
+| Plotly 2.35.2                         | stats (`stats.html`)                   | vendor to`static/vendor/`                                      |
+| epub.js 0.3.93                        | reader (`reader.html`, `index.html`) | vendor to`static/vendor/`                                      |
+| qrcodejs 1.0.0                        | phone-connect QR (`index.html`)        | drop (feature removed on device)                                 |
+| Google Fonts (Playfair Display, Lato) | all pages                                | vendor as local`@font-face`, or fall back to system serif/sans |
 
 Vendoring also benefits the desktop and web builds, so it can be done on the shared frontend
 rather than forked for Android. The Subresource Integrity attributes are removed for local files.
 
 ### 5.5 Offline behaviour
+
 - Metadata lookup already degrades: a failed fetch returns `None` and the UI allows manual entry.
   Add a clear offline indication in the add-book flow.
 - Cover caching: on first successful fetch, download the image to `book_files` (or a `covers/`
@@ -180,6 +190,7 @@ rather than forked for Android. The Subresource Integrity attributes are removed
   offline and across app restarts. This is a small backend addition.
 
 ### 5.6 Changes to existing code (kept minimal)
+
 - New `mobile_server.py` (Android entry point).
 - Frontend: repoint five CDN references to local assets; hide the admin and phone-connect buttons
   behind the existing template flag mechanism (as `mobile_qr` already does).
@@ -193,23 +204,28 @@ rather than forked for Android. The Subresource Integrity attributes are removed
 Each phase ends with a concrete, testable deliverable.
 
 ### Phase 0: De-risking spike (do first)
+
 Prove the two riskiest pieces before any real integration.
+
 - Bare Android project with Chaquopy running a trivial Flask "hello" on loopback in a `WebView`.
 - `CAMERA` permission granted and one successful barcode scan on a physical device.
 - Acceptance: a real phone shows the page served from on-device Python and completes one scan.
 
 ### Phase 1: Core parity
+
 - Wire the real Flask app, `filesDir` storage, and vendored assets.
 - Cover caching and offline-graceful metadata.
 - Acceptance: scan, add, edit, shelves, tags, reviews, quotes, reading history and goals, and the
   stats dashboard all work on-device, offline except for metadata and first-time cover fetches.
 
 ### Phase 2: Heavy features
+
 - EPUB/PDF upload and the epub.js reader (position sync already exists server-side).
 - CSV import and export, backup and restore against the on-device store.
 - Acceptance: import a Goodreads CSV, open an EPUB, export a backup, restore it.
 
 ### Phase 3: Packaging
+
 - Launcher icon, app theme, signing config, a debug APK to sideload.
 - Optional later: a release build and Play Store submission (adds privacy-policy and review work).
 - Acceptance: an installable signed APK produced from a clean build.
@@ -240,13 +256,13 @@ Prove the two riskiest pieces before any real integration.
 
 ## 9. Risks and mitigations
 
-| Risk | Likelihood | Mitigation |
-|---|---|---|
-| WebView camera bridge misbehaves on some Android versions | Medium | Phase 0 spike on a real device before any integration |
-| Chaquopy licensing or version constraints | Low | Free for current versions; confirm terms and pin a supported AGP/Chaquopy pair up front |
-| APK size from bundling CPython and stdlib | Medium | Accept it; trim unused stdlib and use ABI splits if needed |
-| epub.js or Plotly behave differently in WebView | Low | Vendored and tested in Phase 1/2; both are widely used in WebViews |
-| Cold-start latency while Python boots the server | Low | Show a splash until the port is reachable; waitress starts in well under a second |
+| Risk                                                      | Likelihood | Mitigation                                                                              |
+| --------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------- |
+| WebView camera bridge misbehaves on some Android versions | Medium     | Phase 0 spike on a real device before any integration                                   |
+| Chaquopy licensing or version constraints                 | Low        | Free for current versions; confirm terms and pin a supported AGP/Chaquopy pair up front |
+| APK size from bundling CPython and stdlib                 | Medium     | Accept it; trim unused stdlib and use ABI splits if needed                              |
+| epub.js or Plotly behave differently in WebView           | Low        | Vendored and tested in Phase 1/2; both are widely used in WebViews                      |
+| Cold-start latency while Python boots the server          | Low        | Show a splash until the port is reachable; waitress starts in well under a second       |
 
 ---
 
@@ -266,4 +282,3 @@ Prove the two riskiest pieces before any real integration.
   JavaScript bridge is a possible future upgrade for speed and accuracy.
 - Minimum Android version: propose API 26 (Android 8.0) or higher, revisited against Chaquopy and
   WebView requirements in Phase 0.
-```
