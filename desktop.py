@@ -25,8 +25,9 @@ from pathlib import Path
 
 from flask import Flask
 
-from app import create_app
+from app import _detect_local_ip, create_app
 from config import app_data_dir
+from pagevault_core import tls as core_tls
 
 log = logging.getLogger("pagevault.desktop")
 
@@ -36,6 +37,9 @@ WINDOW_SIZE = (1180, 820)
 WINDOW_MIN_SIZE = (900, 600)
 
 HOST = "127.0.0.1"
+# The webview talks to the loopback server; the phone-facing HTTPS server binds
+# all interfaces so a device on the same Wi-Fi can reach the LAN IP.
+MOBILE_HTTPS_HOST = "0.0.0.0"
 # Loopback-only port used purely as a single-instance lock (not for serving).
 SINGLE_INSTANCE_PORT = 49219
 SERVER_START_TIMEOUT_S = 15.0
@@ -125,6 +129,44 @@ def _serve(app: Flask, host: str, port: int) -> None:
     serve(app, host=host, port=port, threads=SERVER_THREADS)
 
 
+def _serve_https(app: Flask, host: str, port: int, ssl_context: tuple[str, str]) -> None:
+    """Serve ``app`` over HTTPS with Werkzeug (blocking; runs on a daemon thread).
+
+    Waitress has no TLS support, so the phone-facing endpoint uses Werkzeug's
+    threaded server. Traffic is light (a phone scanning the occasional barcode).
+    """
+    from werkzeug.serving import make_server
+
+    make_server(host, port, app, threaded=True, ssl_context=ssl_context).serve_forever()
+
+
+def _enable_mobile_access(app: Flask, data_dir: Path) -> str | None:
+    """Start an HTTPS server on the LAN so a phone can use its camera scanner.
+
+    Browsers expose the camera only on a secure origin, so the phone needs HTTPS
+    rather than the loopback HTTP the desktop window uses. Returns the public
+    ``https://<lan-ip>:<port>/`` URL, or None when a certificate cannot be created
+    (for example if the optional ``cryptography`` dependency is unavailable).
+    """
+    lan_ip = _detect_local_ip()
+    san_ips = ["127.0.0.1", "::1"]
+    if lan_ip not in san_ips:
+        san_ips.append(lan_ip)
+    ssl_context = core_tls.ensure_self_signed_cert(data_dir / "certs", ["localhost"], san_ips)
+    if ssl_context is None:
+        log.warning("Mobile scanning unavailable: could not create a local certificate.")
+        return None
+
+    https_port = _free_port(MOBILE_HTTPS_HOST)
+    threading.Thread(
+        target=_serve_https,
+        args=(app, MOBILE_HTTPS_HOST, https_port, ssl_context),
+        name="pagevault-https",
+        daemon=True,
+    ).start()
+    return f"https://{lan_ip}:{https_port}/"
+
+
 def _wait_for_server(host: str, port: int, timeout: float) -> bool:
     """Poll until the server accepts a TCP connection or ``timeout`` elapses."""
     deadline = time.monotonic() + timeout
@@ -209,6 +251,17 @@ def main(argv: list[str] | None = None) -> int:
     if not _wait_for_server(host, port, SERVER_START_TIMEOUT_S):
         log.error("Server did not become reachable within %.0f s.", SERVER_START_TIMEOUT_S)
         return 1
+
+    # Phone-facing HTTPS server so the camera scanner works from the same Wi-Fi.
+    # The "Mobile" QR button is shown only when this succeeds.
+    mobile_url = _enable_mobile_access(app, data_dir)
+    app.config["MOBILE_QR_ENABLED"] = mobile_url is not None
+    if mobile_url:
+        app.config["MOBILE_BASE_URL"] = mobile_url
+        log.info(
+            "Mobile scanning available at %s (accept the certificate prompt on your phone).",
+            mobile_url,
+        )
 
     url = f"http://{host}:{port}/"
 

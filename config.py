@@ -59,12 +59,20 @@ def app_data_dir() -> Path:
 def resource_dir() -> Path:
     """Return the base directory for bundled read-only resources (templates, static).
 
-    Under a frozen build these are unpacked beside the interpreter at
-    ``sys._MEIPASS``; from source they sit next to this module.
+    Resolution order:
+        1. ``PAGEVAULT_RESOURCE_DIR`` if set. The Android app uses this to point at
+           the ``templates``/``static`` folders it extracts from its APK assets,
+           since Chaquopy does not expose bundled data files on a real filesystem
+           path that ``__file__`` can resolve.
+        2. ``sys._MEIPASS`` under a frozen (PyInstaller) build.
+        3. The directory next to this module for source checkouts.
 
     Returns:
         The resource base directory as a :class:`~pathlib.Path`.
     """
+    override = os.getenv("PAGEVAULT_RESOURCE_DIR")
+    if override:
+        return Path(override)
     if _is_frozen():
         return Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
     return Path(__file__).resolve().parent

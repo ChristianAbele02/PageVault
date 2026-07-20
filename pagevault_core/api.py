@@ -9,6 +9,7 @@ to test in isolation.
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import os
@@ -16,6 +17,10 @@ import pathlib
 import sqlite3
 import tempfile
 import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import zipfile
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
@@ -25,6 +30,25 @@ from flask import Blueprint, Response, current_app, jsonify, request, send_file,
 from pagevault_core.db import ensure_schema
 from pagevault_core.services import admin_service, recommendations
 from pagevault_core.utils import format_from_binding, normalize_goodreads_date, repair_mojibake
+
+# Admin login brute-force throttle: after this many failed attempts from one IP
+# within the window, further attempts are refused with HTTP 429 until the window
+# elapses. State is per-process and in-memory, which suits a self-hosted app.
+_LOGIN_MAX_FAILURES = 5
+_LOGIN_WINDOW_SECONDS = 300
+
+# Cover cache proxy: hosts allowed for the /api/cover fetch (SSRF guard), the
+# download ceiling, and how the cached image is served.
+_COVER_HOSTS = {"covers.openlibrary.org", "books.google.com", "books.googleusercontent.com"}
+_COVER_MAX_BYTES = 10 * 1024 * 1024
+_COVER_FETCH_TIMEOUT = 8
+_COVER_CACHE_MAX_AGE = 86400
+_IMAGE_SUFFIXES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
 
 
 def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
@@ -146,6 +170,44 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         ).fetchall()
         return [r["name"] for r in rows]
 
+    def fetch_shelves_by_book(db: sqlite3.Connection, book_ids: list[int]) -> dict[int, list[dict]]:
+        """Shelves for many books in one query (avoids per-book N+1 on listings)."""
+        result: dict[int, list[dict]] = {book_id: [] for book_id in book_ids}
+        if not book_ids:
+            return result
+        placeholders = ",".join("?" for _ in book_ids)
+        rows = db.execute(
+            f"""SELECT bs.book_id, s.id, s.name, s.logo_url
+                FROM shelves s
+                JOIN book_shelves bs ON bs.shelf_id = s.id
+                WHERE bs.book_id IN ({placeholders})
+                ORDER BY s.name COLLATE NOCASE""",
+            book_ids,
+        ).fetchall()
+        for row in rows:
+            result[row["book_id"]].append(
+                {"id": row["id"], "name": row["name"], "logo_url": row["logo_url"]}
+            )
+        return result
+
+    def fetch_tags_by_book(db: sqlite3.Connection, book_ids: list[int]) -> dict[int, list[str]]:
+        """Tag names for many books in one query (avoids per-book N+1 on listings)."""
+        result: dict[int, list[str]] = {book_id: [] for book_id in book_ids}
+        if not book_ids:
+            return result
+        placeholders = ",".join("?" for _ in book_ids)
+        rows = db.execute(
+            f"""SELECT bt.book_id, t.name
+                FROM tags t
+                JOIN book_tags bt ON bt.tag_id = t.id
+                WHERE bt.book_id IN ({placeholders})
+                ORDER BY t.name COLLATE NOCASE""",
+            book_ids,
+        ).fetchall()
+        for row in rows:
+            result[row["book_id"]].append(row["name"])
+        return result
+
     def replace_book_shelves(db: sqlite3.Connection, book_id: int, shelf_ids: list[int]) -> None:
         db.execute("DELETE FROM book_shelves WHERE book_id = ?", (book_id,))
         if not shelf_ids:
@@ -178,8 +240,17 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 )
 
     def with_book_relations(
-        db: sqlite3.Connection, book_row: sqlite3.Row | None
+        db: sqlite3.Connection,
+        book_row: sqlite3.Row | None,
+        *,
+        tags: list[str] | None = None,
+        shelves: list[dict] | None = None,
     ) -> dict[str, Any] | None:  # issue #15
+        """Attach progress, tags, and shelves to a book row.
+
+        ``tags``/``shelves`` accept batch-prefetched relations so list endpoints
+        avoid two queries per book; when omitted they are fetched per book.
+        """
         if not book_row:
             return None
         result = dict(book_row)
@@ -190,8 +261,8 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         else:
             progress = None
         result["progress_percent"] = progress
-        result["genre_tags"] = fetch_book_tags(db, result["id"])
-        result["shelves"] = fetch_book_shelves(db, result["id"])
+        result["genre_tags"] = tags if tags is not None else fetch_book_tags(db, result["id"])
+        result["shelves"] = shelves if shelves is not None else fetch_book_shelves(db, result["id"])
         return result
 
     def ensure_shelf(db: sqlite3.Connection, name: str) -> int | None:
@@ -251,20 +322,42 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
     def api_admin_me():
         return jsonify({"role": session.get("role", "user")})
 
+    login_failures: dict[str, list[float]] = {}
+
+    def login_retry_after(ip: str) -> int:
+        """Seconds the IP must wait before another attempt, or 0 if allowed now."""
+        now = time.monotonic()
+        recent = [t for t in login_failures.get(ip, []) if now - t < _LOGIN_WINDOW_SECONDS]
+        login_failures[ip] = recent
+        if len(recent) >= _LOGIN_MAX_FAILURES:
+            return max(1, int(_LOGIN_WINDOW_SECONDS - (now - recent[0])))
+        return 0
+
     @bp.post("/admin/login")
     def api_admin_login():
-        """Authenticate as admin. Regenerates the session to prevent fixation (issue #3)."""
+        """Authenticate as admin. Throttles brute force and regenerates the session
+        to prevent fixation (issues #1, #3)."""
+        ip = request.remote_addr or "unknown"
+        retry_after = login_retry_after(ip)
+        if retry_after:
+            response = jsonify({"error": "Too many failed attempts. Try again later."})
+            response.headers["Retry-After"] = str(retry_after)
+            return response, 429
+
         payload = request.get_json(force=True, silent=True) or {}
         password = str(payload.get("password") or "")
         # No insecure "1111" fallback — password comes only from config (issue #1)
         configured = str(current_app.config.get("ADMIN_PASSWORD") or "")
         if not configured or password != configured:
+            login_failures.setdefault(ip, []).append(time.monotonic())
+            record_admin_event("admin_login_failed", {"remote_addr": ip})
             return err("Invalid admin password", 401)
 
         # Clear existing session before elevating privileges to prevent session fixation (issue #3)
         session.clear()
         session["role"] = "admin"
-        record_admin_event("admin_login", {"remote_addr": request.remote_addr})
+        login_failures.pop(ip, None)
+        record_admin_event("admin_login", {"remote_addr": ip})
         return jsonify({"ok": True, "role": "admin"})
 
     @bp.post("/admin/logout")
@@ -449,7 +542,17 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         sql += f" ORDER BY {sort_col} {order}"
 
         rows = db.execute(sql, params).fetchall()
-        return jsonify([with_book_relations(db, r) for r in rows])
+        book_ids = [r["id"] for r in rows]
+        tags_by_book = fetch_tags_by_book(db, book_ids)
+        shelves_by_book = fetch_shelves_by_book(db, book_ids)
+        return jsonify(
+            [
+                with_book_relations(
+                    db, r, tags=tags_by_book[r["id"]], shelves=shelves_by_book[r["id"]]
+                )
+                for r in rows
+            ]
+        )
 
     @bp.post("/books")
     def api_add_book():
@@ -995,7 +1098,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         """Start a background metadata repair job; poll /api/metadata/jobs/<id>."""
         db = get_db()
         max_retries = max(1, int((request.get_json(silent=True) or {}).get("max_retries") or 2))
-        total = len(db.execute(repair_candidates_sql).fetchall())
+        total = db.execute(f"SELECT COUNT(*) FROM ({repair_candidates_sql})").fetchone()[0]
         job_id = create_metadata_job(db, "repair_missing_metadata", total)
         db.commit()
         db_path = current_app.config["DATABASE"]
@@ -1186,6 +1289,45 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         return send_file(
             str(file_path), mimetype=mime, conditional=True, download_name=download_name
         )
+
+    @bp.get("/cover")
+    def api_cover_proxy():
+        """Cache a remote book cover on disk and serve it, so it persists offline.
+
+        The cover URL is passed as ``?url=`` and must point at a known cover host
+        (an SSRF guard). The image is downloaded once, stored under the data
+        directory, and served from disk thereafter. Any failure returns 404, and the
+        frontend falls back to its placeholder.
+        """
+        raw_url = (request.args.get("url") or "").strip()
+        parsed = urllib.parse.urlparse(raw_url)
+        if parsed.scheme not in {"http", "https"} or parsed.hostname not in _COVER_HOSTS:
+            return err("Cover host not allowed", 400)
+
+        cache_dir = pathlib.Path(current_app.config["BOOK_FILES_DIR"]).parent / "covers"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        key = hashlib.sha256(raw_url.encode("utf-8")).hexdigest()
+
+        existing = next(iter(cache_dir.glob(f"{key}.*")), None)
+        if existing and existing.is_file():
+            return send_file(str(existing), max_age=_COVER_CACHE_MAX_AGE)
+
+        try:
+            req = urllib.request.Request(raw_url, headers={"User-Agent": "PageVault"})
+            with urllib.request.urlopen(req, timeout=_COVER_FETCH_TIMEOUT) as resp:
+                content_type = (resp.headers.get("Content-Type") or "").split(";", 1)[0].strip()
+                if not content_type.startswith("image/"):
+                    return err("Cover unavailable", 404)
+                data = resp.read(_COVER_MAX_BYTES + 1)
+        except (urllib.error.URLError, OSError, ValueError):
+            return err("Cover unavailable", 404)
+
+        if not data or len(data) > _COVER_MAX_BYTES:
+            return err("Cover unavailable", 404)
+
+        target = cache_dir / f"{key}{_IMAGE_SUFFIXES.get(content_type, '.img')}"
+        target.write_bytes(data)
+        return send_file(str(target), max_age=_COVER_CACHE_MAX_AGE)
 
     def remove_book_files(book_id: int) -> None:
         """Delete any stored ebook files for a book from disk."""
@@ -2222,11 +2364,20 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
     @bp.get("/backup/download")
     def api_backup_download():
         db = get_db()
-        db.commit()
-        db_path = current_app.config["DATABASE"]
+        # The database runs in WAL mode, so recent writes may still live in the
+        # -wal sidecar file; zipping the .db file alone can silently miss them.
+        # The sqlite backup API writes one consistent snapshot regardless of
+        # journal state.
         output = io.BytesIO()
-        with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-            archive.write(db_path, arcname="pagevault.db")
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            snapshot_path = os.path.join(tmp_dir, "pagevault.db")
+            snapshot = sqlite3.connect(snapshot_path)
+            try:
+                db.backup(snapshot)
+            finally:
+                snapshot.close()
+            with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.write(snapshot_path, arcname="pagevault.db")
         output.seek(0)
         filename = f"pagevault_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.zip"
         return Response(
@@ -2323,12 +2474,23 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             except zipfile.BadZipFile:
                 return err("Invalid backup archive", 400)
 
+            # Reject non-database content before touching the live database.
+            with open(backup_path, "rb") as handle:
+                header = handle.read(16)
+            if not header.startswith(b"SQLite format 3"):
+                return err("Backup archive does not contain a SQLite database", 400)
+
             source = sqlite3.connect(backup_path)
-            target = get_db()
-            source.backup(target)
-            ensure_schema(target)
-            target.commit()
-            source.close()
+            try:
+                source.execute("PRAGMA quick_check(1)")
+                target = get_db()
+                source.backup(target)
+                ensure_schema(target)
+                target.commit()
+            except sqlite3.Error as exc:
+                return err(f"Backup restore failed: {exc}", 400)
+            finally:
+                source.close()
 
         db = get_db()
         db.execute(
@@ -2412,18 +2574,28 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             ]
         )
 
+        book_ids = [row["id"] for row in rows]
+        tags_by_book = fetch_tags_by_book(db, book_ids)
+        shelves_by_book = fetch_shelves_by_book(db, book_ids)
+        latest_reviews = {
+            row["book_id"]: row
+            for row in db.execute(
+                """SELECT book_id, rating, comment
+                   FROM reviews r1
+                   WHERE id = (
+                       SELECT r2.id FROM reviews r2
+                       WHERE r2.book_id = r1.book_id
+                       ORDER BY r2.created_at DESC, r2.id DESC
+                       LIMIT 1
+                   )"""
+            ).fetchall()
+        }
+
         for row in rows:
             book_id = row["id"]
-            shelves = [s["name"] for s in fetch_book_shelves(db, book_id)]
-            tags = fetch_book_tags(db, book_id)
-            latest_review = db.execute(
-                """SELECT rating, comment
-                   FROM reviews
-                   WHERE book_id = ?
-                   ORDER BY created_at DESC
-                   LIMIT 1""",
-                (book_id,),
-            ).fetchone()
+            shelves = [s["name"] for s in shelves_by_book[book_id]]
+            tags = tags_by_book[book_id]
+            latest_review = latest_reviews.get(book_id)
 
             writer.writerow(
                 [

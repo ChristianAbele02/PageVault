@@ -52,6 +52,8 @@ a = Analysis(  # noqa: F821
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
+    # cryptography is bundled: the desktop app generates a self-signed certificate
+    # for its HTTPS LAN server so a phone can use the camera ISBN scanner.
     excludes=["tkinter"],
     noarchive=False,
 )

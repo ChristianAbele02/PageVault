@@ -7,6 +7,120 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+## [1.8.0] — 2026-07-20
+
+### Added
+- **Android app (on-device).** A new `android/` project runs the existing Flask
+  app on a loopback port inside the app process (embedded CPython via Chaquopy)
+  and renders the web UI in a WebView. ISBN scanning uses the phone camera
+  (loopback is a secure context, so no certificate is needed); the catalogue,
+  reader, stats, import/export and backups all run locally. Admin login is
+  omitted. See `android/README.md` and `ANDROID_APP_PLAN.md`.
+- **Offline front-end.** html5-qrcode, Plotly, epub.js, qrcodejs and the
+  Playfair Display / Lato web fonts are vendored under `static/vendor`, so the
+  app no longer depends on any CDN at runtime. This is a prerequisite for the
+  Android build and also hardens the web and desktop builds against CDN outages.
+- **Offline cover cache.** Covers are cached two ways so a browsed library keeps
+  them without a connection: the service worker caches cover images in the
+  browser, and a new `/api/cover` proxy downloads each cover once and serves it
+  from local disk (with an SSRF host allowlist). The on-disk cache is what makes
+  covers survive offline in the Android app.
+
+### Fixed
+- **Reader page listed no books.** `/reader` parsed the book list as
+  `data.books`, but `/api/books` returns a plain array — the sidebar was always
+  empty, so library e-books could not be opened from the reader page (device
+  files still worked). The response is now read as the array it is.
+- **Clicking an author name in the book detail did nothing.** The author link's
+  `onclick` attribute was built with raw double quotes inside a double-quoted
+  attribute, truncating it for every author. Quotes are now HTML-escaped, so the
+  author filter shortcut works again (including names with apostrophes).
+- **Backups could silently miss recent writes.** The database runs in WAL mode,
+  where recent commits live in the `-wal` sidecar file; the backup endpoint
+  zipped only the `.db` file. It now snapshots via the SQLite backup API, so a
+  backup taken right after adding books always contains them.
+- **Restoring a corrupt archive returned a 500.** Restore now verifies the
+  SQLite header and runs a quick integrity check before touching the live
+  database, rejecting invalid uploads with a clear 400 and leaving the library
+  untouched.
+- **Stale pages after updates (PWA).** The service worker served `/` and
+  `/stats` cache-first with a fixed cache name, so an updated PageVault kept
+  showing the old UI until the browser cache was cleared. Navigations are now
+  network-first (cache only as offline fallback) and static assets revalidate in
+  the background.
+
+### Changed
+- **Lighter, faster front-end.** The stats page now loads the `plotly-basic`
+  build (~1 MB) instead of the full 4.5 MB one, since it only uses bar, pie, and
+  scatter traces. The scanner, QR, and reader libraries are deferred so they no
+  longer block first paint, and the vendored libraries and fonts carry a one-day
+  cache header.
+- **gzip for networked clients.** Text responses (HTML, JSON) are gzip-compressed
+  for non-loopback clients, so same-Wi-Fi phones and self-hosted deployments
+  transfer far less. Loopback callers (the desktop and Android WebViews) skip it,
+  since compression buys nothing over the local socket.
+- **SQLite tuning.** Connections now use `synchronous=NORMAL` (the recommended,
+  faster pairing with WAL) and a 5-second `busy_timeout`, so the desktop build's
+  two servers queue on writes instead of failing with "database is locked".
+- **Faster title lookups.** For books without a real ISBN, the Open Library and
+  Google Books title searches now run in parallel, matching the ISBN path.
+- **Listing endpoints no longer run two queries per book.** `/api/books`,
+  `/api/export/csv`, and recommendations batch-load tags, shelves, and latest
+  reviews in a fixed number of queries instead of N+1 per-book lookups, which
+  keeps large libraries fast.
+- The Docker builder stage copies `config.py`/`desktop.py`, so the wheel built
+  inside the image contains every module `pyproject.toml` declares.
+
+---
+
+## [1.7.1] — 2026-06-30
+
+### Added
+- **Local HTTPS for mobile barcode scanning.** Browsers only expose the camera
+  (`getUserMedia`) in a secure context, so scanning an ISBN from a phone over the
+  LAN (plain HTTP) never opened the camera. `python app.py` now serves over HTTPS
+  by default using a persistent self-signed certificate generated at startup
+  (`pagevault_core/tls.py`), with the local hostnames and the detected LAN IP in
+  its SubjectAltName so the same cert is reused across restarts. The mobile QR link
+  follows the request scheme, so it now hands the phone an `https://` address. Set
+  `PAGEVAULT_HTTPS=0` to fall back to plain HTTP.
+- **Phone scanning from the desktop app.** The desktop app now starts a second,
+  phone-facing HTTPS server on the LAN (alongside the loopback server the window
+  uses), so the **Mobile** QR opens PageVault on a phone with a working camera
+  scanner. The QR points at that `https://<lan-ip>:<port>/` endpoint; the button
+  is shown only once the HTTPS server is up.
+- **Deutsche Nationalbibliothek (DNB) metadata.** German-language ISBNs (978-3)
+  now also query the German national library, which catalogues German books that
+  Open Library lacks and the keyless Google Books quota cannot always reach. This
+  fixes ISBN lookups that returned no title/author for many German editions. DNB
+  supplies authoritative title/author/publisher/year/language; covers still come
+  from the other providers.
+
+### Changed
+- Publication years are normalised to a four-digit year, so the UI shows "1993"
+  instead of provider strings like "1993?" or "April 2021".
+
+### Fixed
+- **Mobile layout: the add button is reachable without zooming out.** The header
+  action pills and stats bar no longer force the page wider than the screen, which
+  had made phones shrink the whole layout and push the floating add button off the
+  right edge. The header now wraps to a second row on narrow screens, with
+  `overflow-x: clip` as a backstop and safe-area insets so the button clears the
+  phone's home indicator.
+- The ISBN scanner now shows a clear "camera needs HTTPS" message on an insecure
+  origin instead of a confusing access-denied error.
+
+### Security
+- CDN scripts (html5-qrcode, qrcodejs, epub.js, Plotly) are pinned with
+  Subresource Integrity hashes, so a tampered CDN response is rejected.
+- Admin login is rate-limited: 5 failed attempts from one address within 5 minutes
+  trigger an `HTTP 429` lockout, slowing password brute-forcing.
+- The session cookie is marked `Secure` when `python app.py` serves over HTTPS.
+
+---
+
 ## [1.7.0] — 2026-06-22
 
 ### Added

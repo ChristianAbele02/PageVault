@@ -828,6 +828,44 @@ class TestFrontend:
         assert r.status_code == 200
         assert b"PageVault" in r.data
 
+    def test_mobile_button_shown_in_server_mode(self, client):
+        # The button carries data-i18n="nav_mobile"; the openMobileConnect() JS
+        # function is always defined, so the i18n key is the reliable marker.
+        assert 'data-i18n="nav_mobile"' in client.get("/").get_data(as_text=True)
+
+    def test_mobile_button_hidden_when_disabled(self, tmp_path):
+        # MOBILE_QR_ENABLED=False is how the desktop app hides the button when no
+        # phone-reachable HTTPS URL could be brought up.
+        app_no_qr = app_module.create_app(
+            {
+                "DATABASE": str(tmp_path / "d.db"),
+                "BOOK_FILES_DIR": str(tmp_path / "bf"),
+                "TESTING": True,
+                "SECRET_KEY": "k",
+                "ADMIN_PASSWORD": "p",
+                "MOBILE_QR_ENABLED": False,
+            }
+        )
+        html = app_no_qr.test_client().get("/").get_data(as_text=True)
+        assert 'data-i18n="nav_mobile"' not in html
+
+    def test_mobile_connect_uses_explicit_base_url(self, tmp_path):
+        # The desktop app sets MOBILE_BASE_URL to its HTTPS LAN server; the QR
+        # endpoint must return it verbatim regardless of the request host/scheme.
+        app_desktop = app_module.create_app(
+            {
+                "DATABASE": str(tmp_path / "d.db"),
+                "BOOK_FILES_DIR": str(tmp_path / "bf"),
+                "TESTING": True,
+                "SECRET_KEY": "k",
+                "ADMIN_PASSWORD": "p",
+                "MOBILE_BASE_URL": "https://192.168.1.50:8443/",
+            }
+        )
+        r = app_desktop.test_client().get("/api/mobile/connect", headers={"Host": "127.0.0.1:9000"})
+        assert r.status_code == 200
+        assert r.get_json()["url"] == "https://192.168.1.50:8443/"
+
     def test_mobile_connect_uses_lan_ip_for_localhost(self, client, monkeypatch):
         monkeypatch.setattr(app_module, "_detect_local_ip", lambda: "192.168.1.77")
         r = client.get("/api/mobile/connect", headers={"Host": "localhost:5000"})
@@ -839,6 +877,14 @@ class TestFrontend:
         r = client.get("/api/mobile/connect", headers={"Host": "localhost:5000"})
         assert r.status_code == 200
         assert r.get_json()["url"] == "http://pagevault.local:5000/"
+
+    def test_mobile_connect_preserves_https_scheme(self, client, monkeypatch):
+        # Served over HTTPS, the QR link must be https:// so the phone gets a
+        # secure context and the camera scanner can open.
+        monkeypatch.setattr(app_module, "_detect_local_ip", lambda: "192.168.1.77")
+        r = client.get("/api/mobile/connect", base_url="https://localhost:5000")
+        assert r.status_code == 200
+        assert r.get_json()["url"] == "https://192.168.1.77:5000/"
 
     def test_404_returns_json(self, client):
         r = client.get("/api/nonexistent")
@@ -1211,6 +1257,18 @@ class TestAdminApis:
         logs = client.get("/api/admin/logs")
         assert logs.status_code == 200
 
+    def test_admin_login_throttles_brute_force(self, client):
+        # Five wrong passwords are rejected; the sixth is locked out with 429.
+        for _ in range(5):
+            bad = client.post("/api/admin/login", json={"password": "wrong"})
+            assert bad.status_code == 401
+        locked = client.post("/api/admin/login", json={"password": "wrong"})
+        assert locked.status_code == 429
+        assert "Retry-After" in locked.headers
+        # The correct password is also refused while the lockout window is open.
+        blocked = client.post("/api/admin/login", json={"password": "test-admin-password"})
+        assert blocked.status_code == 429
+
 
 # ── Goodreads CSV import ──────────────────────────────────────────────────────
 
@@ -1577,3 +1635,115 @@ class TestReadingPosition:
         assert _upload_pdf(client, book_id, b"%PDF-1.7 new content").status_code == 200
         detail = client.get(f"/api/books/{book_id}").get_json()
         assert detail["reader_position"] is None
+
+
+class TestBackupIntegrity:
+    """Regression tests for backup download consistency and restore robustness."""
+
+    def test_backup_download_contains_wal_mode_writes(self, client, added_book, tmp_path):
+        """The backup must include writes that may still sit in the WAL sidecar."""
+        response = client.get("/api/backup/download")
+        assert response.status_code == 200
+
+        archive_path = Path(tmp_path) / "backup.zip"
+        archive_path.write_bytes(response.data)
+        with zipfile.ZipFile(archive_path) as archive:
+            archive.extract("pagevault.db", tmp_path)
+
+        with sqlite3.connect(Path(tmp_path) / "pagevault.db") as snapshot:
+            titles = [row[0] for row in snapshot.execute("SELECT title FROM books").fetchall()]
+        assert added_book["title"] in titles
+
+    def test_restore_apply_rejects_non_database_content(self, client, added_book):
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w") as zf:
+            zf.writestr("pagevault.db", b"this is not a sqlite database")
+
+        applied = client.post(
+            "/api/backup/restore/apply",
+            data={"file": (io.BytesIO(archive.getvalue()), "backup.zip")},
+            content_type="multipart/form-data",
+        )
+        assert applied.status_code == 400
+        assert "SQLite" in applied.get_json()["error"]
+
+        # The live library must be untouched after the rejected restore.
+        books = client.get("/api/books").get_json()
+        assert [b["title"] for b in books] == [added_book["title"]]
+
+
+class TestBookListRelations:
+    """The batched tag/shelf loading must match the per-book results."""
+
+    def test_list_books_includes_tags_and_shelves(self, client, sample_book_payload):
+        shelf = client.post("/api/shelves", json={"name": "Favourites"}).get_json()
+        payload = dict(sample_book_payload)
+        payload["genre_tags"] = ["Fiction", "Classic"]
+        payload["shelf_ids"] = [shelf["id"]]
+        created = client.post("/api/books", json=payload)
+        assert created.status_code == 201
+
+        second = dict(sample_book_payload)
+        second["isbn"] = "9780316769488"
+        second["book_data"] = dict(sample_book_payload["book_data"], isbn=second["isbn"])
+        assert client.post("/api/books", json=second).status_code == 201
+
+        books = {b["isbn"]: b for b in client.get("/api/books").get_json()}
+        tagged = books[sample_book_payload["isbn"]]
+        assert tagged["genre_tags"] == ["Classic", "Fiction"]
+        assert [s["name"] for s in tagged["shelves"]] == ["Favourites"]
+        untagged = books[second["isbn"]]
+        assert untagged["genre_tags"] == []
+        assert untagged["shelves"] == []
+
+
+def test_cover_proxy_allowlist_and_cache(client, monkeypatch):
+    """/api/cover guards its host allowlist, caches downloads, and fails soft."""
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    fake = b"\x89PNG\r\n\x1a\n" + b"coverbytes" * 20
+    calls = {"n": 0}
+
+    class FakeResp:
+        headers = {"Content-Type": "image/png"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self, _n=-1):
+            return fake
+
+    def fake_urlopen(_req, timeout=None):
+        calls["n"] += 1
+        return FakeResp()
+
+    def q(url):
+        return "/api/cover?url=" + urllib.parse.quote(url, safe="")
+
+    ol = "https://covers.openlibrary.org/b/id/12345-L.jpg"
+
+    # SSRF guard: unknown host and missing url are rejected before any fetch.
+    assert client.get(q("https://evil.example/x.jpg")).status_code == 400
+    assert client.get("/api/cover").status_code == 400
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    first = client.get(q(ol))
+    assert first.status_code == 200
+    assert first.data == fake
+    assert calls["n"] == 1
+
+    # A second request is served from the on-disk cache without re-downloading.
+    assert client.get(q(ol)).status_code == 200
+    assert calls["n"] == 1
+
+    # A download failure yields 404 so the frontend shows its placeholder.
+    def failing(_req, timeout=None):
+        raise urllib.error.URLError("boom")
+
+    monkeypatch.setattr(urllib.request, "urlopen", failing)
+    assert client.get(q("https://covers.openlibrary.org/b/id/99999-L.jpg")).status_code == 404

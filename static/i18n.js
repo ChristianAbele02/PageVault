@@ -279,6 +279,7 @@
       toast_found:        'Book found! ✓',
       toast_not_found:    'Book not found – fill in manually',
       toast_enter_isbn:   'Please enter an ISBN',
+      toast_camera_insecure: 'Camera needs HTTPS. Open this page over https:// (or on localhost) to scan.',
       toast_only_epub_pdf:'Only EPUB and PDF files are supported.',
       toast_could_not_save: 'Could not save',
 
@@ -713,6 +714,7 @@
       toast_found:        'Buch gefunden! ✓',
       toast_not_found:    'Buch nicht gefunden – bitte manuell ausfüllen',
       toast_enter_isbn:   'Bitte eine ISBN eingeben',
+      toast_camera_insecure: 'Kamera benötigt HTTPS. Öffne diese Seite über https:// (oder auf localhost), um zu scannen.',
       toast_only_epub_pdf:'Nur EPUB- und PDF-Dateien werden unterstützt.',
       toast_could_not_save: 'Speichern fehlgeschlagen',
 

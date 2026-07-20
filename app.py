@@ -10,17 +10,34 @@ Usage:
 
 from __future__ import annotations
 
+import gzip
 import logging
 import os
 import socket
 import sqlite3
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import (
+    Flask,
+    current_app,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
-from config import _FALLBACK_ADMIN_PASSWORD, _FALLBACK_SECRET_KEY, resolve_config, resource_dir
+from config import (
+    _FALLBACK_ADMIN_PASSWORD,
+    _FALLBACK_SECRET_KEY,
+    app_data_dir,
+    resolve_config,
+    resource_dir,
+)
 from pagevault_core import db as core_db
 from pagevault_core import metadata as core_metadata
+from pagevault_core import tls as core_tls
 from pagevault_core import utils as core_utils
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -30,6 +47,21 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger(__name__)
+
+# Response compression: gzip these text types for networked (non-loopback) clients.
+_COMPRESSIBLE_TYPES = {
+    "text/html",
+    "text/css",
+    "text/plain",
+    "text/xml",
+    "application/javascript",
+    "application/json",
+    "application/xml",
+    "image/svg+xml",
+}
+_MIN_COMPRESS_BYTES = 1024
+# Vendored libraries and fonts change rarely; let browsers hold them for a day.
+_VENDOR_CACHE_CONTROL = "public, max-age=86400"
 
 
 def _ensure_file_logging(log_file: str | None) -> None:
@@ -121,7 +153,20 @@ def create_app(config: dict | None = None) -> Flask:
     # Register components
     _init_db_hook(app)
     app.register_blueprint(_api_bp())
-    app.add_url_rule("/", "index", lambda: render_template("index.html"))
+
+    @app.get("/")
+    def index():
+        # mobile_qr controls the "Mobile" QR button. It is on for the networked
+        # server (python app.py) and for the desktop app once its HTTPS LAN server
+        # is up; it is off only when no phone-reachable URL exists.
+        # is_mobile_app is set by the on-device Android build, which hides the
+        # admin links and the phone-connect flow and enables native-app polish.
+        return render_template(
+            "index.html",
+            mobile_qr=app.config.get("MOBILE_QR_ENABLED", True),
+            is_mobile_app=app.config.get("PAGEVAULT_MOBILE_APP", False),
+        )
+
     app.add_url_rule("/stats", "stats", lambda: render_template("stats.html"))
     app.add_url_rule("/reader", "reader", lambda: render_template("reader.html"))
     app.add_url_rule("/admin/login", "admin_login", lambda: render_template("admin_login.html"))
@@ -135,6 +180,34 @@ def create_app(config: dict | None = None) -> Flask:
     @app.get("/api/mobile/connect")
     def mobile_connect_info():
         return jsonify({"url": _mobile_base_url()})
+
+    @app.after_request
+    def _optimise_response(response):
+        # Long-cache the vendored libraries and fonts (stable content).
+        if request.path.startswith("/static/vendor/"):
+            response.headers["Cache-Control"] = _VENDOR_CACHE_CONTROL
+
+        # gzip large text responses for networked clients only. Loopback callers
+        # (the desktop and Android WebViews, localhost, and a local TLS-terminating
+        # proxy) gain nothing from compression and would only pay CPU, so skip them.
+        remote = request.remote_addr or ""
+        if remote.startswith("127.") or remote == "::1":
+            return response
+        if "gzip" not in request.headers.get("Accept-Encoding", "").lower():
+            return response
+        # Streamed/static (send_file) responses and already-encoded ones are left alone.
+        if response.direct_passthrough or response.content_encoding:
+            return response
+        content_type = (response.content_type or "").split(";", 1)[0].strip()
+        if content_type not in _COMPRESSIBLE_TYPES:
+            return response
+        data = response.get_data()
+        if len(data) < _MIN_COMPRESS_BYTES:
+            return response
+        response.set_data(gzip.compress(data, compresslevel=6))
+        response.content_encoding = "gzip"
+        response.headers["Vary"] = "Accept-Encoding"
+        return response
 
     core_db.bootstrap_database(app)
 
@@ -175,6 +248,10 @@ def _fetch_openlibrary_covers(isbn: str) -> dict | None:
     return core_metadata.fetch_openlibrary_covers(isbn)
 
 
+def _fetch_dnb(isbn: str) -> dict | None:
+    return core_metadata.fetch_dnb(isbn)
+
+
 def _fetch_openlibrary_title_search(title: str, author: str | None = None) -> dict | None:
     return core_metadata.fetch_openlibrary_title_search(title, author)
 
@@ -195,6 +272,7 @@ def lookup_isbn(isbn: str) -> dict | None:
         fetch_crossref_fn=_fetch_crossref,
         fetch_openlibrary_search_fn=_fetch_openlibrary_search,
         fetch_openlibrary_covers_fn=_fetch_openlibrary_covers,
+        fetch_dnb_fn=_fetch_dnb,
     )
 
 
@@ -263,6 +341,12 @@ def _detect_local_ip() -> str:
 
 
 def _mobile_base_url() -> str:
+    # Explicit full-URL override, used by the desktop app to point the QR at its
+    # separate HTTPS LAN server rather than the loopback URL the webview uses.
+    explicit = (current_app.config.get("MOBILE_BASE_URL") or "").strip()
+    if explicit:
+        return explicit if explicit.endswith("/") else explicit + "/"
+
     override_host = (os.getenv("PAGEVAULT_MOBILE_HOST") or "").strip()
     host_header = request.host or ""
     host = host_header.split(":", 1)[0].strip().lower()
@@ -307,20 +391,68 @@ def _api_bp():
     )
 
 
+_HTTPS_OFF_VALUES = {"0", "false", "no", "off"}
+
+
+def _https_enabled() -> bool:
+    """HTTPS is on by default; PAGEVAULT_HTTPS=0/false/no/off opts out."""
+    return (os.getenv("PAGEVAULT_HTTPS") or "auto").strip().lower() not in _HTTPS_OFF_VALUES
+
+
+def _resolve_ssl_context(local_ip: str):
+    """Return an ``ssl_context`` for ``app.run`` (cert/key tuple), or None for HTTP.
+
+    Camera access in browsers requires a secure context, so HTTPS is what makes
+    the mobile ISBN scanner work when a phone connects over the LAN IP.
+    """
+    if not _https_enabled():
+        return None
+
+    cert_dir = app_data_dir() / "certs"
+    san_ips = ["127.0.0.1", "::1"]
+    if local_ip not in san_ips:
+        san_ips.append(local_ip)
+    ssl_context = core_tls.ensure_self_signed_cert(cert_dir, ["localhost"], san_ips)
+    if ssl_context is None:
+        log.warning(
+            "Falling back to HTTP — mobile camera scanning will not work. "
+            "Install the optional dependency (pip install cryptography) or set "
+            "PAGEVAULT_HTTPS=0 to silence this."
+        )
+    return ssl_context
+
+
 def main() -> None:
     app = create_app()
     host = "0.0.0.0"
     port = int(os.getenv("PORT", "5000"))
     debug = os.getenv("FLASK_DEBUG", "0").lower() in {"1", "true", "yes", "on"}
-    try:
-        local_ip = socket.gethostbyname(socket.gethostname())
-    except OSError:  # specific exception instead of bare except (issue #6)
-        local_ip = "127.0.0.1"
+    local_ip = _detect_local_ip()
 
-    print("\n📚  PageVault is running!")
-    print(f"    Local  → http://localhost:{port}")
-    print(f"    Phone  → http://{local_ip}:{port}  (same Wi-Fi)\n")
-    app.run(host=host, port=port, debug=debug)
+    ssl_context = _resolve_ssl_context(local_ip)
+    scheme = "https" if ssl_context else "http"
+    if ssl_context:
+        # Served over TLS, so scope the session cookie to HTTPS. Left off when
+        # falling back to HTTP (PAGEVAULT_HTTPS=0) or behind a TLS-terminating
+        # proxy (gunicorn), where the cookie must still be sent over HTTP.
+        app.config["SESSION_COOKIE_SECURE"] = True
+
+    lines = [
+        "\n📚  PageVault is running!",
+        f"    Local  → {scheme}://localhost:{port}",
+        f"    Phone  → {scheme}://{local_ip}:{port}  (same Wi-Fi)",
+    ]
+    if ssl_context:
+        lines.append("    Note   → self-signed certificate; accept the one-time browser warning.")
+    banner = "\n".join(lines) + "\n"
+    try:
+        print(banner, flush=True)
+    except UnicodeEncodeError:
+        # Redirected Windows consoles may use cp1252, which cannot encode the
+        # book emoji — never let the startup banner crash boot (cf. issue #1).
+        print(banner.encode("ascii", "ignore").decode("ascii"), flush=True)
+
+    app.run(host=host, port=port, debug=debug, ssl_context=ssl_context)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0f0b05">
 <title>PageVault — Reader</title>
 <link rel="manifest" href="/static/manifest.webmanifest">
-<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin="anonymous">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" crossorigin="anonymous">
-<script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js" crossorigin="anonymous"></script>
+<!-- Vendored locally for offline use (see templates/index.html). -->
+<link href="/static/vendor/fonts/fonts.css" rel="stylesheet">
+<script src="/static/vendor/epub.min.js"></script>
 <script src="/static/i18n.js"></script>
 <style>
   :root {
@@ -452,8 +452,9 @@ function api(path, opts = {}) {
 async function loadBooks() {
   const r = await api('/api/books');
   if (!r.ok) return;
+  // /api/books returns a plain array of books.
   const data = await r.json();
-  allBooks = (data.books || []).filter(b => b.file_type);
+  allBooks = (Array.isArray(data) ? data : []).filter(b => b.file_type);
   renderBookList(allBooks);
 }
 

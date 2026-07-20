@@ -14,6 +14,25 @@ from flask import Flask, g
 
 log = logging.getLogger(__name__)
 
+# Wait up to this long for a write lock before raising "database is locked".
+# The desktop build serves the same database from two servers (loopback plus the
+# phone-facing HTTPS one), so concurrent writers are normal and must queue, not fail.
+_BUSY_TIMEOUT_MS = 5000
+
+
+def _configure_connection(conn: sqlite3.Connection) -> None:
+    """Apply the connection pragmas PageVault relies on.
+
+    WAL allows concurrent readers alongside a writer; ``synchronous=NORMAL`` is the
+    recommended, durable-enough pairing for WAL and is markedly faster than FULL;
+    ``busy_timeout`` makes contending writers wait instead of failing; foreign keys
+    are enforced per connection.
+    """
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
+    conn.execute("PRAGMA foreign_keys=ON")
+
 
 def get_db() -> sqlite3.Connection:
     if "_db" not in g:
@@ -22,8 +41,7 @@ def get_db() -> sqlite3.Connection:
             detect_types=sqlite3.PARSE_DECLTYPES,
         )
         g._db.row_factory = sqlite3.Row
-        g._db.execute("PRAGMA journal_mode=WAL")
-        g._db.execute("PRAGMA foreign_keys=ON")
+        _configure_connection(g._db)
     return cast(sqlite3.Connection, g._db)
 
 
@@ -247,7 +265,6 @@ def bootstrap_database(app: Flask) -> None:
     with app.app_context():
         db = sqlite3.connect(app.config["DATABASE"])
         db.row_factory = sqlite3.Row
-        db.execute("PRAGMA journal_mode=WAL")
-        db.execute("PRAGMA foreign_keys=ON")
+        _configure_connection(db)
         ensure_schema(db)
         db.close()

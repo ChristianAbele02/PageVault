@@ -30,7 +30,7 @@ def validate_logo_url(value: str | None) -> bool:
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
-def normalize_tags(value) -> list[str]:
+def normalize_tags(value: object) -> list[str]:
     if value is None:
         return []
     if isinstance(value, str):
@@ -52,7 +52,7 @@ def normalize_tags(value) -> list[str]:
     return result
 
 
-def int_list(values) -> list[int]:
+def int_list(values: object) -> list[int]:
     if not isinstance(values, list):
         return []
     result = []
