@@ -1,0 +1,101 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'com.chaquo.python'
+}
+
+// The Flask app is the single source of truth at the repository root. These
+// tasks copy the Python source and the web assets it serves into the build at
+// assembly time, so nothing is duplicated in version control.
+def repoRoot = rootProject.file("..")
+def generatedPython = layout.buildDirectory.dir("pagevaultPython")
+def generatedAssets = layout.buildDirectory.dir("generatedAssets")
+
+tasks.register('syncPythonSource', Sync) {
+    description = "Copy the shared Flask source into the Chaquopy source set."
+    from(repoRoot) {
+        include 'app.py', 'config.py', 'pagevault_core/**'
+        exclude '**/__pycache__/**', '**/*.pyc'
+    }
+    into generatedPython
+}
+
+tasks.register('syncWebAssets', Sync) {
+    description = "Copy templates and static assets into the packaged assets."
+    into generatedAssets.map { it.dir("web") }
+    from("${repoRoot}/templates") { into 'templates' }
+    from("${repoRoot}/static") { into 'static' }
+}
+
+android {
+    namespace 'com.pagevault.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.pagevault.app'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
+
+        ndk {
+            // Chaquopy ships CPython for these ABIs. arm64-v8a covers modern
+            // phones; x86_64 covers the emulator. Add 'armeabi-v7a' for old devices.
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+
+    buildFeatures {
+        viewBinding true
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs += generatedAssets.get().asFile
+        }
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        version = '3.12'
+        pip {
+            // The app's only third-party runtime dependencies. Flask pulls in
+            // Werkzeug, Jinja2, click, itsdangerous, MarkupSafe and blinker.
+            // cryptography is intentionally omitted: the on-device server runs on
+            // loopback (a secure context) with PAGEVAULT_HTTPS=0, so no TLS is used.
+            install 'flask>=3.0.0,<4.0'
+            install 'waitress>=3.0.0'
+        }
+    }
+    sourceSets {
+        getByName('main') {
+            srcDir 'src/main/python'
+            srcDir generatedPython.get().asFile
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.webkit:webkit:1.11.0'
+}
+
+// Assemble the copied sources and assets before the build consumes them.
+tasks.named('preBuild').configure {
+    dependsOn('syncPythonSource', 'syncWebAssets')
+}

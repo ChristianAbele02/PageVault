@@ -1,0 +1,4 @@
+# Keep the wrapper JAR binary and give the launcher scripts correct line endings.
+*.jar binary
+gradlew  text eol=lf
+*.bat    text eol=crlf

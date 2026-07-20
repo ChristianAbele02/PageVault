@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">PageVault</string>
+    <string name="splash_starting">Opening your library…</string>
+    <string name="splash_failed">PageVault could not start. Please try again.</string>
+    <string name="splash_retry">Retry</string>
+    <string name="camera_denied">Camera access is needed to scan barcodes.</string>
+    <string name="file_picker_unavailable">No file picker is available.</string>
+    <string name="download_started">Saving %1$s…</string>
+    <string name="download_unsupported">This download type is not supported.</string>
+    <string name="download_failed">Download failed.</string>
+</resources>

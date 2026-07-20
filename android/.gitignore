@@ -1,0 +1,18 @@
+# Android / Gradle build outputs and IDE state.
+.gradle/
+build/
+app/build/
+captures/
+.cxx/
+
+# Local machine configuration (SDK path). Never commit this.
+local.properties
+
+# Android Studio
+.idea/
+*.iml
+
+# Keystores and signing secrets must never be committed.
+*.jks
+*.keystore
+keystore.properties

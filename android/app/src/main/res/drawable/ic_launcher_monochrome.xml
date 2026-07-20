@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Single-colour silhouette for Android 13+ themed icons: a book with the
+         dial punched out as a hole (evenOdd). The system supplies the tint. -->
+    <group
+        android:pivotX="52"
+        android:pivotY="52"
+        android:scaleX="0.82"
+        android:scaleY="0.82"
+        android:translateX="2"
+        android:translateY="2">
+        <path
+            android:fillColor="#000000"
+            android:fillType="evenOdd"
+            android:pathData="M20,14 L86,16 L84,90 L18,88 Z M22,48 a16,16 0 1,0 32,0 a16,16 0 1,0 -32,0 Z" />
+    </group>
+</vector>

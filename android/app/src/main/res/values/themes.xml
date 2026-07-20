@@ -1,0 +1,18 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="Theme.PageVault" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/brand_bg</item>
+        <item name="android:statusBarColor">@color/brand_bg</item>
+        <item name="android:navigationBarColor">@color/brand_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="colorPrimary">@color/brand_gold</item>
+        <item name="colorAccent">@color/brand_gold</item>
+    </style>
+
+    <!-- Launch theme: a branded window background painted instantly, before the
+         WebView draws, so there is no white flash while the server boots. The
+         in-layout splash overlay then covers the rest of the boot. -->
+    <style name="Theme.PageVault.Splash" parent="Theme.PageVault">
+        <item name="android:windowBackground">@drawable/splash_window</item>
+    </style>
+</resources>
