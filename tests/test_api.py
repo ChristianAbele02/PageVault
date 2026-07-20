@@ -1763,8 +1763,13 @@ def test_fts_search_across_metadata_reviews_and_quotes(client):
         "status": "read",
     }
     book_id = client.post("/api/books", json=payload).get_json()["id"]
-    client.post(f"/api/books/{book_id}/reviews", json={"rating": 5, "comment": "Chilling doublethink"})
-    client.post(f"/api/books/{book_id}/quotes", json={"text": "War is peace. Freedom is slavery.", "page_number": 4})
+    client.post(
+        f"/api/books/{book_id}/reviews", json={"rating": 5, "comment": "Chilling doublethink"}
+    )
+    client.post(
+        f"/api/books/{book_id}/quotes",
+        json={"text": "War is peace. Freedom is slavery.", "page_number": 4},
+    )
 
     def finds(term):
         return any(r["book_id"] == book_id for r in client.get(f"/api/search?q={term}").get_json())

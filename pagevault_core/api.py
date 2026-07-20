@@ -46,6 +46,7 @@ def _to_fts_query(text: str) -> str:
     parts.append(f"{tokens[-1]}*")
     return " ".join(parts)
 
+
 # Admin login brute-force throttle: after this many failed attempts from one IP
 # within the window, further attempts are refused with HTTP 429 until the window
 # elapses. State is per-process and in-memory, which suits a self-hosted app.
