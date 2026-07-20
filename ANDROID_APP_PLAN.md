@@ -1,8 +1,31 @@
-# PageVault for Android — Implementation Plan
+# PageVault for Android: Implementation Plan
 
-Status: proposed, awaiting acceptance
+Status: accepted; Phase 0/1 foundation built on branch `feature/android-app`
 Target: a fully on-device Android app that reuses the existing Flask/SQLite codebase
 Chosen approach: embed the current Flask app in an Android `WebView` via Chaquopy
+
+## Implementation status
+
+Done and verified off-device (no Android SDK on the build machine, so the APK
+itself is not yet compiled):
+
+- Front-end vendored for offline use; the app uses no CDN at runtime.
+- `android/` Gradle project: Chaquopy config, `MainActivity` (WebView, camera
+  permission bridge, file upload, downloads, back navigation, branded splash),
+  `mobile_server.py` entry point, brand theme and adaptive icon.
+- `mobile_server.start()` verified end-to-end here: boots waitress on a stable
+  loopback port, serves the app, API and assets, creates the on-device database.
+- Native-app polish and the `is_mobile_app` flag (hides admin and phone-connect);
+  offline cover caching via the service worker.
+- 129 tests pass; ruff and mypy clean.
+
+Pending (needs the Android toolchain, i.e. you in Android Studio):
+
+- First Gradle build and version alignment (AGP, Chaquopy, Kotlin, NDK).
+- On-device Phase 0 checks: server boots in the WebView, camera scan works.
+- Phases 2-3 on-device validation: reader, import/export, backup; then packaging.
+
+See `android/README.md` for the build and verification steps.
 
 ---
 
@@ -169,24 +192,24 @@ rather than forked for Android. The Subresource Integrity attributes are removed
 
 Each phase ends with a concrete, testable deliverable.
 
-### Phase 0 — De-risking spike (do first)
+### Phase 0: De-risking spike (do first)
 Prove the two riskiest pieces before any real integration.
 - Bare Android project with Chaquopy running a trivial Flask "hello" on loopback in a `WebView`.
 - `CAMERA` permission granted and one successful barcode scan on a physical device.
 - Acceptance: a real phone shows the page served from on-device Python and completes one scan.
 
-### Phase 1 — Core parity
+### Phase 1: Core parity
 - Wire the real Flask app, `filesDir` storage, and vendored assets.
 - Cover caching and offline-graceful metadata.
 - Acceptance: scan, add, edit, shelves, tags, reviews, quotes, reading history and goals, and the
   stats dashboard all work on-device, offline except for metadata and first-time cover fetches.
 
-### Phase 2 — Heavy features
+### Phase 2: Heavy features
 - EPUB/PDF upload and the epub.js reader (position sync already exists server-side).
 - CSV import and export, backup and restore against the on-device store.
 - Acceptance: import a Goodreads CSV, open an EPUB, export a backup, restore it.
 
-### Phase 3 — Packaging
+### Phase 3: Packaging
 - Launcher icon, app theme, signing config, a debug APK to sideload.
 - Optional later: a release build and Play Store submission (adds privacy-policy and review work).
 - Acceptance: an installable signed APK produced from a clean build.

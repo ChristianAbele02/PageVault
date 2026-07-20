@@ -9,6 +9,20 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Android app (on-device).** A new `android/` project runs the existing Flask
+  app on a loopback port inside the app process (embedded CPython via Chaquopy)
+  and renders the web UI in a WebView. ISBN scanning uses the phone camera
+  (loopback is a secure context, so no certificate is needed); the catalogue,
+  reader, stats, import/export and backups all run locally. Admin login is
+  omitted. See `android/README.md` and `ANDROID_APP_PLAN.md`.
+- **Offline front-end.** html5-qrcode, Plotly, epub.js, qrcodejs and the
+  Playfair Display / Lato web fonts are vendored under `static/vendor`, so the
+  app no longer depends on any CDN at runtime. This is a prerequisite for the
+  Android build and also hardens the web and desktop builds against CDN outages.
+- **Offline cover cache.** The service worker now caches book cover images, so a
+  library you have already browsed keeps its covers without a connection.
+
 ### Fixed
 - **Reader page listed no books.** `/reader` parsed the book list as
   `data.books`, but `/api/books` returns a plain array — the sidebar was always
