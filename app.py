@@ -143,7 +143,13 @@ def create_app(config: dict | None = None) -> Flask:
         # mobile_qr controls the "Mobile" QR button. It is on for the networked
         # server (python app.py) and for the desktop app once its HTTPS LAN server
         # is up; it is off only when no phone-reachable URL exists.
-        return render_template("index.html", mobile_qr=app.config.get("MOBILE_QR_ENABLED", True))
+        # is_mobile_app is set by the on-device Android build, which hides the
+        # admin links and the phone-connect flow and enables native-app polish.
+        return render_template(
+            "index.html",
+            mobile_qr=app.config.get("MOBILE_QR_ENABLED", True),
+            is_mobile_app=app.config.get("PAGEVAULT_MOBILE_APP", False),
+        )
 
     app.add_url_rule("/stats", "stats", lambda: render_template("stats.html"))
     app.add_url_rule("/reader", "reader", lambda: render_template("reader.html"))

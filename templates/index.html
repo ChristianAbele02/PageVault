@@ -1595,16 +1595,50 @@
   .dark-mode .reader-btn:hover { background: #3d2e1c; }
   .dark-mode #reader-epub-area { background: #1a1008; }
   .dark-mode .ebook-file-info { background: #2a1f14; }
+
+  /* ─── Smooth scanner reveal (all builds) ────────────────────────────────── */
+  #scanner-container.active {
+    animation: scannerReveal .3s var(--ease-spring, ease) both;
+  }
+  @keyframes scannerReveal {
+    from { opacity: 0; transform: translateY(-8px) scale(.98); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* ─── Native app polish (Android WebView) ───────────────────────────────────
+     Scoped to body.mobile-app so the web and desktop builds are untouched. */
+  body.mobile-app {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    /* Stop the WebView's pull-to-refresh bounce from reloading the app. */
+    overscroll-behavior-y: none;
+  }
+  /* Tactile press feedback: :hover does not apply cleanly on touch. */
+  body.mobile-app button:active,
+  body.mobile-app .book-card:active,
+  body.mobile-app .tag-chip:active {
+    transform: scale(.97);
+    transition: transform .08s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #scanner-container.active { animation: none; }
+    body.mobile-app button:active,
+    body.mobile-app .book-card:active,
+    body.mobile-app .tag-chip:active { transform: none; }
+  }
 </style>
 </head>
-<body class="dark-mode">
+<body class="dark-mode{% if is_mobile_app %} mobile-app{% endif %}">
 
 <header>
   <div class="logo">Page<span>Vault</span></div>
   <div class="header-actions">
     {% if mobile_qr %}<button class="theme-toggle" onclick="openMobileConnect()" data-i18n="nav_mobile" title="Show mobile connection QR">Mobile</button>{% endif %}
+    {% if not is_mobile_app %}
     <a id="admin-link" class="header-link" href="/admin" data-i18n="nav_admin" title="Open admin dashboard" style="display:none">Admin</a>
     <a id="admin-login-link" class="header-link" href="/admin/login" data-i18n="nav_admin_login" title="Admin login">Admin Login</a>
+    {% endif %}
     <a class="header-link" href="/reader" data-i18n="nav_reader" title="Open e-book reader">Reader</a>
     <a class="header-link" href="/stats" data-i18n="nav_stats" title="Open reading analytics">Stats</a>
     <button class="theme-toggle" data-lang-toggle onclick="toggleLang()" title="Switch language">DE</button>
@@ -4063,12 +4097,14 @@ function formatLocation(book) {
 }
 
 async function loadRoleState() {
+  const adminLink = document.getElementById('admin-link');
+  const adminLoginLink = document.getElementById('admin-login-link');
+  // The admin links are omitted in the mobile app build; nothing to update.
+  if (!adminLink || !adminLoginLink) return;
   const response = await api('/api/admin/me');
   if (!response.ok) return;
   const data = await response.json();
   currentRole = data.role || 'user';
-  const adminLink = document.getElementById('admin-link');
-  const adminLoginLink = document.getElementById('admin-login-link');
   const isAdmin = currentRole === 'admin';
   adminLink.style.display = isAdmin ? 'inline-block' : 'none';
   adminLoginLink.style.display = isAdmin ? 'none' : 'inline-block';

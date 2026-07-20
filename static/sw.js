@@ -1,9 +1,12 @@
 const CACHE_NAME = 'pagevault-v3';
+const COVER_CACHE = 'pagevault-covers-v1';
 const CORE_ASSETS = [
   '/', '/stats',
   '/static/manifest.webmanifest', '/static/icon.svg',
   '/static/vendor/fonts/fonts.css',
 ];
+// Cross-origin hosts that serve book cover images.
+const COVER_HOSTS = ['covers.openlibrary.org', 'books.google.com', 'books.googleusercontent.com'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -13,9 +16,10 @@ self.addEventListener('install', event => {
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)))
-    ).then(() => self.clients.claim())
+    caches.keys().then(keys => {
+      const keep = [CACHE_NAME, COVER_CACHE];
+      return Promise.all(keys.filter(key => !keep.includes(key)).map(key => caches.delete(key)));
+    }).then(() => self.clients.claim())
   );
 });
 
@@ -32,6 +36,24 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
 
   if (request.method !== 'GET') return;
+
+  // Book covers are cross-origin images. Cache them (cache-first) so a library
+  // you have already browsed still shows its covers when offline. Opaque
+  // (no-cors) responses cannot be inspected but render correctly in <img>.
+  if (COVER_HOSTS.includes(url.hostname)) {
+    event.respondWith(
+      caches.open(COVER_CACHE).then(cache =>
+        cache.match(request).then(cached => cached || fetch(request).then(response => {
+          if (response && (response.ok || response.type === 'opaque')) {
+            cache.put(request, response.clone());
+          }
+          return response;
+        }).catch(() => cached))
+      )
+    );
+    return;
+  }
+
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/')) return;
 

@@ -27,6 +27,7 @@ log = logging.getLogger("pagevault.android")
 _SERVER_THREADS = 4
 _STARTUP_TIMEOUT_S = 20.0
 _SECRET_KEY_FILE = "secret_key"
+_PORT_FILE = "server_port"
 
 # Module-level state so a re-entrant call (e.g. Activity recreation) reuses the
 # already-running server rather than starting a second one.
@@ -39,6 +40,42 @@ def _free_loopback_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         probe.bind(("127.0.0.1", 0))
         return int(probe.getsockname()[1])
+
+
+def _port_is_available(port: int) -> bool:
+    """True if ``port`` can currently be bound on loopback."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        try:
+            probe.bind(("127.0.0.1", port))
+            return True
+        except OSError:
+            return False
+
+
+def _choose_stable_port(data_dir: str) -> int:
+    """Return a loopback port, preferring the one used on the previous launch.
+
+    The WebView origin is ``http://127.0.0.1:<port>``. Keeping the port stable
+    keeps that origin stable, so origin-scoped browser storage (the saved theme
+    and language, the offline caches) survives across app restarts. A fresh port
+    is only chosen when no port was saved yet or the saved one is taken.
+    """
+    path = os.path.join(data_dir, _PORT_FILE)
+    try:
+        with open(path, encoding="utf-8") as handle:
+            saved = int(handle.read().strip())
+        if 1024 <= saved <= 65535 and _port_is_available(saved):
+            return saved
+    except (OSError, ValueError):
+        pass
+
+    port = _free_loopback_port()
+    try:
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(str(port))
+    except OSError as exc:
+        log.warning("Could not persist the server port (%s); it may change next launch.", exc)
+    return port
 
 
 def _wait_until_reachable(port: int, timeout: float) -> bool:
@@ -114,7 +151,7 @@ def start(data_dir: str, resource_dir: str) -> int:
             }
         )
 
-        port = _free_loopback_port()
+        port = _choose_stable_port(data_dir)
 
         def _serve() -> None:
             from waitress import serve
