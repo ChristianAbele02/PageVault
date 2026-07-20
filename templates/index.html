@@ -10,9 +10,11 @@
      fully offline, including inside the Android WebView. Same-origin assets need
      no Subresource Integrity, so the SRI hashes are gone with the CDN URLs. -->
 <link href="/static/vendor/fonts/fonts.css" rel="stylesheet">
-<script src="/static/vendor/html5-qrcode.min.js"></script>
-<script src="/static/vendor/qrcode.min.js"></script>
-<script src="/static/vendor/epub.min.js"></script>
+<!-- defer: these are used only in event handlers (scan, QR, reader), never at
+     parse time, so deferring them unblocks first paint without breaking anything. -->
+<script src="/static/vendor/html5-qrcode.min.js" defer></script>
+<script src="/static/vendor/qrcode.min.js" defer></script>
+<script src="/static/vendor/epub.min.js" defer></script>
 <script src="/static/i18n.js"></script>
 <style>
   :root {
@@ -3247,11 +3249,22 @@ function safeImageUrl(value) {
   return null;
 }
 
+// Hosts whose covers we cache locally (mirrors the /api/cover allowlist). Covers
+// from any other host are used directly, so manually-set URLs never regress.
+const COVER_PROXY_HOSTS = ['covers.openlibrary.org', 'books.google.com', 'books.googleusercontent.com'];
+function coverProxy(url) {
+  try {
+    if (COVER_PROXY_HOSTS.includes(new URL(url, window.location.origin).hostname)) {
+      return '/api/cover?url=' + encodeURIComponent(url);
+    }
+  } catch (_) {}
+  return url;
+}
 function getBookCover(book) {
   const direct = safeImageUrl(book.cover_url);
-  if (direct) return direct;
+  if (direct) return coverProxy(direct);
   if (book?.isbn) {
-    return `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(book.isbn)}-L.jpg?default=false`;
+    return coverProxy(`https://covers.openlibrary.org/b/isbn/${encodeURIComponent(book.isbn)}-L.jpg?default=false`);
   }
   return null;
 }

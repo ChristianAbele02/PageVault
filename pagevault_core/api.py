@@ -9,6 +9,7 @@ to test in isolation.
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import os
@@ -17,6 +18,9 @@ import sqlite3
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import zipfile
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
@@ -32,6 +36,19 @@ from pagevault_core.utils import format_from_binding, normalize_goodreads_date, 
 # elapses. State is per-process and in-memory, which suits a self-hosted app.
 _LOGIN_MAX_FAILURES = 5
 _LOGIN_WINDOW_SECONDS = 300
+
+# Cover cache proxy: hosts allowed for the /api/cover fetch (SSRF guard), the
+# download ceiling, and how the cached image is served.
+_COVER_HOSTS = {"covers.openlibrary.org", "books.google.com", "books.googleusercontent.com"}
+_COVER_MAX_BYTES = 10 * 1024 * 1024
+_COVER_FETCH_TIMEOUT = 8
+_COVER_CACHE_MAX_AGE = 86400
+_IMAGE_SUFFIXES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
 
 
 def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
@@ -1272,6 +1289,45 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         return send_file(
             str(file_path), mimetype=mime, conditional=True, download_name=download_name
         )
+
+    @bp.get("/cover")
+    def api_cover_proxy():
+        """Cache a remote book cover on disk and serve it, so it persists offline.
+
+        The cover URL is passed as ``?url=`` and must point at a known cover host
+        (an SSRF guard). The image is downloaded once, stored under the data
+        directory, and served from disk thereafter. Any failure returns 404, and the
+        frontend falls back to its placeholder.
+        """
+        raw_url = (request.args.get("url") or "").strip()
+        parsed = urllib.parse.urlparse(raw_url)
+        if parsed.scheme not in {"http", "https"} or parsed.hostname not in _COVER_HOSTS:
+            return err("Cover host not allowed", 400)
+
+        cache_dir = pathlib.Path(current_app.config["BOOK_FILES_DIR"]).parent / "covers"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        key = hashlib.sha256(raw_url.encode("utf-8")).hexdigest()
+
+        existing = next(iter(cache_dir.glob(f"{key}.*")), None)
+        if existing and existing.is_file():
+            return send_file(str(existing), max_age=_COVER_CACHE_MAX_AGE)
+
+        try:
+            req = urllib.request.Request(raw_url, headers={"User-Agent": "PageVault"})
+            with urllib.request.urlopen(req, timeout=_COVER_FETCH_TIMEOUT) as resp:
+                content_type = (resp.headers.get("Content-Type") or "").split(";", 1)[0].strip()
+                if not content_type.startswith("image/"):
+                    return err("Cover unavailable", 404)
+                data = resp.read(_COVER_MAX_BYTES + 1)
+        except (urllib.error.URLError, OSError, ValueError):
+            return err("Cover unavailable", 404)
+
+        if not data or len(data) > _COVER_MAX_BYTES:
+            return err("Cover unavailable", 404)
+
+        target = cache_dir / f"{key}{_IMAGE_SUFFIXES.get(content_type, '.img')}"
+        target.write_bytes(data)
+        return send_file(str(target), max_age=_COVER_CACHE_MAX_AGE)
 
     def remove_book_files(book_id: int) -> None:
         """Delete any stored ebook files for a book from disk."""

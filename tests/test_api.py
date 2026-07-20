@@ -1695,3 +1695,55 @@ class TestBookListRelations:
         untagged = books[second["isbn"]]
         assert untagged["genre_tags"] == []
         assert untagged["shelves"] == []
+
+
+def test_cover_proxy_allowlist_and_cache(client, monkeypatch):
+    """/api/cover guards its host allowlist, caches downloads, and fails soft."""
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    fake = b"\x89PNG\r\n\x1a\n" + b"coverbytes" * 20
+    calls = {"n": 0}
+
+    class FakeResp:
+        headers = {"Content-Type": "image/png"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self, _n=-1):
+            return fake
+
+    def fake_urlopen(_req, timeout=None):
+        calls["n"] += 1
+        return FakeResp()
+
+    def q(url):
+        return "/api/cover?url=" + urllib.parse.quote(url, safe="")
+
+    ol = "https://covers.openlibrary.org/b/id/12345-L.jpg"
+
+    # SSRF guard: unknown host and missing url are rejected before any fetch.
+    assert client.get(q("https://evil.example/x.jpg")).status_code == 400
+    assert client.get("/api/cover").status_code == 400
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    first = client.get(q(ol))
+    assert first.status_code == 200
+    assert first.data == fake
+    assert calls["n"] == 1
+
+    # A second request is served from the on-disk cache without re-downloading.
+    assert client.get(q(ol)).status_code == 200
+    assert calls["n"] == 1
+
+    # A download failure yields 404 so the frontend shows its placeholder.
+    def failing(_req, timeout=None):
+        raise urllib.error.URLError("boom")
+
+    monkeypatch.setattr(urllib.request, "urlopen", failing)
+    assert client.get(q("https://covers.openlibrary.org/b/id/99999-L.jpg")).status_code == 404

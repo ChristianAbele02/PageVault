@@ -10,6 +10,7 @@ Usage:
 
 from __future__ import annotations
 
+import gzip
 import logging
 import os
 import socket
@@ -46,6 +47,21 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger(__name__)
+
+# Response compression: gzip these text types for networked (non-loopback) clients.
+_COMPRESSIBLE_TYPES = {
+    "text/html",
+    "text/css",
+    "text/plain",
+    "text/xml",
+    "application/javascript",
+    "application/json",
+    "application/xml",
+    "image/svg+xml",
+}
+_MIN_COMPRESS_BYTES = 1024
+# Vendored libraries and fonts change rarely; let browsers hold them for a day.
+_VENDOR_CACHE_CONTROL = "public, max-age=86400"
 
 
 def _ensure_file_logging(log_file: str | None) -> None:
@@ -164,6 +180,34 @@ def create_app(config: dict | None = None) -> Flask:
     @app.get("/api/mobile/connect")
     def mobile_connect_info():
         return jsonify({"url": _mobile_base_url()})
+
+    @app.after_request
+    def _optimise_response(response):
+        # Long-cache the vendored libraries and fonts (stable content).
+        if request.path.startswith("/static/vendor/"):
+            response.headers["Cache-Control"] = _VENDOR_CACHE_CONTROL
+
+        # gzip large text responses for networked clients only. Loopback callers
+        # (the desktop and Android WebViews, localhost, and a local TLS-terminating
+        # proxy) gain nothing from compression and would only pay CPU, so skip them.
+        remote = request.remote_addr or ""
+        if remote.startswith("127.") or remote == "::1":
+            return response
+        if "gzip" not in request.headers.get("Accept-Encoding", "").lower():
+            return response
+        # Streamed/static (send_file) responses and already-encoded ones are left alone.
+        if response.direct_passthrough or response.content_encoding:
+            return response
+        content_type = (response.content_type or "").split(";", 1)[0].strip()
+        if content_type not in _COMPRESSIBLE_TYPES:
+            return response
+        data = response.get_data()
+        if len(data) < _MIN_COMPRESS_BYTES:
+            return response
+        response.set_data(gzip.compress(data, compresslevel=6))
+        response.content_encoding = "gzip"
+        response.headers["Vary"] = "Accept-Encoding"
+        return response
 
     core_db.bootstrap_database(app)
 

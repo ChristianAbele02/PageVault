@@ -11,7 +11,7 @@ the pinned source below.
 | File | Version | Source |
 |---|---|---|
 | `html5-qrcode.min.js` | 2.3.8 | https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js |
-| `plotly.min.js` | 2.35.2 | https://cdn.plot.ly/plotly-2.35.2.min.js |
+| `plotly-basic.min.js` | 2.35.2 | https://cdn.plot.ly/plotly-basic-2.35.2.min.js (partial build: bar/pie/scatter, ~1 MB vs 4.5 MB — covers every chart the stats page uses) |
 | `epub.min.js` | 0.3.93 | https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js (bundles JSZip) |
 | `qrcode.min.js` | 1.0.0 | https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js |
 | `fonts/` | Google Fonts | Playfair Display + Lato, woff2 subsets + rewritten `fonts.css` |

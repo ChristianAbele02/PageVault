@@ -8,7 +8,9 @@
 <link rel="manifest" href="/static/manifest.webmanifest">
 <!-- Vendored locally for offline use (see templates/index.html). -->
 <link href="/static/vendor/fonts/fonts.css" rel="stylesheet">
-<script src="/static/vendor/plotly.min.js"></script>
+<!-- plotly-basic covers every trace type used here (bar, pie, scatter) at ~1 MB
+     instead of the 4.5 MB full build. Kept synchronous: the init IIFE runs at parse. -->
+<script src="/static/vendor/plotly-basic.min.js"></script>
 <script src="/static/i18n.js"></script>
 <style>
   :root {

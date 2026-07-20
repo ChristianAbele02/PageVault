@@ -20,8 +20,11 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Playfair Display / Lato web fonts are vendored under `static/vendor`, so the
   app no longer depends on any CDN at runtime. This is a prerequisite for the
   Android build and also hardens the web and desktop builds against CDN outages.
-- **Offline cover cache.** The service worker now caches book cover images, so a
-  library you have already browsed keeps its covers without a connection.
+- **Offline cover cache.** Covers are cached two ways so a browsed library keeps
+  them without a connection: the service worker caches cover images in the
+  browser, and a new `/api/cover` proxy downloads each cover once and serves it
+  from local disk (with an SSRF host allowlist). The on-disk cache is what makes
+  covers survive offline in the Android app.
 
 ### Fixed
 - **Reader page listed no books.** `/reader` parsed the book list as
@@ -47,6 +50,15 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the background.
 
 ### Changed
+- **Lighter, faster front-end.** The stats page now loads the `plotly-basic`
+  build (~1 MB) instead of the full 4.5 MB one, since it only uses bar, pie, and
+  scatter traces. The scanner, QR, and reader libraries are deferred so they no
+  longer block first paint, and the vendored libraries and fonts carry a one-day
+  cache header.
+- **gzip for networked clients.** Text responses (HTML, JSON) are gzip-compressed
+  for non-loopback clients, so same-Wi-Fi phones and self-hosted deployments
+  transfer far less. Loopback callers (the desktop and Android WebViews) skip it,
+  since compression buys nothing over the local socket.
 - **SQLite tuning.** Connections now use `synchronous=NORMAL` (the recommended,
   faster pairing with WAL) and a 5-second `busy_timeout`, so the desktop build's
   two servers queue on writes instead of failing with "database is locked".

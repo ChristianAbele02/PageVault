@@ -97,8 +97,9 @@ restore. Large imports run as background jobs with a progress bar and are idempo
 locally. Responsive layout with native-app polish on the Android build.
 
 **Fully local &amp; offline-capable.** Your whole library is one `pagevault.db` file. All
-front-end libraries and fonts are vendored (no CDN at runtime), a service worker caches the
-app shell and book covers, so everything except online metadata lookup works offline.
+front-end libraries and fonts are vendored (no CDN at runtime), and the app shell and book
+covers are cached locally (a service worker plus an on-disk cover cache), so everything
+except online metadata lookup works offline.
 
 ---
 
