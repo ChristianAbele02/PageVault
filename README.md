@@ -77,11 +77,13 @@ saved quotes with page numbers.
 
 **Built-in e-book reader.** Attach an EPUB or PDF to any book and read it in-app, in a
 full-screen dialog or on the dedicated `/reader` page. Position is saved automatically and
-folded into page progress.
+folded into page progress. An **OPDS feed** (`/opds`) also lets external e-reader apps
+(KOReader, Moon+ Reader) browse and download your library.
 
-**Organisation &amp; discovery.** Custom shelves (with optional logos), genre-tag chips
-(deduped, max 10), full search and filtering by status/author/genre/shelf/text, and local
-similarity recommendations computed from your own library, no external service.
+**Organisation, search &amp; discovery.** Custom shelves (with optional logos), genre-tag
+chips (deduped, max 10), filtering by status/author/genre/shelf, **full-text search across
+book metadata, your review notes, and saved quotes** (SQLite FTS5), and local similarity
+recommendations computed from your own library, no external service.
 
 **Stats dashboard.** `/stats` renders 20+ interactive Plotly charts: books/pages by status,
 top genres and authors, rating distribution, monthly activity, format and decade breakdowns,
@@ -201,6 +203,7 @@ otherwise `https://localhost:5000` (add `curl -k`).
 | `POST` | `/api/books` | Add a book `{ isbn, status?, genre_tags?, shelf_ids?, book_data? }` |
 | `GET` `PATCH` `DELETE` | `/api/books/:id` | Book detail / update / delete |
 | `GET` | `/api/books/:id/recommendations` | Similar books from your library (`?limit=`) |
+| `GET` | `/api/search` | Full-text search across metadata, review notes, and quotes (`?q=`) |
 | `GET` `POST` `DELETE` | `/api/books/:id/reviews[/:rid]` | Reviews `{ rating?, comment?, current_page? }` |
 | `GET` `POST` `DELETE` | `/api/books/:id/quotes[/:qid]` | Quotes with page numbers |
 | `GET` `POST` `DELETE` | `/api/books/:id/reads[/:rid]` | Re-read history |
@@ -218,6 +221,7 @@ otherwise `https://localhost:5000` (add `curl -k`).
 | `GET` `POST` | `/api/backup/download` · `/api/backup/restore/{validate,apply}` | Backup / restore |
 | `POST` | `/api/admin/{login,logout}` · `GET /api/admin/{diagnostics,logs}` | Admin session + diagnostics |
 | `GET` | `/api/mobile/connect` | Same-network URL for the mobile QR |
+| `GET` | `/opds` | OPDS 1.2 acquisition feed of books with e-book files (for e-reader apps) |
 
 ```bash
 # Add by ISBN (metadata fetched automatically), then review it

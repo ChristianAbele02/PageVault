@@ -1747,3 +1747,68 @@ def test_cover_proxy_allowlist_and_cache(client, monkeypatch):
 
     monkeypatch.setattr(urllib.request, "urlopen", failing)
     assert client.get(q("https://covers.openlibrary.org/b/id/99999-L.jpg")).status_code == 404
+
+
+def test_fts_search_across_metadata_reviews_and_quotes(client):
+    """/api/search matches book metadata, review notes, and quotes."""
+    payload = {
+        "isbn": "9780451524935",
+        "book_data": {
+            "isbn": "9780451524935",
+            "title": "Nineteen Eighty-Four",
+            "author": "George Orwell",
+            "description": "Dystopian classic about surveillance",
+            "pages": 328,
+        },
+        "status": "read",
+    }
+    book_id = client.post("/api/books", json=payload).get_json()["id"]
+    client.post(f"/api/books/{book_id}/reviews", json={"rating": 5, "comment": "Chilling doublethink"})
+    client.post(f"/api/books/{book_id}/quotes", json={"text": "War is peace. Freedom is slavery.", "page_number": 4})
+
+    def finds(term):
+        return any(r["book_id"] == book_id for r in client.get(f"/api/search?q={term}").get_json())
+
+    assert finds("orwell")  # author metadata
+    assert finds("dystopian")  # description
+    assert finds("doublethink")  # review note
+    assert finds("slavery")  # quote
+    assert client.get("/api/search?q=zzzznomatch").get_json() == []
+    assert client.get("/api/search?q=").get_json() == []
+
+
+def test_opds_acquisition_feed(client, app):
+    """/opds is a valid Atom feed listing books that have an e-book file."""
+    import sqlite3 as _sqlite
+    import xml.etree.ElementTree as _ET
+
+    payload = {
+        "isbn": "9780743273565",
+        "book_data": {
+            "isbn": "9780743273565",
+            "title": "The Great Gatsby",
+            "author": "F. Scott Fitzgerald",
+        },
+        "status": "read",
+    }
+    book_id = client.post("/api/books", json=payload).get_json()["id"]
+    ns = {"a": "http://www.w3.org/2005/Atom"}
+
+    # No file attached yet: a valid but empty acquisition feed.
+    empty = _ET.fromstring(client.get("/opds").data)
+    assert empty.tag == "{http://www.w3.org/2005/Atom}feed"
+    assert empty.findall("a:entry", ns) == []
+
+    # Attach a file, then the book appears with an acquisition link.
+    conn = _sqlite.connect(app.config["DATABASE"])
+    conn.execute(
+        "UPDATE books SET file_path=?, file_type=? WHERE id=?", (f"{book_id}.epub", "epub", book_id)
+    )
+    conn.commit()
+    conn.close()
+
+    resp = client.get("/opds")
+    assert "profile=opds-catalog" in resp.headers["Content-Type"]
+    root = _ET.fromstring(resp.data)
+    assert len(root.findall("a:entry", ns)) == 1
+    assert len(root.findall(".//a:link[@rel='http://opds-spec.org/acquisition']", ns)) == 1

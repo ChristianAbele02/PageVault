@@ -9,6 +9,16 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Full-text search** (`GET /api/search?q=`) across book metadata, review notes,
+  and saved quotes, backed by a SQLite FTS5 index. Results group by book with up
+  to three highlighted excerpts labelled by source. The index is maintained by
+  lightweight dirty-flag triggers and rebuilt lazily, and it degrades gracefully
+  on a SQLite build without FTS5.
+- **OPDS catalogue** (`GET /opds`). An OPDS 1.2 acquisition feed of every book
+  with an attached e-book file, so e-reader apps (KOReader, Moon+ Reader, and
+  similar) can browse your library and download EPUB/PDF files directly.
+
 ## [1.8.0] — 2026-07-20
 
 ### Added

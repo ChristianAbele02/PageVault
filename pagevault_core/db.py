@@ -257,8 +257,93 @@ def ensure_schema(db: sqlite3.Connection) -> None:
     if "reader_position" not in book_cols:
         db.execute("ALTER TABLE books ADD COLUMN reader_position TEXT")
 
+    _ensure_search_schema(db)
+
     db.commit()
     log.info("Database schema verified.")
+
+
+def _ensure_search_schema(db: sqlite3.Connection) -> None:
+    """Set up the FTS5 full-text index over book metadata, reviews, and quotes.
+
+    Guarded: if this SQLite build lacks FTS5, full-text search is simply
+    unavailable and nothing else is affected. The index is populated lazily (see
+    :func:`ensure_search_index`); the triggers only flip a dirty flag, so ordinary
+    writes stay cheap.
+    """
+    try:
+        db.executescript(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
+                book_id UNINDEXED, source UNINDEXED, body, tokenize='porter unicode61'
+            );
+            CREATE TABLE IF NOT EXISTS search_state (
+                id INTEGER PRIMARY KEY CHECK(id = 1),
+                dirty INTEGER NOT NULL DEFAULT 1
+            );
+            INSERT OR IGNORE INTO search_state(id, dirty) VALUES (1, 1);
+
+            CREATE TRIGGER IF NOT EXISTS search_dirty_books_ai
+                AFTER INSERT ON books BEGIN UPDATE search_state SET dirty=1 WHERE id=1; END;
+            CREATE TRIGGER IF NOT EXISTS search_dirty_books_au
+                AFTER UPDATE ON books BEGIN UPDATE search_state SET dirty=1 WHERE id=1; END;
+            CREATE TRIGGER IF NOT EXISTS search_dirty_books_ad
+                AFTER DELETE ON books BEGIN UPDATE search_state SET dirty=1 WHERE id=1; END;
+            CREATE TRIGGER IF NOT EXISTS search_dirty_reviews_ai
+                AFTER INSERT ON reviews BEGIN UPDATE search_state SET dirty=1 WHERE id=1; END;
+            CREATE TRIGGER IF NOT EXISTS search_dirty_reviews_au
+                AFTER UPDATE ON reviews BEGIN UPDATE search_state SET dirty=1 WHERE id=1; END;
+            CREATE TRIGGER IF NOT EXISTS search_dirty_reviews_ad
+                AFTER DELETE ON reviews BEGIN UPDATE search_state SET dirty=1 WHERE id=1; END;
+            CREATE TRIGGER IF NOT EXISTS search_dirty_quotes_ai
+                AFTER INSERT ON quotes BEGIN UPDATE search_state SET dirty=1 WHERE id=1; END;
+            CREATE TRIGGER IF NOT EXISTS search_dirty_quotes_au
+                AFTER UPDATE ON quotes BEGIN UPDATE search_state SET dirty=1 WHERE id=1; END;
+            CREATE TRIGGER IF NOT EXISTS search_dirty_quotes_ad
+                AFTER DELETE ON quotes BEGIN UPDATE search_state SET dirty=1 WHERE id=1; END;
+            """
+        )
+    except sqlite3.OperationalError as exc:
+        log.warning("Full-text search disabled (SQLite build without FTS5): %s", exc)
+
+
+def search_index_available(db: sqlite3.Connection) -> bool:
+    """Return True if the FTS5 search index exists on this database."""
+    row = db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='search_fts'"
+    ).fetchone()
+    return row is not None
+
+
+def rebuild_search_index(db: sqlite3.Connection) -> None:
+    """Repopulate the FTS index from book metadata, review comments, and quotes."""
+    db.execute("DELETE FROM search_fts")
+    db.execute(
+        """INSERT INTO search_fts(book_id, source, body)
+           SELECT id, 'book',
+                  TRIM(COALESCE(title, '') || ' ' || COALESCE(author, '') || ' ' ||
+                       COALESCE(series_name, '') || ' ' || COALESCE(description, ''))
+           FROM books"""
+    )
+    db.execute(
+        """INSERT INTO search_fts(book_id, source, body)
+           SELECT book_id, 'review', comment FROM reviews
+           WHERE comment IS NOT NULL AND TRIM(comment) != ''"""
+    )
+    db.execute(
+        """INSERT INTO search_fts(book_id, source, body)
+           SELECT book_id, 'quote', text FROM quotes
+           WHERE text IS NOT NULL AND TRIM(text) != ''"""
+    )
+    db.execute("UPDATE search_state SET dirty=0 WHERE id=1")
+    db.commit()
+
+
+def ensure_search_index(db: sqlite3.Connection) -> None:
+    """Rebuild the FTS index if a write has marked it dirty since the last build."""
+    row = db.execute("SELECT dirty FROM search_state WHERE id=1").fetchone()
+    if row is None or row["dirty"]:
+        rebuild_search_index(db)
 
 
 def bootstrap_database(app: Flask) -> None:
