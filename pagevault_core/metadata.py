@@ -621,8 +621,13 @@ def lookup_title_author(
     if hit:
         return cached
 
-    openlibrary_data = fetch_openlibrary_title_fn(clean_title, author)
-    googlebooks_data = fetch_googlebooks_title_fn(clean_title, author)
+    # Query both providers concurrently (matching lookup_isbn); the merge order is
+    # unaffected by which returns first, so Open Library stays primary.
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        ol_future = executor.submit(fetch_openlibrary_title_fn, clean_title, author)
+        gb_future = executor.submit(fetch_googlebooks_title_fn, clean_title, author)
+        openlibrary_data = ol_future.result()
+        googlebooks_data = gb_future.result()
     merged = merge_lookup_data(openlibrary_data, googlebooks_data)
 
     if merged and merged.get("year"):
