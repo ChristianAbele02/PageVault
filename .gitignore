@@ -72,6 +72,11 @@ certs/
 *.cer
 *.crt
 *.key
+# Android release signing. android/.gitignore only covers files under android/,
+# so keep these here too — the keystore may sit at the repo root.
+*.keystore
+*.jks
+keystore.properties
 
 # ── IDEs ──────────────────────────────────────────────────────────────────────
 .vscode/
