@@ -7,7 +7,7 @@
   Scan ISBN barcodes · fetch covers &amp; metadata automatically · keep your reading life private.
 </p>
 
-<p align="center"><strong>Latest release:</strong> v1.9.1 · installable <a href="https://github.com/ChristianAbele02/PageVault/releases">Android APK</a>, now security-hardened</p>
+<p align="center"><strong>Latest release:</strong> v1.9.2 · fresh app icon · installable <a href="https://github.com/ChristianAbele02/PageVault/releases">Android APK</a></p>
 
 <br/>
 

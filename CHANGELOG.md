@@ -7,6 +7,17 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.9.2] — 2026-07-23
+
+### Changed
+- **New app icon.** An open book in front of a softly-lit library of bookshelves,
+  with a kraft "A.-K." tag hanging below it, replacing the closed-book-and-dial
+  mark. Applied across every surface: the Windows `.ico`/`.png`, the web/PWA SVG,
+  the site logo, and the Android launcher (a bitmap adaptive icon reframed to the
+  mask safe zone). The artwork is generated from a single vector scene by the new
+  `tools/render_icons.py`; `tools/make_icon.py` now packages the master PNG into
+  the `.ico` with Pillow only, so CI needs no browser.
+
 ## [1.9.1] — 2026-07-23
 
 A security-hardening release. The Android APK is now signed with a persistent

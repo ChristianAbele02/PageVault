@@ -3,54 +3,35 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- A book seen at a slight angle, with a combination-lock dial on the cover,
-         reproducing the PageVault mark within the adaptive-icon safe zone. -->
-    <group
-        android:name="book"
-        android:pivotX="52"
-        android:pivotY="52"
-        android:scaleX="0.82"
-        android:scaleY="0.82"
-        android:translateX="2"
-        android:translateY="2">
-        <!-- Pages (back) -->
-        <path
-            android:fillColor="#ECE0CB"
-            android:pathData="M60,14 L86,16 L84,90 L58,88 Z" />
-        <!-- Spine -->
-        <path
-            android:fillColor="#7A5A34"
-            android:pathData="M54,14 L62,14 L60,88 L52,88 Z" />
-        <!-- Cover (front) -->
-        <path
-            android:fillColor="#D4A843"
-            android:pathData="M20,14 L56,14 L54,88 L18,88 Z" />
-        <!-- Dial: dark disc -->
-        <path
-            android:fillColor="#201509"
-            android:pathData="M22,48 a16,16 0 1,0 32,0 a16,16 0 1,0 -32,0 Z" />
-        <!-- Dial: outer ring -->
-        <path
-            android:fillColor="#00000000"
-            android:strokeColor="#E7BE5E"
-            android:strokeWidth="1.3"
-            android:pathData="M24.5,48 a13.5,13.5 0 1,0 27,0 a13.5,13.5 0 1,0 -27,0" />
-        <!-- Dial: inner ring -->
-        <path
-            android:fillColor="#00000000"
-            android:strokeColor="#E7BE5E"
-            android:strokeAlpha="0.5"
-            android:strokeWidth="0.9"
-            android:pathData="M29,48 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0" />
-        <!-- Dial: centre -->
-        <path
-            android:fillColor="#E7BE5E"
-            android:pathData="M34,48 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0 Z" />
-        <!-- Dial: pointer -->
-        <path
-            android:strokeColor="#E7BE5E"
-            android:strokeWidth="1.8"
-            android:strokeLineCap="round"
-            android:pathData="M38,48 L38,35.5" />
-    </group>
+    <!-- Open-book logo used by the splash and loading screens. The launcher icon
+         itself uses the richer bitmap layers (ic_launcher_foreground.png +
+         ic_launcher_background.png); a VectorDrawable cannot express the blurred
+         library or the tag, so this is the clean book-only mark. -->
+    <!-- Cover -->
+    <path
+        android:fillColor="#D4A843"
+        android:pathData="M54,26 Q22,20 8,18 Q12,56 18,90 Q37,96 54,91 Q71,96 90,90 Q96,56 100,18 Q86,20 54,26 Z" />
+    <!-- Pages -->
+    <path
+        android:fillColor="#F0E8DA"
+        android:pathData="M54,31 Q27,25 13,23 Q17,56 22,86 Q38,92 54,87 Z" />
+    <path
+        android:fillColor="#F0E8DA"
+        android:pathData="M54,31 Q81,25 95,23 Q91,56 86,86 Q70,92 54,87 Z" />
+    <!-- Page lines -->
+    <path
+        android:strokeColor="#C4A882"
+        android:strokeWidth="1.4"
+        android:strokeAlpha="0.6"
+        android:strokeLineCap="round"
+        android:pathData="M19,39 L45,40 M19,48 L45,49 M19,57 L45,58 M19,66 L45,67 M63,40 L89,39 M63,49 L89,48 M63,58 L89,57 M63,67 L89,66" />
+    <!-- Gutter -->
+    <path
+        android:fillColor="#2A1C0E"
+        android:fillAlpha="0.35"
+        android:pathData="M53,31 L55,31 L55,87 L53,87 Z" />
+    <!-- Bookmark ribbon -->
+    <path
+        android:fillColor="#9B3A1C"
+        android:pathData="M50,27 L58,27 L57,103 L54,96 L51,103 Z" />
 </vector>
