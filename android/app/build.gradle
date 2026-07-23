@@ -27,6 +27,28 @@ tasks.register('syncWebAssets', Sync) {
     from("${repoRoot}/static") { into 'static' }
 }
 
+// ── Release signing ──
+// Provide credentials either in android/keystore.properties (git-ignored):
+//   storeFile=release.keystore
+//   storePassword=...
+//   keyAlias=pagevault
+//   keyPassword=...
+// or as CI environment variables (ANDROID_KEYSTORE_FILE, ANDROID_KEYSTORE_PASSWORD,
+// ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD). Without either, release builds fall
+// back to the debug key so the APK is still installable (sideloading requires
+// some signature) — but updates only install over the same key, so use one
+// persistent release keystore for anything you distribute.
+def signingProps = new Properties()
+def signingPropsFile = rootProject.file('keystore.properties')
+if (signingPropsFile.exists()) {
+    signingPropsFile.withInputStream { signingProps.load(it) }
+}
+def resolvedStoreFile = signingProps.getProperty('storeFile') ?: System.getenv('ANDROID_KEYSTORE_FILE')
+def resolvedStorePassword = signingProps.getProperty('storePassword') ?: System.getenv('ANDROID_KEYSTORE_PASSWORD')
+def resolvedKeyAlias = signingProps.getProperty('keyAlias') ?: System.getenv('ANDROID_KEY_ALIAS')
+def resolvedKeyPassword = signingProps.getProperty('keyPassword') ?: System.getenv('ANDROID_KEY_PASSWORD')
+def hasReleaseSigning = resolvedStoreFile != null && rootProject.file(resolvedStoreFile).exists()
+
 android {
     namespace 'com.pagevault.app'
     compileSdk 34
@@ -35,8 +57,10 @@ android {
         applicationId 'com.pagevault.app'
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName '1.0.0'
+        // Keep versionName in step with the PageVault release (pyproject.toml)
+        // and bump versionCode on every released APK so updates install cleanly.
+        versionCode 2
+        versionName '1.9.0'
 
         ndk {
             // Chaquopy ships CPython for these ABIs. arm64-v8a covers modern
@@ -45,10 +69,22 @@ android {
         }
     }
 
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile rootProject.file(resolvedStoreFile)
+                storePassword resolvedStorePassword
+                keyAlias resolvedKeyAlias
+                keyPassword resolvedKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
         }
     }
 
@@ -71,7 +107,7 @@ android {
 
 chaquopy {
     defaultConfig {
-        version = '3.12'
+        version = '3.13'
         pip {
             // The app's only third-party runtime dependencies. Flask pulls in
             // Werkzeug, Jinja2, click, itsdangerous, MarkupSafe and blinker.
@@ -98,4 +134,16 @@ dependencies {
 // Assemble the copied sources and assets before the build consumes them.
 tasks.named('preBuild').configure {
     dependsOn('syncPythonSource', 'syncWebAssets')
+}
+
+// Gradle 8.13 fails the build if a task reads another task's output without a
+// declared dependency; the preBuild ordering above no longer satisfies that check
+// on its own. Chaquopy's merge task consumes the staged Python sources and AGP's
+// merge task consumes the generated web assets, so wire each consumer to its
+// producer explicitly.
+tasks.matching { it.name ==~ /merge.*PythonSources/ }.configureEach {
+    dependsOn('syncPythonSource')
+}
+tasks.matching { it.name ==~ /merge.*Assets/ }.configureEach {
+    dependsOn('syncWebAssets')
 }

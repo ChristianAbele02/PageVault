@@ -30,7 +30,7 @@ MainActivity (Kotlin)
 ## Prerequisites
 
 - Android Studio (bundles the Android SDK and its own JDK 17). The project's
-  wrapper is Gradle 8.7.
+  wrapper is Gradle 8.13.
 - Android SDK Platform 34 and the NDK (Android Studio offers to install the NDK
   on first sync; Chaquopy needs it).
 - A physical device with USB debugging is best for testing the real camera.
@@ -54,11 +54,11 @@ Set in `build.gradle` / `app/build.gradle`, confirm or bump on first sync:
 
 | Component | Version |
 |---|---|
-| Gradle | 8.7 |
-| Android Gradle Plugin | 8.5.2 |
+| Gradle | 8.13 |
+| Android Gradle Plugin | 8.13.2 |
 | Kotlin | 1.9.24 |
-| Chaquopy | 16.0.0 |
-| Python | 3.12 |
+| Chaquopy | 17.0.0 |
+| Python | 3.13 |
 | compileSdk / targetSdk | 34 |
 | minSdk | 26 (Android 8.0) |
 
@@ -77,6 +77,30 @@ The first build is where the toolchain versions get aligned. Confirm, in order:
    barcode is read.
 4. Adding the scanned book fills in metadata (needs internet) and it persists
    across an app restart (proves on-device storage).
+
+## Releasing an APK
+
+`.github/workflows/android-release.yml` builds the APK on every `v*` tag and
+attaches it to the GitHub release as `PageVault-<version>.apk`.
+
+Signing: Android only installs updates over the same signing key, so releases
+should use one persistent keystore. Create it once:
+
+```bash
+keytool -genkeypair -v -keystore release.keystore -alias pagevault \
+  -keyalg RSA -keysize 4096 -validity 10000
+```
+
+Then either put it at `android/release.keystore` with an `android/keystore.properties`
+(both git-ignored) for local `gradlew assembleRelease` builds, or store it in CI as
+repository secrets: `ANDROID_KEYSTORE_BASE64` (the file base64-encoded) plus
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+Without a keystore the workflow falls back to a debug signature — installable,
+but updates then require uninstalling first. Keep the keystore backed up
+privately; losing it means users must reinstall from scratch.
+
+Bump `versionCode` (and `versionName`) in `app/build.gradle` for every released
+APK, or Android will refuse the update.
 
 ## Troubleshooting
 

@@ -15,10 +15,12 @@ import logging
 import os
 import socket
 import sqlite3
+import xml.etree.ElementTree as ET
 from logging.handlers import RotatingFileHandler
 
 from flask import (
     Flask,
+    Response,
     current_app,
     jsonify,
     redirect,
@@ -57,11 +59,74 @@ _COMPRESSIBLE_TYPES = {
     "application/javascript",
     "application/json",
     "application/xml",
+    "application/atom+xml",
     "image/svg+xml",
 }
 _MIN_COMPRESS_BYTES = 1024
 # Vendored libraries and fonts change rarely; let browsers hold them for a day.
 _VENDOR_CACHE_CONTROL = "public, max-age=86400"
+
+# ── OPDS catalogue (e-reader apps: KOReader, Moon+ Reader, …) ────────────────────
+_ATOM_NS = "http://www.w3.org/2005/Atom"
+_OPDS_ACQUISITION = "http://opds-spec.org/2010/catalog"
+_OPDS_CONTENT_TYPE = "application/atom+xml;profile=opds-catalog;kind=acquisition"
+ET.register_namespace("", _ATOM_NS)
+
+
+def _opds_feed_xml(rows, host_url: str, updated: str) -> bytes:
+    """Build an OPDS 1.2 acquisition feed (Atom XML) for books with an e-book file.
+
+    Args:
+        rows: book rows (id, title, author, description, cover_url, isbn, file_type,
+            updated_at) for books that have a downloadable file attached.
+        host_url: the request's absolute root, e.g. ``http://host:5000/``.
+        updated: an ISO-8601 timestamp for the feed's ``updated`` element.
+    """
+
+    def el(parent, tag: str, text: str | None = None, **attrs: str):
+        node = ET.SubElement(parent, f"{{{_ATOM_NS}}}{tag}")
+        if text is not None:
+            node.text = text
+        for key, value in attrs.items():
+            node.set(key, value)
+        return node
+
+    feed = ET.Element(f"{{{_ATOM_NS}}}feed")
+    el(feed, "id", "urn:pagevault:catalogue")
+    el(feed, "title", "PageVault Library")
+    el(feed, "updated", updated)
+    el(el(feed, "author"), "name", "PageVault")
+    el(feed, "link", rel="self", href=f"{host_url}opds", type=_OPDS_CONTENT_TYPE)
+    el(feed, "link", rel="start", href=f"{host_url}opds", type=_OPDS_CONTENT_TYPE)
+
+    for row in rows:
+        entry = el(feed, "entry")
+        el(entry, "title", row["title"] or "Untitled")
+        el(entry, "id", f"urn:pagevault:book:{row['id']}")
+        el(entry, "updated", row["updated_at"] or updated)
+        if row["author"]:
+            el(el(entry, "author"), "name", row["author"])
+        if row["description"]:
+            el(entry, "summary", row["description"], type="text")
+        if row["cover_url"]:
+            el(
+                entry,
+                "link",
+                rel="http://opds-spec.org/image",
+                href=row["cover_url"],
+                type="image/jpeg",
+            )
+        mime = "application/epub+zip" if (row["file_type"] or "") == "epub" else "application/pdf"
+        el(
+            entry,
+            "link",
+            rel="http://opds-spec.org/acquisition",
+            href=f"{host_url}api/books/{row['id']}/file",
+            type=mime,
+        )
+
+    body = ET.tostring(feed, encoding="unicode")
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n' + body).encode("utf-8")
 
 
 def _ensure_file_logging(log_file: str | None) -> None:
@@ -180,6 +245,20 @@ def create_app(config: dict | None = None) -> Flask:
     @app.get("/api/mobile/connect")
     def mobile_connect_info():
         return jsonify({"url": _mobile_base_url()})
+
+    @app.get("/opds")
+    def opds_catalog():
+        # An OPDS acquisition feed of every book that has an e-book file attached,
+        # so e-reader apps (KOReader, Moon+ Reader, …) can browse and download them.
+        db = get_db()
+        rows = db.execute(
+            """SELECT id, title, author, description, cover_url, isbn, file_type, updated_at
+               FROM books
+               WHERE file_path IS NOT NULL AND TRIM(COALESCE(file_path, '')) != ''
+               ORDER BY updated_at DESC"""
+        ).fetchall()
+        xml = _opds_feed_xml(rows, request.host_url, _now())
+        return Response(xml, content_type=f"{_OPDS_CONTENT_TYPE};charset=utf-8")
 
     @app.after_request
     def _optimise_response(response):

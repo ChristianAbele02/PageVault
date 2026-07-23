@@ -14,6 +14,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import sqlite3
 import tempfile
 import threading
@@ -27,9 +28,24 @@ from typing import Any, cast
 
 from flask import Blueprint, Response, current_app, jsonify, request, send_file, session
 
-from pagevault_core.db import ensure_schema
+from pagevault_core.db import ensure_schema, ensure_search_index, search_index_available
 from pagevault_core.services import admin_service, recommendations
 from pagevault_core.utils import format_from_binding, normalize_goodreads_date, repair_mojibake
+
+
+def _to_fts_query(text: str) -> str:
+    """Turn free text into a safe FTS5 MATCH query.
+
+    Only word characters survive tokenisation, so no FTS operator can slip in; the
+    terms are ANDed and the final one is a prefix match for as-you-type behaviour.
+    """
+    tokens = re.findall(r"\w+", text.lower())
+    if not tokens:
+        return ""
+    parts = [f'"{token}"' for token in tokens[:-1]]
+    parts.append(f"{tokens[-1]}*")
+    return " ".join(parts)
+
 
 # Admin login brute-force throttle: after this many failed attempts from one IP
 # within the window, further attempts are refused with HTTP 429 until the window
@@ -553,6 +569,63 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 for r in rows
             ]
         )
+
+    @bp.get("/search")
+    def api_search():
+        """Full-text search across book metadata, review notes, and quotes.
+
+        Returns one result per matching book, each with up to three highlighted
+        excerpts (matched terms wrapped in square brackets) labelled by their
+        source (``book``, ``review``, or ``quote``).
+        """
+        query = (request.args.get("q") or "").strip()
+        if not query:
+            return jsonify([])
+        db = get_db()
+        if not search_index_available(db):
+            return err("Full-text search is unavailable on this server", 503)
+        match = _to_fts_query(query)
+        if not match:
+            return jsonify([])
+        ensure_search_index(db)
+        try:
+            rows = db.execute(
+                """
+                SELECT sf.book_id, sf.source,
+                       snippet(search_fts, 2, '[', ']', '…', 12) AS excerpt,
+                       b.title, b.author, b.cover_url, b.isbn, b.status
+                FROM search_fts sf
+                JOIN books b ON b.id = sf.book_id
+                WHERE search_fts MATCH ?
+                ORDER BY bm25(search_fts)
+                LIMIT 100
+                """,
+                (match,),
+            ).fetchall()
+        except sqlite3.OperationalError as exc:
+            log.warning("Search failed for %r: %s", query, exc)
+            return jsonify([])
+
+        results: dict[int, dict[str, Any]] = {}
+        order: list[int] = []
+        for row in rows:
+            book_id = row["book_id"]
+            if book_id not in results:
+                results[book_id] = {
+                    "book_id": book_id,
+                    "title": row["title"],
+                    "author": row["author"],
+                    "cover_url": row["cover_url"],
+                    "isbn": row["isbn"],
+                    "status": row["status"],
+                    "matches": [],
+                }
+                order.append(book_id)
+            if len(results[book_id]["matches"]) < 3:
+                results[book_id]["matches"].append(
+                    {"source": row["source"], "excerpt": row["excerpt"]}
+                )
+        return jsonify([results[book_id] for book_id in order])
 
     @bp.post("/books")
     def api_add_book():

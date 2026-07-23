@@ -7,7 +7,7 @@
   Scan ISBN barcodes · fetch covers &amp; metadata automatically · keep your reading life private.
 </p>
 
-<p align="center"><strong>Latest release:</strong> v1.8.0 · Android app in development (build from source)</p>
+<p align="center"><strong>Latest release:</strong> v1.9.0 · now with an installable <a href="https://github.com/ChristianAbele02/PageVault/releases">Android APK</a></p>
 
 <br/>
 
@@ -51,7 +51,7 @@ Made with love for my wife Emili. ❤️
 |---|---|---|
 | **Web server** | Any device on your network, self-hosting, Docker | `python app.py`, or `docker compose up` |
 | **Desktop app** (Windows) | A double-click program, no terminal | Install the `.exe` from [Releases](https://github.com/ChristianAbele02/PageVault/releases) |
-| **Android app** | A phone app that runs fully offline on-device | Build `android/` in Android Studio ([guide](android/README.md)) |
+| **Android app** | A phone app that runs fully offline on-device | Install the APK from [Releases](https://github.com/ChristianAbele02/PageVault/releases), or build `android/` yourself ([guide](android/README.md)) |
 
 The web and desktop builds also let a phone scan barcodes over the LAN; the Android build
 puts the whole app on the phone, using its camera directly with no network needed (except
@@ -77,11 +77,13 @@ saved quotes with page numbers.
 
 **Built-in e-book reader.** Attach an EPUB or PDF to any book and read it in-app, in a
 full-screen dialog or on the dedicated `/reader` page. Position is saved automatically and
-folded into page progress.
+folded into page progress. An **OPDS feed** (`/opds`) also lets external e-reader apps
+(KOReader, Moon+ Reader) browse and download your library.
 
-**Organisation &amp; discovery.** Custom shelves (with optional logos), genre-tag chips
-(deduped, max 10), full search and filtering by status/author/genre/shelf/text, and local
-similarity recommendations computed from your own library, no external service.
+**Organisation, search &amp; discovery.** Custom shelves (with optional logos), genre-tag
+chips (deduped, max 10), filtering by status/author/genre/shelf, **full-text search across
+book metadata, your review notes, and saved quotes** (SQLite FTS5), and local similarity
+recommendations computed from your own library, no external service.
 
 **Stats dashboard.** `/stats` renders 20+ interactive Plotly charts: books/pages by status,
 top genres and authors, rating distribution, monthly activity, format and decade breakdowns,
@@ -144,11 +146,15 @@ working scanner. Build from source with `make exe` (see [Development](#developme
 
 ### Android app
 
-A fully on-device build lives in [`android/`](android/): the Flask app runs on a loopback
-port inside the app via embedded CPython (Chaquopy) and the UI renders in a WebView, so the
-catalogue, scanner, reader, stats, import/export, and backups all run locally. Admin login is
-omitted. Open the `android/` folder in Android Studio and Run. See
-[android/README.md](android/README.md) and [ANDROID_APP_PLAN.md](ANDROID_APP_PLAN.md).
+Download **`PageVault-<version>.apk`** from the
+[latest release](https://github.com/ChristianAbele02/PageVault/releases) onto your phone,
+open it, and allow installing from unknown sources when Android asks (the app is not on the
+Play Store). Everything runs on-device: the Flask app runs on a loopback port inside the
+app via embedded CPython (Chaquopy) and the UI renders in a WebView, so the catalogue,
+camera scanner, reader, stats, import/export, and backups all work locally with no server.
+Admin login is omitted. To build from source instead, open the `android/` folder in Android
+Studio and Run — see [android/README.md](android/README.md) and
+[ANDROID_APP_PLAN.md](ANDROID_APP_PLAN.md).
 
 ---
 
@@ -201,6 +207,7 @@ otherwise `https://localhost:5000` (add `curl -k`).
 | `POST` | `/api/books` | Add a book `{ isbn, status?, genre_tags?, shelf_ids?, book_data? }` |
 | `GET` `PATCH` `DELETE` | `/api/books/:id` | Book detail / update / delete |
 | `GET` | `/api/books/:id/recommendations` | Similar books from your library (`?limit=`) |
+| `GET` | `/api/search` | Full-text search across metadata, review notes, and quotes (`?q=`) |
 | `GET` `POST` `DELETE` | `/api/books/:id/reviews[/:rid]` | Reviews `{ rating?, comment?, current_page? }` |
 | `GET` `POST` `DELETE` | `/api/books/:id/quotes[/:qid]` | Quotes with page numbers |
 | `GET` `POST` `DELETE` | `/api/books/:id/reads[/:rid]` | Re-read history |
@@ -218,6 +225,7 @@ otherwise `https://localhost:5000` (add `curl -k`).
 | `GET` `POST` | `/api/backup/download` · `/api/backup/restore/{validate,apply}` | Backup / restore |
 | `POST` | `/api/admin/{login,logout}` · `GET /api/admin/{diagnostics,logs}` | Admin session + diagnostics |
 | `GET` | `/api/mobile/connect` | Same-network URL for the mobile QR |
+| `GET` | `/opds` | OPDS 1.2 acquisition feed of books with e-book files (for e-reader apps) |
 
 ```bash
 # Add by ISBN (metadata fetched automatically), then review it
@@ -248,7 +256,7 @@ never collide on a write.
 
 ```bash
 pip install ".[dev,prod]"     # or: make dev
-python -m pytest              # 129 tests;  make test
+python -m pytest              # 132 tests;  make test
 python -m ruff check .        # lint;        make lint
 python -m mypy app.py desktop.py config.py pagevault_core
 ```
@@ -271,7 +279,7 @@ pagevault/
 ├── templates/                          index · stats · reader · admin (Jinja2)
 ├── static/                             PWA manifest · service worker · i18n.js · vendor/
 ├── android/                            On-device Android app (Chaquopy + WebView)
-├── tests/                              129 tests (API · metadata · TLS)
+├── tests/                              132 tests (API · metadata · TLS)
 ├── Dockerfile · docker-compose.yml     Multi-stage, non-root, gunicorn
 ├── Makefile · pyproject.toml           Tooling and packaging
 └── ANDROID_APP_PLAN.md · CHANGELOG.md · CONTRIBUTING.md · SECURITY.md
@@ -285,7 +293,8 @@ pagevault/
 - [x] English/German interface · annual goal tracker · admin console
 - [x] Mobile QR connect · local recommendations · desktop app
 - [x] Offline front-end (vendored libraries, cover cache)
-- [ ] Android app: first on-device release (foundation built, see `android/`)
+- [x] Android app: on-device release with installable APK
+- [x] Full-text search (FTS5) · OPDS catalogue feed for e-reader apps
 - [ ] Goodreads import mapping presets (regional variants)
 
 Have an idea? [Open a feature request](https://github.com/ChristianAbele02/PageVault/issues/new/choose).

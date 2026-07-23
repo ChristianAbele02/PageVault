@@ -223,6 +223,40 @@
     box-shadow: var(--shadow-focus);
   }
   .search-input::placeholder { color: #bbb; }
+
+  /* ── Mobile search modal ──
+     A roomy, keyboard-friendly search field for the phone app, where the inline
+     search box is too narrow to read what you type. font-size >= 16px stops the
+     WebView auto-zooming on focus. The modal panel is width:100% (max 560px,
+     centred), so this behaves identically on phones and tablets. */
+  .search-modal-field { position: relative; display: flex; align-items: center; }
+  .search-modal-input {
+    width: 100%; background: #fff; border: 1.5px solid var(--tan);
+    border-radius: var(--radius-md); padding: .85rem 2.7rem .85rem 1rem;
+    font-family: 'Lato', sans-serif; font-size: 1.05rem; color: var(--ink);
+    outline: none; box-shadow: var(--shadow-sm);
+    transition: border-color var(--transition), box-shadow var(--transition);
+    -webkit-appearance: none; appearance: none;
+  }
+  .search-modal-input:focus { border-color: var(--amber); box-shadow: var(--shadow-focus); }
+  .search-modal-input::placeholder { color: #bbb; }
+  .search-modal-input::-webkit-search-cancel-button { -webkit-appearance: none; }
+  .search-modal-clear {
+    position: absolute; right: .5rem; top: 50%; transform: translateY(-50%);
+    width: 30px; height: 30px; border-radius: 50%;
+    background: rgba(122,92,58,.1); border: none; cursor: pointer;
+    color: var(--brown); font-size: .85rem; line-height: 1;
+    display: none; align-items: center; justify-content: center;
+    transition: background var(--transition), color var(--transition);
+  }
+  .search-modal-clear.visible { display: flex; }
+  .search-modal-clear:active { background: rgba(155,58,28,.14); color: var(--rust); }
+  .search-modal-hint { margin-top: .7rem; font-size: .8rem; color: var(--brown); line-height: 1.4; }
+  /* The search popup is a small centred window floating over the library, not a
+     full-width bottom sheet. With adjustResize the WebView shrinks when the
+     keyboard opens, so the centred panel stays visible above it. */
+  #search-modal { align-items: center; }
+  #search-modal .modal-panel { width: calc(100% - 2rem); max-width: 480px; }
   .mini-btn {
     border: 1.5px solid #b89f83;
     border-radius: var(--radius-md);
@@ -688,13 +722,20 @@
     position: relative;
   }
   .tools-menu {
-    position: absolute;
-    right: 0;
-    bottom: 62px;
+    /* Anchored to the viewport, not the inset gear button: the gear sits left of
+       two more FABs (~125px in from the right edge), so an absolute right:0 menu
+       with a fixed min-width ran off the left edge on narrow phones. Fixed
+       positioning plus a viewport-relative max-width keeps it fully on-screen on
+       any device (phone or tablet). */
+    position: fixed;
+    right: calc(1.5rem + env(safe-area-inset-right));
+    bottom: calc(1.5rem + 46px + .7rem + env(safe-area-inset-bottom));
+    left: auto;
     display: none;
     flex-direction: column;
     gap: .3rem;
-    min-width: 218px;
+    width: 240px;
+    max-width: calc(100vw - 3rem);
     padding: .55rem;
     border: 1px solid rgba(122, 92, 58, .28);
     border-radius: var(--radius-lg);
@@ -1358,13 +1399,19 @@
     color: #f5efe6 !important;
   }
   .dark-mode .filter-select,
-  .dark-mode .mini-btn {
+  .dark-mode .mini-btn,
+  .dark-mode .search-input,
+  .dark-mode .search-modal-input {
     background: #211709;
     color: #f5efe6;
     border-color: #5a4531;
   }
   .dark-mode .search-input::placeholder,
+  .dark-mode .search-modal-input::placeholder,
   .dark-mode .tag-input::placeholder {
+    color: #b8a894;
+  }
+  .dark-mode .search-modal-hint {
     color: #b8a894;
   }
   .dark-mode .tag-counter {
@@ -1529,6 +1576,10 @@
       bottom: calc(1rem + env(safe-area-inset-bottom));
       right: calc(1rem + env(safe-area-inset-right));
     }
+    .tools-menu {
+      right: calc(1rem + env(safe-area-inset-right));
+      bottom: calc(1rem + 46px + .7rem + env(safe-area-inset-bottom));
+    }
   }
 
   /* ── E-Book reader ─────────────────────────────────────────────────────── */
@@ -1615,6 +1666,12 @@
     /* Stop the WebView's pull-to-refresh bounce from reloading the app. */
     overscroll-behavior-y: none;
   }
+  /* On the phone app the inline search box is only a trigger: tapping it opens the
+     roomy search modal. Give it the full width and a tappable affordance, and let
+     the filter buttons wrap onto their own row. */
+  body.mobile-app .search-wrap { grid-template-columns: 1fr; }
+  body.mobile-app .search-wrap > div { flex-wrap: wrap; }
+  body.mobile-app .search-input { cursor: pointer; }
   /* Tactile press feedback: :hover does not apply cleanly on touch. */
   body.mobile-app button:active,
   body.mobile-app .book-card:active,
@@ -1681,7 +1738,7 @@
 </div>
 
 <div class="search-wrap">
-  <input class="search-input" type="text" id="search-input" placeholder="Search title or author…" data-i18n-placeholder="search_placeholder">
+  <input class="search-input" type="text" id="search-input" placeholder="Search title or author…" data-i18n-placeholder="search_placeholder"{% if is_mobile_app %} readonly onclick="openSearchModal()" aria-haspopup="dialog"{% endif %}>
   <div style="display:flex;gap:.5rem;">
     <button id="continue-reading-btn" class="mini-btn" onclick="toggleContinueReadingFilter()">📖 <span data-i18n="btn_continue_reading">Continue reading</span></button>
     <button class="mini-btn" onclick="clearAdvancedFilters()">🧹 <span data-i18n="btn_clear_filters">Clear filters</span></button>
@@ -1760,6 +1817,32 @@
     </div>
   </div>
 </dialog>
+
+{% if is_mobile_app %}
+<!-- ── Search Modal (phone app: roomy, keyboard-friendly search) ── -->
+<dialog class="modal-dialog" id="search-modal">
+  <div class="modal-panel" style="max-width:560px;">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title" data-i18n="search_title">Search your library</span>
+      <button class="btn-close" onclick="closeSearchModal()" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body" style="padding:1.15rem 1.25rem 1.5rem;">
+      <div class="search-modal-field">
+        <input class="search-modal-input" type="search" id="search-input-modal"
+               placeholder="Search title or author…" data-i18n-placeholder="search_placeholder"
+               autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"
+               enterkeyhint="search" inputmode="search">
+        <button type="button" class="search-modal-clear" id="search-modal-clear"
+                onclick="clearSearchModal()" aria-label="Clear search">✕</button>
+      </div>
+      <button type="button" class="btn-primary" id="search-modal-apply"
+              onclick="applySearchAndClose()" data-i18n="search_apply">Search</button>
+      <div class="search-modal-hint" data-i18n="search_hint">Type freely, then tap Search to see the results.</div>
+    </div>
+  </div>
+</dialog>
+{% endif %}
 
 <!-- ── Add Book Modal ── -->
 <dialog class="modal-dialog" id="add-modal">
@@ -2203,6 +2286,67 @@ document.getElementById('search-input').addEventListener('input', e => {
     loadBooks();
   }, 350);
 });
+
+// ─── Phone-app search modal ───────────────────────────────────────────────
+// The inline search box is too narrow on a phone to read what you type, so on
+// the mobile build it acts as a trigger that opens this roomy modal instead.
+// Present on all builds' JS, but the dialog only exists in the mobile template,
+// so every entry point is null-guarded.
+const searchModal       = document.getElementById('search-modal');
+const searchModalInput  = document.getElementById('search-input-modal');
+const searchModalClear  = document.getElementById('search-modal-clear');
+const inlineSearchInput = document.getElementById('search-input');
+
+function syncSearchClear() {
+  if (searchModalClear) searchModalClear.classList.toggle('visible', !!(searchModalInput && searchModalInput.value));
+}
+function applySearchFromModal(value) {
+  currentSearch = value.trim();
+  if (inlineSearchInput) inlineSearchInput.value = currentSearch;
+  loadBooks();
+}
+function openSearchModal() {
+  if (!searchModal || !searchModalInput) return;
+  searchModalInput.value = currentSearch;
+  syncSearchClear();
+  if (typeof searchModal.showModal === 'function' && !searchModal.open) searchModal.showModal();
+  // Focus after the entrance transition so the on-screen keyboard raises reliably.
+  setTimeout(() => searchModalInput.focus(), 80);
+}
+function closeSearchModal() {
+  if (searchModal && searchModal.open) searchModal.close();
+}
+function clearSearchModal() {
+  if (!searchModalInput) return;
+  searchModalInput.value = '';
+  applySearchFromModal('');
+  syncSearchClear();
+  searchModalInput.focus();
+}
+function applySearchAndClose() {
+  if (!searchModalInput) return;
+  applySearchFromModal(searchModalInput.value);
+  closeSearchModal();
+}
+
+if (searchModal && searchModalInput) {
+  let modalSearchTimeout;
+  searchModalInput.addEventListener('input', e => {
+    syncSearchClear();
+    const val = e.target.value;
+    clearTimeout(modalSearchTimeout);
+    modalSearchTimeout = setTimeout(() => applySearchFromModal(val), 300);
+  });
+  searchModalInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      clearTimeout(modalSearchTimeout);
+      applySearchAndClose();
+    }
+  });
+  // Tapping the dimmed backdrop (the dialog element itself) closes the modal.
+  searchModal.addEventListener('click', e => { if (e.target === searchModal) closeSearchModal(); });
+}
 
 document.getElementById('author-filter').addEventListener('change', e => {
   currentAuthor = e.target.value;

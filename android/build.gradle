@@ -1,11 +1,13 @@
 // Top-level build file for the PageVault Android app.
 //
-// Version baseline (confirm/bump on first open in Android Studio):
-//   Gradle 8.7  ·  AGP 8.5.2  ·  Kotlin 1.9.24  ·  Chaquopy 16.0.0  ·  Python 3.12
+// Version baseline (aligned to a Chaquopy-supported combination):
+//   Gradle 8.13  ·  AGP 8.13.2  ·  Kotlin 1.9.24  ·  Chaquopy 17.0.0  ·  Python 3.13
+// Chaquopy 17 supports AGP 7.3-9.2; 16.0 topped out at AGP 8.8, so the Android
+// Studio upgrade to AGP 8.13 left Chaquopy out of support and broke the build.
 // Chaquopy's Gradle DSL is version-specific; if a version is bumped, check
 // https://chaquo.com/chaquopy/doc/current/android.html for the matching syntax.
 plugins {
-    id 'com.android.application' version '8.5.2' apply false
+    id 'com.android.application' version '8.13.2' apply false
     id 'org.jetbrains.kotlin.android' version '1.9.24' apply false
-    id 'com.chaquo.python' version '16.0.0' apply false
+    id 'com.chaquo.python' version '17.0.0' apply false
 }

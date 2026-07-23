@@ -7,7 +7,40 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [1.9.0] — 2026-07-23
+
+The first release with a working, installable Android app.
+
+### Added
+- **Full-text search** (`GET /api/search?q=`) across book metadata, review notes,
+  and saved quotes, backed by a SQLite FTS5 index. Results group by book with up
+  to three highlighted excerpts labelled by source. The index is maintained by
+  lightweight dirty-flag triggers and rebuilt lazily, and it degrades gracefully
+  on a SQLite build without FTS5.
+- **OPDS catalogue** (`GET /opds`). An OPDS 1.2 acquisition feed of every book
+  with an attached e-book file, so e-reader apps (KOReader, Moon+ Reader, and
+  similar) can browse your library and download EPUB/PDF files directly.
+- **Mobile search popup.** On the Android app the inline search box acts as a
+  trigger that opens a centred popup window over the library: a large input you
+  can type into freely, a Search button (or Enter) that applies the query,
+  closes the popup, and shows the filtered results. English and German.
+- **Android release workflow** (`android-release.yml`). Every version tag builds
+  the APK on CI and attaches it to the GitHub release, signed with a release
+  keystore when the `ANDROID_KEYSTORE_*` secrets are configured and debug-signed
+  otherwise.
+
+### Fixed
+- **Android: stale UI after app updates.** Extracted web assets now refresh on
+  every (re)install (the version marker includes the APK's `lastUpdateTime`);
+  previously debug deploys kept serving the first-installed templates forever.
+- **Android build under Gradle 8.13.** Toolchain aligned to a supported
+  combination (Gradle 8.13 · AGP 8.13.2 · Chaquopy 17.0.0 · Python 3.13), and
+  the Chaquopy/AGP merge tasks now declare explicit dependencies on the
+  `syncPythonSource`/`syncWebAssets` staging tasks, which Gradle 8.13 requires.
+- **Mobile UI.** The gear tools menu is anchored to the viewport with a capped
+  width, so it can no longer clip off the screen edge on narrow devices; the
+  search fields no longer render near-white text on a white background in dark
+  mode.
 
 ## [1.8.0] — 2026-07-20
 

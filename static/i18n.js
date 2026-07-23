@@ -53,6 +53,9 @@
 
       /* ── index — search & actions ────────────────────────────────────── */
       search_placeholder:   'Search title or author…',
+      search_title:         'Search your library',
+      search_apply:         'Search',
+      search_hint:          'Type freely, then tap Search to see the results.',
       btn_continue_reading: 'Continue reading',
       btn_clear_filters:    'Clear filters',
       btn_reload_meta:      'Reload metadata',
@@ -488,6 +491,9 @@
 
       /* ── index — search & actions ────────────────────────────────────── */
       search_placeholder:   'Titel oder Autor suchen…',
+      search_title:         'Bibliothek durchsuchen',
+      search_apply:         'Suchen',
+      search_hint:          'Frei tippen und dann auf Suchen tippen.',
       btn_continue_reading: 'Weiterlesen',
       btn_clear_filters:    'Filter löschen',
       btn_reload_meta:      'Metadaten neu laden',

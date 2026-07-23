@@ -23,6 +23,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.pm.PackageInfoCompat
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.pagevault.app.databinding.ActivityMainBinding
@@ -111,14 +112,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Copy `assets/web` (templates + static) into `filesDir/web` on first run and
-     * after every app update, so Flask can serve them from a real filesystem path.
-     * A version marker keeps subsequent launches fast by skipping re-extraction.
+     * Copy `assets/web` (templates + static) into `filesDir/web` so Flask can
+     * serve them from a real filesystem path. A version marker keeps normal
+     * launches fast; it includes the APK's lastUpdateTime so every (re)install —
+     * including debug deploys from Android Studio, where versionCode never
+     * changes — refreshes the extracted copy instead of serving stale assets.
      */
     private fun extractWebAssets(): File {
         val webDir = File(filesDir, "web")
         val marker = File(webDir, ".version")
-        val currentVersion = packageManager.getPackageInfo(packageName, 0).longVersionCode.toString()
+        val pkg = packageManager.getPackageInfo(packageName, 0)
+        val currentVersion = "${PackageInfoCompat.getLongVersionCode(pkg)}-${pkg.lastUpdateTime}"
 
         if (marker.exists() && marker.readText() == currentVersion) {
             return webDir
