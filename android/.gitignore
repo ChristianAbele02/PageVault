@@ -11,6 +11,7 @@ local.properties
 # Android Studio
 .idea/
 *.iml
+.artifacts/
 
 # Keystores and signing secrets must never be committed.
 *.jks

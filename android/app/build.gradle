@@ -71,7 +71,7 @@ android {
 
 chaquopy {
     defaultConfig {
-        version = '3.12'
+        version = '3.13'
         pip {
             // The app's only third-party runtime dependencies. Flask pulls in
             // Werkzeug, Jinja2, click, itsdangerous, MarkupSafe and blinker.
@@ -98,4 +98,16 @@ dependencies {
 // Assemble the copied sources and assets before the build consumes them.
 tasks.named('preBuild').configure {
     dependsOn('syncPythonSource', 'syncWebAssets')
+}
+
+// Gradle 8.13 fails the build if a task reads another task's output without a
+// declared dependency; the preBuild ordering above no longer satisfies that check
+// on its own. Chaquopy's merge task consumes the staged Python sources and AGP's
+// merge task consumes the generated web assets, so wire each consumer to its
+// producer explicitly.
+tasks.matching { it.name ==~ /merge.*PythonSources/ }.configureEach {
+    dependsOn('syncPythonSource')
+}
+tasks.matching { it.name ==~ /merge.*Assets/ }.configureEach {
+    dependsOn('syncWebAssets')
 }

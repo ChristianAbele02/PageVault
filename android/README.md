@@ -30,7 +30,7 @@ MainActivity (Kotlin)
 ## Prerequisites
 
 - Android Studio (bundles the Android SDK and its own JDK 17). The project's
-  wrapper is Gradle 8.7.
+  wrapper is Gradle 8.13.
 - Android SDK Platform 34 and the NDK (Android Studio offers to install the NDK
   on first sync; Chaquopy needs it).
 - A physical device with USB debugging is best for testing the real camera.
@@ -54,11 +54,11 @@ Set in `build.gradle` / `app/build.gradle`, confirm or bump on first sync:
 
 | Component | Version |
 |---|---|
-| Gradle | 8.7 |
-| Android Gradle Plugin | 8.5.2 |
+| Gradle | 8.13 |
+| Android Gradle Plugin | 8.13.2 |
 | Kotlin | 1.9.24 |
-| Chaquopy | 16.0.0 |
-| Python | 3.12 |
+| Chaquopy | 17.0.0 |
+| Python | 3.13 |
 | compileSdk / targetSdk | 34 |
 | minSdk | 26 (Android 8.0) |
 
