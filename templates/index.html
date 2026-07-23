@@ -252,6 +252,11 @@
   .search-modal-clear.visible { display: flex; }
   .search-modal-clear:active { background: rgba(155,58,28,.14); color: var(--rust); }
   .search-modal-hint { margin-top: .7rem; font-size: .8rem; color: var(--brown); line-height: 1.4; }
+  /* The search popup is a small centred window floating over the library, not a
+     full-width bottom sheet. With adjustResize the WebView shrinks when the
+     keyboard opens, so the centred panel stays visible above it. */
+  #search-modal { align-items: center; }
+  #search-modal .modal-panel { width: calc(100% - 2rem); max-width: 480px; }
   .mini-btn {
     border: 1.5px solid #b89f83;
     border-radius: var(--radius-md);
@@ -1831,7 +1836,9 @@
         <button type="button" class="search-modal-clear" id="search-modal-clear"
                 onclick="clearSearchModal()" aria-label="Clear search">✕</button>
       </div>
-      <div class="search-modal-hint" data-i18n="search_hint">Search by title or author, then press Enter.</div>
+      <button type="button" class="btn-primary" id="search-modal-apply"
+              onclick="applySearchAndClose()" data-i18n="search_apply">Search</button>
+      <div class="search-modal-hint" data-i18n="search_hint">Type freely, then tap Search to see the results.</div>
     </div>
   </div>
 </dialog>
@@ -2316,6 +2323,11 @@ function clearSearchModal() {
   syncSearchClear();
   searchModalInput.focus();
 }
+function applySearchAndClose() {
+  if (!searchModalInput) return;
+  applySearchFromModal(searchModalInput.value);
+  closeSearchModal();
+}
 
 if (searchModal && searchModalInput) {
   let modalSearchTimeout;
@@ -2329,8 +2341,7 @@ if (searchModal && searchModalInput) {
     if (e.key === 'Enter') {
       e.preventDefault();
       clearTimeout(modalSearchTimeout);
-      applySearchFromModal(searchModalInput.value);
-      closeSearchModal();
+      applySearchAndClose();
     }
   });
   // Tapping the dimmed backdrop (the dialog element itself) closes the modal.
