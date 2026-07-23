@@ -78,6 +78,30 @@ The first build is where the toolchain versions get aligned. Confirm, in order:
 4. Adding the scanned book fills in metadata (needs internet) and it persists
    across an app restart (proves on-device storage).
 
+## Releasing an APK
+
+`.github/workflows/android-release.yml` builds the APK on every `v*` tag and
+attaches it to the GitHub release as `PageVault-<version>.apk`.
+
+Signing: Android only installs updates over the same signing key, so releases
+should use one persistent keystore. Create it once:
+
+```bash
+keytool -genkeypair -v -keystore release.keystore -alias pagevault \
+  -keyalg RSA -keysize 4096 -validity 10000
+```
+
+Then either put it at `android/release.keystore` with an `android/keystore.properties`
+(both git-ignored) for local `gradlew assembleRelease` builds, or store it in CI as
+repository secrets: `ANDROID_KEYSTORE_BASE64` (the file base64-encoded) plus
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+Without a keystore the workflow falls back to a debug signature — installable,
+but updates then require uninstalling first. Keep the keystore backed up
+privately; losing it means users must reinstall from scratch.
+
+Bump `versionCode` (and `versionName`) in `app/build.gradle` for every released
+APK, or Android will refuse the update.
+
 ## Troubleshooting
 
 - **Gradle sync fails on the Chaquopy block**: the DSL differs slightly between
