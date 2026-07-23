@@ -56,9 +56,45 @@ _LOGIN_WINDOW_SECONDS = 300
 # Cover cache proxy: hosts allowed for the /api/cover fetch (SSRF guard), the
 # download ceiling, and how the cached image is served.
 _COVER_HOSTS = {"covers.openlibrary.org", "books.google.com", "books.googleusercontent.com"}
+# Hosts the allowlisted cover services legitimately redirect to (Open Library
+# covers live on archive.org mirrors; Google serves images from googleusercontent).
+_COVER_REDIRECT_SUFFIXES = (".archive.org", ".googleusercontent.com")
 _COVER_MAX_BYTES = 10 * 1024 * 1024
 _COVER_FETCH_TIMEOUT = 8
 _COVER_CACHE_MAX_AGE = 86400
+
+
+def _cover_host_allowed(host: str | None) -> bool:
+    """Return True if a cover download may touch this host (SSRF guard)."""
+    if not host:
+        return False
+    return host in _COVER_HOSTS or host.endswith(_COVER_REDIRECT_SUFFIXES)
+
+
+class _CoverRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Validate every redirect hop against the cover-host allowlist.
+
+    Checking only the original URL is not enough: urllib follows redirects, so
+    without this an allowlisted host with an open-redirect endpoint could make
+    the server fetch arbitrary internal URLs.
+    """
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        parsed = urllib.parse.urlparse(newurl)
+        if parsed.scheme not in {"http", "https"} or not _cover_host_allowed(parsed.hostname):
+            raise urllib.error.URLError(f"redirect outside cover allowlist: {parsed.hostname!r}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_cover_opener = urllib.request.build_opener(_CoverRedirectHandler)
 _IMAGE_SUFFIXES = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
@@ -155,6 +191,18 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         if session.get("role") != "admin":
             return err("Admin authentication required", 403)
         return None
+
+    def restore_guard():
+        """Admin gate for the destructive restore endpoints.
+
+        The Android build has no admin accounts and its server listens only on
+        the device's own loopback interface, so restore stays available there;
+        on the web and desktop builds, where any LAN client can reach the API,
+        overwriting the whole library requires the admin session.
+        """
+        if current_app.config.get("PAGEVAULT_MOBILE_APP", False):
+            return None
+        return admin_required()
 
     def record_admin_event(event_type: str, details: dict[str, Any] | None = None) -> None:
         db = get_db()
@@ -1387,7 +1435,7 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
 
         try:
             req = urllib.request.Request(raw_url, headers={"User-Agent": "PageVault"})
-            with urllib.request.urlopen(req, timeout=_COVER_FETCH_TIMEOUT) as resp:
+            with _cover_opener.open(req, timeout=_COVER_FETCH_TIMEOUT) as resp:
                 content_type = (resp.headers.get("Content-Type") or "").split(";", 1)[0].strip()
                 if not content_type.startswith("image/"):
                     return err("Cover unavailable", 404)
@@ -2464,6 +2512,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
 
     @bp.post("/backup/restore/validate")
     def api_backup_restore_validate():
+        guard = restore_guard()
+        if guard:
+            return guard
         upload = request.files.get("file")
         if not upload:
             return err("Backup file is required", 400)
@@ -2489,28 +2540,36 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             try:
                 source = sqlite3.connect(db_path)
                 source.row_factory = sqlite3.Row
-                tables = {
-                    row["name"]
-                    for row in source.execute(
-                        "SELECT name FROM sqlite_master WHERE type='table'"
-                    ).fetchall()
-                }
-                required_tables = {
-                    "books",
-                    "reviews",
-                    "shelves",
-                    "book_shelves",
-                    "tags",
-                    "book_tags",
-                }
-                missing = sorted(required_tables - tables)
-                summary = {
-                    "books": int(source.execute("SELECT COUNT(*) FROM books").fetchone()[0]),
-                    "reviews": int(source.execute("SELECT COUNT(*) FROM reviews").fetchone()[0]),
-                    "shelves": int(source.execute("SELECT COUNT(*) FROM shelves").fetchone()[0]),
-                    "missing_tables": missing,
-                }
-                source.close()
+                # close() must run on the error path too, or the open handle
+                # keeps the temp directory locked on Windows.
+                try:
+                    tables = {
+                        row["name"]
+                        for row in source.execute(
+                            "SELECT name FROM sqlite_master WHERE type='table'"
+                        ).fetchall()
+                    }
+                    required_tables = {
+                        "books",
+                        "reviews",
+                        "shelves",
+                        "book_shelves",
+                        "tags",
+                        "book_tags",
+                    }
+                    missing = sorted(required_tables - tables)
+                    summary = {
+                        "books": int(source.execute("SELECT COUNT(*) FROM books").fetchone()[0]),
+                        "reviews": int(
+                            source.execute("SELECT COUNT(*) FROM reviews").fetchone()[0]
+                        ),
+                        "shelves": int(
+                            source.execute("SELECT COUNT(*) FROM shelves").fetchone()[0]
+                        ),
+                        "missing_tables": missing,
+                    }
+                finally:
+                    source.close()
             except sqlite3.Error as exc:
                 return err(f"Backup validation failed: {exc}", 400)
 
@@ -2525,6 +2584,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
 
     @bp.post("/backup/restore/apply")
     def api_backup_restore_apply():
+        guard = restore_guard()
+        if guard:
+            return guard
         upload = request.files.get("file")
         if not upload:
             return err("Backup file is required", 400)

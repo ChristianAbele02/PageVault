@@ -10,6 +10,8 @@ import sqlite3
 import zipfile
 from pathlib import Path
 
+import pytest
+
 import app as app_module
 from pagevault_core import metadata as core_metadata
 
@@ -297,6 +299,10 @@ class TestRoadmapApis:
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             zf.write(backup_db, arcname="pagevault.db")
         archive_bytes = archive.getvalue()
+
+        # Restore is admin-gated on the networked builds.
+        login = client.post("/api/admin/login", json={"password": "test-admin-password"})
+        assert login.status_code == 200
 
         validated = client.post(
             "/api/backup/restore/validate",
@@ -1659,6 +1665,9 @@ class TestBackupIntegrity:
         with zipfile.ZipFile(archive, "w") as zf:
             zf.writestr("pagevault.db", b"this is not a sqlite database")
 
+        login = client.post("/api/admin/login", json={"password": "test-admin-password"})
+        assert login.status_code == 200
+
         applied = client.post(
             "/api/backup/restore/apply",
             data={"file": (io.BytesIO(archive.getvalue()), "backup.zip")},
@@ -1670,6 +1679,47 @@ class TestBackupIntegrity:
         # The live library must be untouched after the rejected restore.
         books = client.get("/api/books").get_json()
         assert [b["title"] for b in books] == [added_book["title"]]
+
+
+class TestRestoreAuthorisation:
+    """The destructive restore endpoints are admin-gated on networked builds."""
+
+    @staticmethod
+    def _archive_bytes() -> bytes:
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w") as zf:
+            zf.writestr("pagevault.db", b"placeholder")
+        return archive.getvalue()
+
+    def test_restore_requires_admin_on_web_build(self, client):
+        for endpoint in ("/api/backup/restore/validate", "/api/backup/restore/apply"):
+            r = client.post(
+                endpoint,
+                data={"file": (io.BytesIO(self._archive_bytes()), "backup.zip")},
+                content_type="multipart/form-data",
+            )
+            assert r.status_code == 403, endpoint
+
+    def test_restore_open_on_loopback_only_mobile_build(self, tmp_path):
+        mobile_app = app_module.create_app(
+            {
+                "DATABASE": str(tmp_path / "m.db"),
+                "BOOK_FILES_DIR": str(tmp_path / "bf"),
+                "TESTING": True,
+                "SECRET_KEY": "test-secret",
+                "ADMIN_PASSWORD": "test-admin-password",
+                "PAGEVAULT_MOBILE_APP": True,
+            }
+        )
+        r = mobile_app.test_client().post(
+            "/api/backup/restore/validate",
+            data={"file": (io.BytesIO(self._archive_bytes()), "backup.zip")},
+            content_type="multipart/form-data",
+        )
+        # No 403: the Android build has no admin accounts and only listens on
+        # loopback. The placeholder archive is rejected as invalid content
+        # instead, which proves the request got past the gate.
+        assert r.status_code == 400
 
 
 class TestBookListRelations:
@@ -1731,7 +1781,18 @@ def test_cover_proxy_allowlist_and_cache(client, monkeypatch):
     assert client.get(q("https://evil.example/x.jpg")).status_code == 400
     assert client.get("/api/cover").status_code == 400
 
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    # Redirect hops are validated against the allowlist (open-redirect SSRF guard).
+    from pagevault_core import api as api_module
+
+    handler = api_module._CoverRedirectHandler()
+    with pytest.raises(urllib.error.URLError):
+        handler.redirect_request(
+            urllib.request.Request(ol), None, 302, "Found", {}, "http://192.168.1.1/admin"
+        )
+    assert api_module._cover_host_allowed("ia800504.us.archive.org")
+    assert not api_module._cover_host_allowed("archive.org.evil.example")
+
+    monkeypatch.setattr(api_module._cover_opener, "open", fake_urlopen)
     first = client.get(q(ol))
     assert first.status_code == 200
     assert first.data == fake
@@ -1745,7 +1806,7 @@ def test_cover_proxy_allowlist_and_cache(client, monkeypatch):
     def failing(_req, timeout=None):
         raise urllib.error.URLError("boom")
 
-    monkeypatch.setattr(urllib.request, "urlopen", failing)
+    monkeypatch.setattr(api_module._cover_opener, "open", failing)
     assert client.get(q("https://covers.openlibrary.org/b/id/99999-L.jpg")).status_code == 404
 
 

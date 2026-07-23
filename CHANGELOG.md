@@ -7,6 +7,25 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Security
+- The destructive restore endpoints (`/api/backup/restore/validate` and
+  `/apply`) now require the admin session on the web and desktop builds,
+  matching the documented behaviour. The Android build is exempt: it has no
+  admin accounts and its server is reachable only from the device itself.
+- The `/api/cover` proxy validates every redirect hop against the cover-host
+  allowlist, closing an open-redirect SSRF vector; the hosts the allowlisted
+  services legitimately redirect to (archive.org, googleusercontent.com) are
+  permitted.
+- The Android WebView no longer allows `file://` access — it only ever renders
+  the loopback server, so the capability was unnecessary.
+- Session cookies are issued with `SameSite=Lax` and explicit `HttpOnly`.
+
+### Fixed
+- Restore validation no longer leaks an open database handle when the uploaded
+  archive is not a valid SQLite file (this locked temp files on Windows).
+
 ## [1.9.0] — 2026-07-23
 
 The first release with a working, installable Android app.

@@ -212,6 +212,11 @@ def create_app(config: dict | None = None) -> Flask:
     if config:
         app.config.update(config)
 
+    # Session-cookie hardening: HttpOnly is Flask's default (kept explicit), and
+    # SameSite=Lax stops cross-site requests from riding the admin session.
+    app.config.setdefault("SESSION_COOKIE_HTTPONLY", True)
+    app.config.setdefault("SESSION_COOKIE_SAMESITE", "Lax")
+
     _ensure_file_logging(app.config.get("LOG_FILE"))
     _check_security_config(app)
 

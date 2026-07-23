@@ -160,8 +160,10 @@ class MainActivity : AppCompatActivity() {
             databaseEnabled = true
             // The in-page ISBN scanner opens the camera without a tap gesture.
             mediaPlaybackRequiresUserGesture = false
-            // The EPUB reader and cover images load from the local server.
-            allowFileAccess = true
+            // Everything (EPUB reader, covers, assets) loads from the local
+            // server over http://127.0.0.1 — the WebView never needs file://
+            // access, so it stays disabled (defence in depth).
+            allowFileAccess = false
             cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
             setSupportZoom(false)
         }
