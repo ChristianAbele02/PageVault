@@ -7,7 +7,10 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [1.9.1] — 2026-07-23
+
+A security-hardening release. The Android APK is now signed with a persistent
+release key.
 
 ### Security
 - The destructive restore endpoints (`/api/backup/restore/validate` and
