@@ -396,6 +396,16 @@ def is_german_isbn(isbn: str) -> bool:
     return isbn.startswith("9783") or (len(isbn) == 10 and isbn.startswith("3"))
 
 
+def is_english_isbn(isbn: str) -> bool:
+    """True for ISBNs in the English-language group (prefix 978-0/978-1 or ISBN-10 '0'/'1').
+
+    The 979-8 range (Amazon KDP paperbacks) is deliberately excluded: those are
+    self-published titles the national libraries do not catalogue, so routing
+    them to the Library of Congress only wastes a request.
+    """
+    return isbn.startswith(("9780", "9781")) or (len(isbn) == 10 and isbn[:1] in ("0", "1"))
+
+
 def _clean_dnb_title(raw: str | None) -> str | None:
     """Normalise a DNB Dublin Core title.
 
@@ -479,6 +489,132 @@ def fetch_dnb(isbn: str) -> dict | None:
     }
 
 
+# Library of Congress: the US national library. Keyless SRU service, authoritative
+# for English-language trade books (including romance imprints such as Harlequin,
+# Avon and Berkley) that Open Library often lists only as sparse stubs. The `dc`
+# schema carries title, author, language and genre-form terms but no publisher,
+# date or cover, so those still come from the rest of the merge chain.
+LOC_SRU_URL = "http://lx2.loc.gov:210/lcdb"
+# Genre-form / subject source codes LoC appends to `dc:type` values, e.g.
+# "Love stories. gsafd" or "Fiction. lcgft https://id.loc.gov/...". Stripped so
+# the tag reads "Love stories" rather than carrying the vocabulary label.
+_LOC_GENRE_SOURCES = re.compile(r"\s*(?:https?://\S+|\b(?:gsafd|lcgft|lcsh|rbgenr|aat|fast)\b)\.?",
+                                re.IGNORECASE)
+# Generic `dc:type` values that describe the medium, not a literary genre.
+_LOC_TYPE_NOISE = {"text", "still image", "cartographic material", "notated music"}
+
+
+def _isbn_core(value: str | None) -> str:
+    """Return the 9-digit registrant+publication core shared by an ISBN-10 and
+    its ISBN-13 form, so the two can be compared without check-digit maths.
+
+    ISBN-13 "978/979 XXXXXXXXX C" and ISBN-10 "XXXXXXXXX C" share the middle nine
+    digits; comparing those matches a book regardless of which form is held.
+    """
+    digits = re.sub(r"[^0-9Xx]", "", value or "").upper()
+    if len(digits) == 13 and digits.startswith(("978", "979")):
+        return digits[3:12]
+    if len(digits) == 10:
+        return digits[:9]
+    if len(digits) >= 12:
+        return digits[3:12]
+    return digits
+
+
+def _clean_loc_title(raw: str | None) -> str | None:
+    """Normalise a Library of Congress Dublin Core title.
+
+    LoC titles carry a trailing statement of responsibility marker, e.g.
+    "Heart fortune /" or "Lord of scoundrels : a novel / Loretta Chase". Drop the
+    "/ ..." tail and tidy the "title : subtitle" separator.
+    """
+    if not raw:
+        return None
+    title = raw.strip()
+    slash = title.find(" /")
+    if slash != -1:
+        title = title[:slash]
+    title = title.strip().rstrip("/").strip()
+    return title.replace(" : ", ": ").strip() or None
+
+
+def _clean_loc_genres(type_values: list[str], subjects: list[str]) -> list[str]:
+    """Build genre tags from LoC `dc:type` genre-form terms and topical subjects.
+
+    The genre-form terms ("Love stories", "Fantasy fiction") are the useful
+    labels; the generic medium and bare "Fiction" markers are dropped. Topical
+    subjects ("Man-woman relationships--Fiction.") top up any remaining slots.
+    """
+    tags: list[str] = []
+    for value in type_values:
+        cleaned = _LOC_GENRE_SOURCES.sub("", value or "").strip().rstrip(".").strip()
+        if cleaned and cleaned.lower() not in _LOC_TYPE_NOISE and cleaned.lower() != "fiction":
+            tags.append(cleaned)
+    for subject in subjects:
+        # Topical subjects read "Topic--Subdivision--Fiction."; keep the head term.
+        head = (subject or "").split("--", 1)[0].strip().rstrip(".").strip()
+        if head:
+            tags.append(head)
+    return normalize_tags(tags)[:3]
+
+
+def fetch_loc(isbn: str) -> dict | None:
+    """Look up English-language book metadata at the Library of Congress by ISBN.
+
+    Returns title/author/language/genre, or ``None`` when LoC has no record. LoC
+    serves no covers, descriptions, publishers or dates through the `dc` schema;
+    those come from other providers in the merge chain.
+    """
+    params = urllib.parse.urlencode(
+        {
+            "version": "1.1",
+            "operation": "searchRetrieve",
+            "query": f"bath.isbn={isbn}",
+            "maximumRecords": "1",
+            "recordSchema": "dc",
+        }
+    )
+    try:
+        req = urllib.request.Request(f"{LOC_SRU_URL}?{params}", headers=UA)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            root = ET.fromstring(resp.read())
+    except (urllib.error.URLError, OSError, ET.ParseError) as exc:
+        log.warning("Library of Congress lookup failed for ISBN %s: %s", isbn, exc)
+        return None
+
+    # Guard against a non-exact SRU match returning a different book: accept the
+    # record only if one of its ISBN identifiers shares the queried ISBN's core.
+    record_isbns = {
+        _isbn_core(e.text)
+        for e in root.iter(f"{_DC_NS}identifier")
+        if e.text and "ISBN" in e.text.upper()
+    }
+    if record_isbns and _isbn_core(isbn) not in record_isbns:
+        return None
+
+    titles = [e.text for e in root.iter(f"{_DC_NS}title") if e.text]
+    title = _clean_loc_title(titles[0]) if titles else None
+    if not title:
+        return None
+
+    authors = [a for a in (_clean_dnb_author(e.text) for e in root.iter(f"{_DC_NS}creator")) if a]
+    languages = [e.text for e in root.iter(f"{_DC_NS}language") if e.text]
+    type_values = [e.text or "" for e in root.iter(f"{_DC_NS}type")]
+    subjects = [e.text or "" for e in root.iter(f"{_DC_NS}subject")]
+
+    language = _MARC_LANG.get((languages[0] or "").strip().lower()) if languages else None
+    genre_tags = _clean_loc_genres(type_values, subjects)
+
+    return {
+        "isbn": isbn,
+        "title": title,
+        "author": ", ".join(authors) or None,
+        "language": language,
+        "genre": genre_tags[0] if genre_tags else None,
+        "genre_tags": genre_tags,
+    }
+
+
 def merge_lookup_data(primary: dict | None, fallback: dict | None) -> dict | None:
     if not primary:
         return fallback
@@ -516,6 +652,71 @@ def merge_lookup_data(primary: dict | None, fallback: dict | None) -> dict | Non
     return merged
 
 
+# ── Ordered lookup pipeline ──────────────────────────────────────────────────
+# Fields a provider may contribute, beyond title/author/genre which are handled
+# specially.
+_ENRICHABLE_FIELDS = (
+    "cover_url",
+    "description",
+    "publisher",
+    "year",
+    "pages",
+    "language",
+    "community_rating",
+    "community_rating_count",
+    "series_name",
+    "series_number",
+)
+
+# The pipeline: every ISBN is checked against each of these providers in order —
+# no early exit — and each merges its data into the running record. Order is the
+# precedence: for the enrichable fields a later provider overrides an earlier one
+# (so richer, more trusted sources win), while title and author are protected
+# (only filled when missing) unless the provider is flagged authoritative for the
+# ISBN's language. genre_tags always accumulate. Each tuple is
+# (name, may_override_enrichable, authoritative_for_title_author).
+_PIPELINE = (
+    ("crossref", False, False),            # scholarly registry; weakest, fill-only
+    ("openlibrary_search", True, False),   # community ratings + basics
+    ("openlibrary", True, False),          # primary bibliographic data + cover
+    ("loc", True, False),                  # English title/author/genre (fill titles)
+    ("googlebooks", True, False),          # richest: cover, description, ratings, series
+    ("dnb", True, True),                   # German national library: authoritative
+    ("openlibrary_covers", False, False),  # cover-of-last-resort, fill-only
+)
+
+
+def _apply_provider(
+    acc: dict, data: dict | None, *, may_override: bool, authoritative_names: bool
+) -> dict:
+    """Merge one provider's result into the running record ``acc`` in place.
+
+    ``may_override`` lets the provider replace already-present enrichable fields
+    (title/author excepted). ``authoritative_names`` additionally lets it replace
+    the title and author; otherwise those are only filled when still missing.
+    """
+    if not data:
+        return acc
+
+    for field in ("title", "author"):
+        value = data.get(field)
+        if value and (authoritative_names or not acc.get(field)):
+            acc[field] = value
+
+    for field in _ENRICHABLE_FIELDS:
+        value = data.get(field)
+        if value and (may_override or not acc.get(field)):
+            acc[field] = value
+
+    merged_tags = normalize_tags((acc.get("genre_tags") or []) + (data.get("genre_tags") or []))
+    if merged_tags:
+        acc["genre_tags"] = merged_tags[:3]
+
+    if data.get("isbn") and not acc.get("isbn"):
+        acc["isbn"] = data["isbn"]
+    return acc
+
+
 def lookup_isbn(
     isbn: str,
     fetch_openlibrary_fn=fetch_openlibrary,
@@ -524,6 +725,7 @@ def lookup_isbn(
     fetch_openlibrary_search_fn=fetch_openlibrary_search,
     fetch_openlibrary_covers_fn=fetch_openlibrary_covers,
     fetch_dnb_fn=fetch_dnb,
+    fetch_loc_fn=fetch_loc,
 ) -> dict | None:
     clean = isbn.strip().replace("-", "").replace(" ", "")
     if not clean:
@@ -537,62 +739,60 @@ def lookup_isbn(
     if hit:
         return cached
 
-    openlibrary_data = fetch_openlibrary_fn(clean)
+    german = is_german_isbn(clean)
+    english = is_english_isbn(clean)
 
-    needs_fallback = (
-        not openlibrary_data
-        or not openlibrary_data.get("cover_url")
-        or not openlibrary_data.get("description")
-        or not openlibrary_data.get("author")
-        or not openlibrary_data.get("publisher")
-        or not openlibrary_data.get("year")
-        # The OL Books API never carries ratings; the search fallback does.
-        or not openlibrary_data.get("community_rating")
-    )
-    if not needs_fallback:
-        _set_cached_lookup(clean, openlibrary_data)
-        return cast(dict[Any, Any], openlibrary_data)
-
-    provider_jobs = {
-        "googlebooks": fetch_googlebooks_fn,
-        "openlibrary_search": fetch_openlibrary_search_fn,
+    # Assemble the provider set for this ISBN. Every provider here is queried —
+    # there is no early exit — so a book missing from one source can still be
+    # completed by another, and later providers refine what earlier ones found.
+    # The national libraries are scoped to their language group: DNB for German
+    # ISBNs (keep it there for German books), LoC for English ones.
+    provider_fns = {
         "crossref": fetch_crossref_fn,
+        "openlibrary_search": fetch_openlibrary_search_fn,
+        "openlibrary": fetch_openlibrary_fn,
+        "googlebooks": fetch_googlebooks_fn,
+        "openlibrary_covers": fetch_openlibrary_covers_fn,
     }
-    # DNB is authoritative for German-language books that Open Library lacks; only
-    # query it for German-group ISBNs to spare its servers on other lookups.
-    if is_german_isbn(clean):
-        provider_jobs["dnb"] = fetch_dnb_fn
-    if not openlibrary_data or not openlibrary_data.get("cover_url"):
-        provider_jobs["openlibrary_covers"] = fetch_openlibrary_covers_fn
+    if english:
+        provider_fns["loc"] = fetch_loc_fn
+    if german:
+        provider_fns["dnb"] = fetch_dnb_fn
 
+    # Fetch concurrently (the merge order below, not arrival order, decides
+    # precedence, so parallelism does not change the result — only the latency).
     results: dict[str, dict | None] = {}
-    with ThreadPoolExecutor(max_workers=len(provider_jobs)) as executor:
+    with ThreadPoolExecutor(max_workers=len(provider_fns)) as executor:
         future_map = {
             executor.submit(provider_fn, clean): provider_name
-            for provider_name, provider_fn in provider_jobs.items()
+            for provider_name, provider_fn in provider_fns.items()
         }
         for future in as_completed(future_map):
             provider_name = future_map[future]
             try:
                 results[provider_name] = future.result()
             except Exception as exc:
-                log.warning("%s fallback failed for ISBN %s: %s", provider_name, clean, exc)
+                log.warning("%s lookup failed for ISBN %s: %s", provider_name, clean, exc)
                 results[provider_name] = None
 
-    # DNB first so its authoritative bibliographic fields win for German books;
-    # Google Books then fills cover, description, and ratings it does not carry.
-    merged_data = openlibrary_data
-    for provider_name in [
-        "dnb",
-        "googlebooks",
-        "openlibrary_search",
-        "crossref",
-        "openlibrary_covers",
-    ]:
-        if provider_name in results:
-            merged_data = merge_lookup_data(merged_data, results[provider_name])
+    merged_data: dict = {}
+    for name, may_override, authoritative in _PIPELINE:
+        if name in results:
+            _apply_provider(
+                merged_data,
+                results[name],
+                may_override=may_override,
+                authoritative_names=authoritative,
+            )
 
-    if merged_data and merged_data.get("year"):
+    if not merged_data.get("title"):
+        # No provider resolved the ISBN.
+        _set_cached_lookup(clean, None)
+        return None
+
+    if not merged_data.get("genre") and merged_data.get("genre_tags"):
+        merged_data["genre"] = merged_data["genre_tags"][0]
+    if merged_data.get("year"):
         merged_data["year"] = _clean_year(merged_data["year"]) or merged_data["year"]
 
     _set_cached_lookup(clean, merged_data)

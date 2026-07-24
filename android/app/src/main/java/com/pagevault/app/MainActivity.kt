@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.util.Log
 import android.view.View
+import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.URLUtil
 import android.webkit.ValueCallback
@@ -26,7 +27,11 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.pm.PackageInfoCompat
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.pagevault.app.databinding.ActivityMainBinding
+import org.json.JSONObject
 import java.io.File
 import kotlin.concurrent.thread
 
@@ -168,6 +173,11 @@ class MainActivity : AppCompatActivity() {
             setSupportZoom(false)
         }
 
+        // Expose the native barcode scanner to the page as window.PageVaultNative.
+        // Only reachable from the app's own loopback pages (the WebView never
+        // navigates off 127.0.0.1), so no untrusted content can call it.
+        binding.webview.addJavascriptInterface(WebScannerBridge(), "PageVaultNative")
+
         binding.webview.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView,
@@ -237,6 +247,61 @@ class MainActivity : AppCompatActivity() {
     private fun hasCameraPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
+
+    // ── Native barcode scanner ───────────────────────────────────────────────────
+
+    /**
+     * JavaScript bridge for the in-page "Scan" button. The web UI calls
+     * `window.PageVaultNative.scanIsbn()`; the result is delivered back through
+     * the `pv*` callbacks the page defines.
+     */
+    private inner class WebScannerBridge {
+        @JavascriptInterface
+        fun scanIsbn() {
+            // Bridge methods run on a background thread; UI work must hop to main.
+            runOnUiThread { startNativeScan() }
+        }
+    }
+
+    /**
+     * Launch Google's ML Kit barcode scanner (a self-contained camera UI served
+     * by Play services) restricted to the retail formats printed on books, then
+     * hand the decoded ISBN back to the page. Any failure — most likely Play
+     * services being unavailable — asks the page to use its html5-qrcode scanner.
+     */
+    private fun startNativeScan() {
+        val options = GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(
+                Barcode.FORMAT_EAN_13,
+                Barcode.FORMAT_EAN_8,
+                Barcode.FORMAT_UPC_A,
+                Barcode.FORMAT_UPC_E,
+            )
+            .enableAutoZoom()
+            .build()
+
+        GmsBarcodeScanning.getClient(this, options).startScan()
+            .addOnSuccessListener { barcode ->
+                val value = barcode.rawValue
+                if (value.isNullOrBlank()) dispatchScan("pvScanFallback")
+                else dispatchScan("pvOnScan", value)
+            }
+            .addOnCanceledListener { dispatchScan("pvScanCancelled") }
+            .addOnFailureListener { e ->
+                Log.w(TAG, "Native barcode scan unavailable; using web scanner", e)
+                dispatchScan("pvScanFallback")
+            }
+    }
+
+    /** Invoke one of the page's `window.pv*` scanner callbacks on the UI thread. */
+    private fun dispatchScan(callback: String, arg: String? = null) {
+        val js = if (arg == null) {
+            "window.$callback && window.$callback();"
+        } else {
+            "window.$callback && window.$callback(${JSONObject.quote(arg)});"
+        }
+        runOnUiThread { binding.webview.evaluateJavascript(js, null) }
+    }
 
     private fun saveDownload(
         url: String,

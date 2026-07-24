@@ -899,6 +899,23 @@ class TestFrontend:
 
 
 class TestLookup:
+    @pytest.fixture(autouse=True)
+    def _no_network_providers(self, monkeypatch):
+        """Default every provider to returning nothing, so these unit tests hit
+        no network. The lookup pipeline now queries all providers for every ISBN
+        (no early exit); each test overrides only the ones it exercises.
+        """
+        for name in (
+            "_fetch_openlibrary",
+            "_fetch_openlibrary_search",
+            "_fetch_crossref",
+            "_fetch_googlebooks",
+            "_fetch_openlibrary_covers",
+            "_fetch_dnb",
+            "_fetch_loc",
+        ):
+            monkeypatch.setattr(app_module, name, lambda _isbn: None)
+
     def test_lookup_uses_ttl_cache_for_repeated_isbn(self, monkeypatch):
         core_metadata.clear_lookup_cache()
         calls = {"openlibrary": 0}

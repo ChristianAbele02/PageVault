@@ -7,6 +7,36 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.10.0] — 2026-07-24
+
+A feature release focused on adding books: a clearer scan-to-add flow, editable
+metadata, native barcode scanning on Android, and a more thorough metadata
+lookup.
+
+### Added
+- **Native ISBN scanner on Android.** The app now uses Google's on-device ML Kit
+  barcode scanner (via a JavaScript bridge) instead of the in-WebView camera:
+  faster, steadier in low light, and no secure-context requirement. The model is
+  delivered by Google Play services on demand, so it barely adds to the APK size.
+  Devices without Play services fall back automatically to the previous
+  `html5-qrcode` scanner. Web and desktop builds are unchanged.
+- **Scan/lookup popup.** Looking up an ISBN (by scan or by hand) now opens a
+  popup with a loading bar, then either a "book found" card or a "no match" state
+  that asks for the title and author directly. Available in English and German.
+- **Editable auto-filled metadata.** After a successful lookup the Add form shows
+  the fetched title, author and year as editable fields, so any wrong value can
+  be corrected before the book is added.
+
+### Changed
+- **Metadata lookup is now an ordered, always-run pipeline.** Every ISBN is
+  checked against each free provider in turn — Crossref, Open Library (search and
+  editions), the Library of Congress (English ISBNs), Google Books, and the
+  Deutsche Nationalbibliothek (German ISBNs) — with each source filling missing
+  fields and richer sources refining what earlier ones found. Community ratings
+  now populate on every lookup rather than only on a fallback. Title and author
+  are protected from low-quality overrides; the national library is authoritative
+  for its language group.
+
 ## [1.9.2] — 2026-07-23
 
 ### Changed

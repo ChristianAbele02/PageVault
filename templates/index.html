@@ -974,6 +974,62 @@
     width: 32px; height: 32px; font-size: 1rem; cursor: pointer;
   }
 
+  /* ── ISBN lookup status popup ── */
+  #lookup-modal { align-items: center; }
+  #lookup-modal .modal-panel { width: calc(100% - 2rem); max-width: 420px; }
+  .lookup-body { padding: .25rem 1.5rem 1.75rem; }
+  .lookup-state { display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .lookup-state[hidden] { display: none; }
+  .lookup-state .form-group { width: 100%; text-align: left; }
+  .lookup-icon {
+    width: 56px; height: 56px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.6rem; margin: .5rem 0 .9rem;
+    background: rgba(200,145,58,.14); color: var(--amber);
+  }
+  .lookup-icon.lookup-ok   { background: rgba(46,125,50,.14); color: #2e7d32; }
+  .lookup-icon.lookup-warn { background: rgba(155,58,28,.14); color: var(--rust); font-weight: 800; }
+  .lookup-heading {
+    font-family: 'Playfair Display', serif; font-size: 1.15rem;
+    color: var(--ink); margin-bottom: .35rem;
+  }
+  .lookup-sub { font-size: .85rem; color: var(--brown); line-height: 1.45; margin-bottom: 1rem; }
+  .lookup-progress {
+    width: 100%; height: 6px; border-radius: 999px; margin-top: .3rem;
+    background: rgba(155,110,66,.18); overflow: hidden;
+  }
+  .lookup-progress > span {
+    display: block; height: 100%; width: 38%; border-radius: 999px;
+    background: linear-gradient(90deg, var(--amber), var(--gold));
+    animation: lookupBar 1.15s ease-in-out infinite;
+  }
+  @keyframes lookupBar {
+    0%   { transform: translateX(-130%); }
+    100% { transform: translateX(330%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lookup-progress > span { animation-duration: 2.4s; }
+  }
+  .lookup-result {
+    display: flex; gap: .9rem; align-items: flex-start;
+    width: 100%; text-align: left; margin-bottom: 1rem;
+  }
+  .lookup-result img {
+    width: 62px; height: 92px; object-fit: cover; border-radius: 6px;
+    background: rgba(155,110,66,.12); flex: none;
+    box-shadow: 0 2px 8px rgba(26,16,8,.22);
+  }
+  .lookup-result-meta { min-width: 0; }
+  .lookup-result-title  { font-weight: 700; color: var(--ink); line-height: 1.3; }
+  .lookup-result-author { color: var(--brown); font-size: .9rem; margin-top: .2rem; }
+  .lookup-result-year   { color: #a08a6e; font-size: .82rem; margin-top: .15rem; }
+  .lookup-state .btn-primary { width: 100%; margin-top: .4rem; }
+  .edit-details-hint {
+    display: block; margin: 0 0 .75rem; font-size: .78rem;
+    color: var(--brown); line-height: 1.4;
+  }
+  .dark-mode .edit-details-hint { color: #cbb9a3; }
+
   .divider {
     display: flex; align-items: center; gap: .75rem;
     margin: 1rem 0; color: #bbb; font-size: .8rem;
@@ -1414,6 +1470,15 @@
   .dark-mode .search-modal-hint {
     color: #b8a894;
   }
+  .dark-mode .lookup-m-title,
+  .dark-mode #lookup-m-title,
+  .dark-mode #lookup-m-author {
+    background: #211709; color: #f5efe6; border-color: #5a4531;
+  }
+  .dark-mode .lookup-heading,
+  .dark-mode .lookup-result-title { color: #f5efe6; }
+  .dark-mode .lookup-sub,
+  .dark-mode .lookup-result-author { color: #cbb9a3; }
   .dark-mode .tag-counter {
     color: #b8a894;
   }
@@ -1882,6 +1947,7 @@
       </div>
 
       <div id="manual-fields" style="display:none">
+        <small class="edit-details-hint" id="manual-fields-hint" data-i18n="edit_details_hint">Auto-filled details — edit any that are wrong.</small>
         <div class="form-group">
           <label data-i18n="label_title">Title</label>
           <input type="text" id="m-title" placeholder="Book title" data-i18n-placeholder="ph_title">
@@ -1889,6 +1955,10 @@
         <div class="form-group">
           <label data-i18n="label_author">Author</label>
           <input type="text" id="m-author" placeholder="Author name" data-i18n-placeholder="ph_author">
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_year">Year</label>
+          <input type="text" id="m-year" inputmode="numeric" placeholder="Year" data-i18n-placeholder="ph_year">
         </div>
       </div>
 
@@ -1949,6 +2019,56 @@
       </div>
 
       <button class="btn-primary" id="add-btn" onclick="addBook()" disabled data-i18n="btn_add_to_shelf">Add to My Shelf</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- ── ISBN Lookup status popup ── -->
+<dialog class="modal-dialog" id="lookup-modal">
+  <div class="modal-panel">
+    <div class="modal-handle"></div>
+    <div class="lookup-body">
+
+      <!-- Loading -->
+      <div class="lookup-state" id="lookup-loading">
+        <div class="lookup-icon">🔍</div>
+        <div class="lookup-heading" data-i18n="lookup_searching">Looking up ISBN…</div>
+        <div class="lookup-sub" id="lookup-loading-isbn"></div>
+        <div class="lookup-progress" aria-hidden="true"><span></span></div>
+      </div>
+
+      <!-- Found -->
+      <div class="lookup-state" id="lookup-found" hidden>
+        <div class="lookup-icon lookup-ok">✓</div>
+        <div class="lookup-heading" data-i18n="lookup_found">Book found</div>
+        <div class="lookup-result">
+          <img id="lookup-cover" src="" alt="">
+          <div class="lookup-result-meta">
+            <div class="lookup-result-title"  id="lookup-title"></div>
+            <div class="lookup-result-author" id="lookup-author"></div>
+            <div class="lookup-result-year"   id="lookup-year"></div>
+          </div>
+        </div>
+        <div class="lookup-sub" data-i18n="lookup_found_sub">Details are loaded below. Review and add it to your library.</div>
+        <button class="btn-primary" onclick="closeLookup()" data-i18n="lookup_continue">Continue</button>
+      </div>
+
+      <!-- Not found -->
+      <div class="lookup-state" id="lookup-notfound" hidden>
+        <div class="lookup-icon lookup-warn">!</div>
+        <div class="lookup-heading" data-i18n="lookup_notfound">No match found</div>
+        <div class="lookup-sub" data-i18n="lookup_notfound_sub">We could not find this ISBN. Enter the details yourself:</div>
+        <div class="form-group">
+          <label data-i18n="label_title">Title</label>
+          <input type="text" id="lookup-m-title" placeholder="Book title" data-i18n-placeholder="ph_title">
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_author">Author</label>
+          <input type="text" id="lookup-m-author" placeholder="Author name" data-i18n-placeholder="ph_author">
+        </div>
+        <button class="btn-primary" onclick="saveManualFromLookup()" data-i18n="lookup_save_manual">Use these details</button>
+      </div>
+
     </div>
   </div>
 </dialog>
@@ -3419,6 +3539,9 @@ function openAdd() {
   document.getElementById('isbn-input').value = '';
   document.getElementById('preview-card').classList.remove('visible');
   document.getElementById('manual-fields').style.display = 'none';
+  document.getElementById('m-title').value = '';
+  document.getElementById('m-author').value = '';
+  document.getElementById('m-year').value = '';
   setGenreState('add', []);
   document.getElementById('add-genre-input').value = '';
   document.getElementById('new-shelf-name').value = '';
@@ -3433,6 +3556,8 @@ function openAdd() {
 
 function closeAdd() {
   stopScanner();
+  const lookupModal = document.getElementById('lookup-modal');
+  if (lookupModal.open) lookupModal.close();
   document.getElementById('add-modal').close();
 }
 
@@ -3511,7 +3636,27 @@ async function copyMobileUrl() {
   }
 }
 
+// The Android app injects a native ML Kit scanner (window.PageVaultNative) that
+// is faster and steadier in poor light than html5-qrcode and needs no
+// getUserMedia. Use it when present; every other build (and Android without
+// Play services) uses the in-page web scanner.
+function nativeScannerAvailable() {
+  return !!(window.PageVaultNative && typeof window.PageVaultNative.scanIsbn === 'function');
+}
+
 function startScanner() {
+  if (nativeScannerAvailable()) {
+    try {
+      window.PageVaultNative.scanIsbn();
+      return;
+    } catch (_) {
+      // Bridge threw — fall through to the web scanner.
+    }
+  }
+  startWebScanner();
+}
+
+function startWebScanner() {
   // Camera access (getUserMedia) is only available in a secure context: HTTPS,
   // or localhost. Over plain HTTP on a LAN IP (e.g. a phone opening the QR link)
   // navigator.mediaDevices is undefined, so fail with a clear message rather
@@ -3539,6 +3684,19 @@ function startScanner() {
    .catch(err => { showToast('Camera access denied: ' + err); });
 }
 
+// ── Native scanner callbacks (invoked by the Android bridge) ──────────────────
+// A decoded barcode flows straight into the same lookup + popup path as a typed
+// ISBN. A failure (e.g. Play services missing) falls back to the web scanner;
+// a cancel just leaves the Add modal as it was.
+window.pvOnScan = async function (text) {
+  const isbn = (text || '').trim();
+  if (!isbn) return;
+  document.getElementById('isbn-input').value = isbn;
+  await lookupIsbn();
+};
+window.pvScanFallback = function () { startWebScanner(); };
+window.pvScanCancelled = function () { /* user dismissed the native scanner */ };
+
 async function stopScanner() {
   if (scanner && scannerRunning) {
     await scanner.stop().catch(()=>{});
@@ -3549,30 +3707,108 @@ async function stopScanner() {
 }
 
 // ─── ISBN lookup ──────────────────────────────────────────────────────────────
+// A popup over the Add modal walks the user through the lookup: an indeterminate
+// loading bar while Open Library is queried, then either a "found" card (details
+// are filled into the Add form behind it) or a "not found" state that asks for
+// the title and author by hand.
+function showLookupState(stateId) {
+  ['lookup-loading', 'lookup-found', 'lookup-notfound'].forEach(id => {
+    document.getElementById(id).hidden = (id !== stateId);
+  });
+}
+
+function closeLookup() {
+  document.getElementById('lookup-modal').close();
+}
+
 async function lookupIsbn() {
   const isbn = document.getElementById('isbn-input').value.trim();
   if (!isbn) { showToast(t('toast_enter_isbn')); return; }
 
-  showToast(t('toast_looking_up'));
-  const r = await api(`/api/lookup/${isbn}`);
-  if (!r.ok) {
-    // Not found - show manual fields
+  document.getElementById('lookup-loading-isbn').textContent = isbn;
+  showLookupState('lookup-loading');
+  const lookupModal = document.getElementById('lookup-modal');
+  if (!lookupModal.open) lookupModal.showModal();
+
+  let r;
+  try {
+    r = await api(`/api/lookup/${isbn}`);
+  } catch (_) {
+    r = null;
+  }
+
+  if (!r || !r.ok) {
+    // Not found — prime manual entry in both the popup and the Add form. The
+    // "auto-filled" hint is hidden here: nothing was fetched to auto-fill.
+    document.getElementById('manual-fields-hint').style.display = 'none';
     document.getElementById('manual-fields').style.display = 'block';
+    document.getElementById('m-year').value = '';
     setGenreState('add', []);
     document.getElementById('add-genre-input').value = '';
-    document.getElementById('add-btn').disabled = false;
     currentBookData = { isbn, title: '', author: '' };
-    showToast(t('toast_not_found'));
+    document.getElementById('add-btn').disabled = true;
+    document.getElementById('lookup-m-title').value = '';
+    document.getElementById('lookup-m-author').value = '';
+    showLookupState('lookup-notfound');
+    setTimeout(() => document.getElementById('lookup-m-title').focus(), 80);
     return;
   }
+
   const book = await r.json();
   currentBookData = book;
   setGenreState('add', book.genre_tags || []);
   document.getElementById('add-genre-input').value = '';
   showPreview(book);
   document.getElementById('add-btn').disabled = false;
-  showToast(t('toast_found'));
+
+  // Surface the fetched metadata as editable fields so any wrong value can be
+  // corrected by hand before adding.
+  document.getElementById('m-title').value  = book.title  || '';
+  document.getElementById('m-author').value = book.author || '';
+  document.getElementById('m-year').value   = book.year   || '';
+  document.getElementById('manual-fields-hint').style.display = 'block';
+  document.getElementById('manual-fields').style.display = 'block';
+
+  // Fill the popup's found card.
+  const cover = getBookCover(book);
+  const lc = document.getElementById('lookup-cover');
+  if (cover) {
+    lc.src = cover;
+    lc.style.display = '';
+    lc.onerror = () => { lc.style.display = 'none'; };
+  } else {
+    lc.style.display = 'none';
+  }
+  document.getElementById('lookup-title').textContent  = book.title  || '';
+  document.getElementById('lookup-author').textContent = book.author || '';
+  document.getElementById('lookup-year').textContent   = book.year   || '';
+  showLookupState('lookup-found');
 }
+
+// From the "not found" popup: carry the typed title/author into the Add form,
+// enable the Add button, and close the popup so the rest of the form is visible.
+function saveManualFromLookup() {
+  const title  = document.getElementById('lookup-m-title').value.trim();
+  const author = document.getElementById('lookup-m-author').value.trim();
+  if (!title) { document.getElementById('lookup-m-title').focus(); return; }
+  const isbn = document.getElementById('isbn-input').value.trim();
+  currentBookData = { isbn, title, author };
+  document.getElementById('m-title').value  = title;
+  document.getElementById('m-author').value = author;
+  document.getElementById('manual-fields').style.display = 'block';
+  document.getElementById('add-btn').disabled = false;
+  closeLookup();
+}
+
+// The lookup popup is its own dialog stacked over the Add modal: Escape and
+// backdrop clicks must dismiss only it, never the Add modal underneath.
+document.getElementById('lookup-modal').addEventListener('cancel', e => {
+  e.preventDefault();
+  closeLookup();
+});
+document.getElementById('lookup-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('lookup-modal')) closeLookup();
+});
 
 function showPreview(book) {
   const card = document.getElementById('preview-card');
@@ -3602,11 +3838,14 @@ async function addBook() {
   const locationNote = document.getElementById('add-location-note').value.trim();
   const loanPerson = document.getElementById('add-loan-person').value.trim();
 
-  // Manual overrides
+  // Manual overrides — apply whatever is in the editable fields, whether the
+  // book was auto-filled or entered by hand.
   const manTitle  = document.getElementById('m-title').value.trim();
   const manAuthor = document.getElementById('m-author').value.trim();
+  const manYear   = document.getElementById('m-year').value.trim();
   if (manTitle) currentBookData.title  = manTitle;
   if (manAuthor) currentBookData.author = manAuthor;
+  if (manYear) currentBookData.year = manYear;
   if (!currentBookData.isbn) currentBookData.isbn = isbn;
 
   document.getElementById('add-btn').disabled = true;
