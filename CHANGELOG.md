@@ -7,13 +7,15 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [1.11.1] — 2026-07-26
 
 ### Fixed
 - A metadata refresh ("Reload metadata") no longer overwrites a cover the user
   photographed or uploaded. Custom covers are served locally, and refresh now
   leaves them in place while still refreshing every other field and replacing
   online covers as before.
+- Batch-review thumbnails fall back to the book icon when an online cover image
+  is unavailable, instead of showing a broken image.
 
 ## [1.11.0] — 2026-07-26
 
