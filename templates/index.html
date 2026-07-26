@@ -959,6 +959,68 @@
     transition: background .2s;
   }
   .scan-btn:hover { background: #2e1f0e; }
+  .scan-btn-alt {
+    background: var(--paper); color: var(--ink);
+    border: 1.5px solid var(--tan); margin-top: .6rem;
+    font-size: .92rem;
+  }
+  .scan-btn-alt:hover { background: #f0e6d6; }
+
+  /* ── Batch scanning ── */
+  #batch-scan-modal .modal-panel,
+  #batch-review-modal .modal-panel { max-width: 560px; }
+  .batch-body { padding: .25rem 1.25rem 1.5rem; }
+  #batch-reader { width: 100%; border-radius: 10px; overflow: hidden; background: #000; }
+  .batch-live {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: .9rem 0 .4rem; font-size: .9rem;
+  }
+  .batch-count-badge {
+    background: var(--ink); color: var(--gold); border-radius: 999px;
+    padding: .2rem .7rem; font-weight: 700; font-family: 'Playfair Display', serif;
+  }
+  .batch-scan-list { max-height: 34vh; overflow-y: auto; margin: .3rem 0 1rem; }
+  .batch-scan-item {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .5rem .2rem; border-bottom: 1px solid var(--tan);
+    font-size: .86rem; animation: batchIn .25s ease;
+  }
+  @keyframes batchIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .batch-scan-item .bsi-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .batch-scan-item .bsi-state { font-size: .74rem; color: var(--brown); white-space: nowrap; }
+  .batch-scan-item.dup { opacity: .55; }
+  .batch-actions, .crop-actions { display: flex; gap: .6rem; }
+  .batch-actions button { flex: 1; }
+
+  .batch-review-list { display: flex; flex-direction: column; gap: .7rem; margin: .5rem 0 1rem; }
+  .batch-row {
+    display: flex; gap: .7rem; align-items: flex-start;
+    border: 1px solid var(--tan); border-radius: 10px; padding: .6rem;
+    background: rgba(255,255,255,.35);
+  }
+  .batch-row-cover {
+    width: 44px; min-width: 44px; aspect-ratio: 2/3; border-radius: 4px;
+    background: linear-gradient(135deg, var(--brown), #4a3320); color: #fff;
+    display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 1.1rem;
+  }
+  .batch-row-cover img { width: 100%; height: 100%; object-fit: cover; }
+  .batch-row-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .35rem; }
+  .batch-row-fields input, .batch-row-fields select {
+    width: 100%; padding: .35rem .5rem; border: 1px solid var(--tan);
+    border-radius: 6px; font-size: .85rem; background: var(--paper); color: var(--ink);
+  }
+  .batch-row-meta { display: flex; gap: .4rem; }
+  .batch-row-meta .batch-year { flex: 0 0 5.5rem; }
+  .batch-row-meta .batch-status { flex: 1; }
+  .batch-row-isbn { font-size: .72rem; color: var(--brown); }
+  .batch-remove {
+    border: none; background: transparent; color: var(--rust);
+    font-size: 1rem; cursor: pointer; padding: .1rem .3rem; align-self: flex-start;
+  }
+  .batch-empty { text-align: center; color: var(--brown); font-size: .9rem; padding: 1.5rem 0; }
+  .dark-mode .scan-btn-alt { background: #211709; color: #f5efe6; border-color: #5a4531; }
+  .dark-mode .batch-row { background: rgba(0,0,0,.2); border-color: #5a4531; }
+  .dark-mode .batch-row-fields input, .dark-mode .batch-row-fields select { background: #211709; color: #f5efe6; border-color: #5a4531; }
 
   #scanner-container {
     display: none; border-radius: 10px; overflow: hidden;
@@ -1167,6 +1229,34 @@
     font-size: 2rem;
     box-shadow: -3px 0 0 rgba(0,0,0,.15), 4px 4px 14px var(--shadow);
   }
+  .detail-cover-box { position: relative; width: 90px; min-width: 90px; }
+  .cover-edit-btn {
+    position: absolute; bottom: 4px; right: 4px;
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 2px solid var(--paper); background: var(--ink); color: var(--gold);
+    font-size: .9rem; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; padding: 0;
+    box-shadow: 0 2px 6px rgba(0,0,0,.35);
+  }
+  .cover-edit-btn:active { background: #2e1f0e; }
+
+  /* ── Cover cropper ── */
+  #crop-modal { align-items: center; }
+  #crop-modal .modal-panel { width: calc(100% - 2rem); max-width: 380px; }
+  .crop-body { padding: .25rem 1.25rem 1.5rem; display: flex; flex-direction: column; align-items: center; }
+  .crop-stage {
+    width: 220px; height: 330px; /* 2:3 */
+    border-radius: 8px; overflow: hidden; background: #000;
+    touch-action: none; cursor: grab; box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  }
+  .crop-stage:active { cursor: grabbing; }
+  #crop-canvas { width: 100%; height: 100%; display: block; }
+  .crop-zoom-row { display: flex; align-items: center; gap: .6rem; width: 220px; margin: 1rem 0 .25rem; }
+  .crop-zoom-row input[type=range] { flex: 1; accent-color: var(--amber); }
+  .crop-hint { font-size: .78rem; color: var(--brown); margin: .1rem 0 1rem; text-align: center; line-height: 1.4; }
+  .crop-actions { display: flex; gap: .6rem; width: 220px; }
+  .crop-actions button { flex: 1; }
+  .cover-source-menu { display: flex; flex-direction: column; gap: .5rem; padding: .25rem 1.25rem 1.5rem; }
   .detail-meta .detail-title {
     font-family: 'Playfair Display', serif; font-size: 1.15rem;
     font-weight: 700; line-height: 1.3;
@@ -1921,6 +2011,9 @@
       <button class="scan-btn" id="scan-btn" onclick="toggleScanner()">
         <span>📷</span> <span data-i18n="scan_isbn">Scan ISBN Barcode</span>
       </button>
+      <button class="scan-btn scan-btn-alt" id="batch-scan-btn" onclick="startBatchScan()">
+        <span>🗂️</span> <span data-i18n="batch_scan">Batch scan (add many)</span>
+      </button>
 
       <div id="scanner-container">
         <div id="reader"></div>
@@ -2069,6 +2162,84 @@
         <button class="btn-primary" onclick="saveManualFromLookup()" data-i18n="lookup_save_manual">Use these details</button>
       </div>
 
+    </div>
+  </div>
+</dialog>
+
+<!-- ── Cover source chooser + cropper ── -->
+<input type="file" id="cover-camera-input" accept="image/*" capture="environment" style="display:none" onchange="onCoverFileSelected(this.files[0]); this.value='';">
+<input type="file" id="cover-file-input" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="onCoverFileSelected(this.files[0]); this.value='';">
+
+<dialog class="modal-dialog" id="cover-source-modal">
+  <div class="modal-panel">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title" data-i18n="cover_add_title">Add a cover</span>
+      <button class="btn-close" onclick="document.getElementById('cover-source-modal').close()">✕</button>
+    </div>
+    <div class="cover-source-menu">
+      <button class="btn-primary" onclick="chooseCoverSource('camera')" data-i18n="cover_take_photo">📷 Take a photo</button>
+      <button class="mini-btn" style="padding:.7rem" onclick="chooseCoverSource('file')" data-i18n="cover_choose_file">🖼 Choose an image</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="modal-dialog" id="crop-modal">
+  <div class="modal-panel">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title" data-i18n="cover_crop_title">Crop cover</span>
+      <button class="btn-close" onclick="closeCrop()">✕</button>
+    </div>
+    <div class="crop-body">
+      <div class="crop-stage" id="crop-stage"><canvas id="crop-canvas"></canvas></div>
+      <div class="crop-zoom-row">
+        <span>➖</span>
+        <input type="range" id="crop-zoom" min="1" max="3" step="0.01" value="1" oninput="setCropZoom(this.value)">
+        <span>➕</span>
+      </div>
+      <div class="crop-hint" data-i18n="cover_crop_hint">Drag to reposition, slide to zoom. The frame is a standard book-cover shape.</div>
+      <div class="crop-actions">
+        <button class="mini-btn" onclick="closeCrop()" data-i18n="btn_cancel">Cancel</button>
+        <button class="btn-primary" id="crop-save-btn" onclick="saveCover()" data-i18n="cover_save">Save cover</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<!-- ── Batch scanning ── -->
+<dialog class="modal-dialog" id="batch-scan-modal">
+  <div class="modal-panel">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title" data-i18n="batch_scan_title">Batch scan</span>
+      <button class="btn-close" onclick="cancelBatchScan()">✕</button>
+    </div>
+    <div class="batch-body">
+      <div id="batch-reader"></div>
+      <div class="batch-live">
+        <span data-i18n="batch_keep_scanning">Keep scanning — books are saved as you go.</span>
+        <span class="batch-count-badge"><span id="batch-count">0</span></span>
+      </div>
+      <div class="batch-scan-list" id="batch-scan-list"></div>
+      <div class="batch-actions">
+        <button class="mini-btn" onclick="cancelBatchScan()" data-i18n="btn_cancel">Cancel</button>
+        <button class="btn-primary" id="batch-done-btn" onclick="finishBatchScan()" data-i18n="batch_review">Review &amp; add</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="modal-dialog" id="batch-review-modal">
+  <div class="modal-panel">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title" data-i18n="batch_review_title">Review books</span>
+      <button class="btn-close" onclick="document.getElementById('batch-review-modal').close()">✕</button>
+    </div>
+    <div class="batch-body">
+      <div class="batch-review-list" id="batch-review-list"></div>
+      <button class="btn-primary" id="batch-add-all-btn" onclick="submitBatchAdd()" data-i18n="batch_add_all">Add all</button>
     </div>
   </div>
 </dialog>
@@ -3992,12 +4163,15 @@ function _fillDetailModal(b) {
     comEl.style.display = 'none';
   }
 
-  // Cover
+  // Cover (with an edit button to photograph or upload a replacement)
   const wrap = document.getElementById('detail-cover-wrap');
   const safeCover = getBookCover(b);
-  wrap.innerHTML = safeCover
+  const coverInner = safeCover
     ? `<img class="detail-cover" src="${esc(safeCover)}" alt="cover" onerror="this.outerHTML='<div class=&quot;detail-cover-ph&quot;>📖</div>'">`
     : `<div class="detail-cover-ph">📖</div>`;
+  wrap.innerHTML =
+    `<div class="detail-cover-box">${coverInner}` +
+    `<button class="cover-edit-btn" onclick="openCoverChooser()" title="${esc(t('cover_edit'))}" aria-label="${esc(t('cover_edit'))}">📷</button></div>`;
 
   buildStarPicker('d-star-picker', 'd-rating-label', b.avg_rating);
 
@@ -4684,6 +4858,317 @@ function setupEbookDrop() {
   });
 }
 
+// ─── Cover: photograph or upload, crop to a 2:3 book-cover frame ─────────────
+const COVER_OUT_W = 600, COVER_OUT_H = 900;   // export resolution (2:3)
+let _cropImg = null, _cropScale = 1, _cropMinScale = 1, _cropOffX = 0, _cropOffY = 0;
+let _cropDragging = false, _cropLastX = 0, _cropLastY = 0, _coverTargetId = null;
+
+function openCoverChooser() {
+  _coverTargetId = currentBookId;
+  document.getElementById('cover-source-modal').showModal();
+}
+
+function chooseCoverSource(kind) {
+  document.getElementById('cover-source-modal').close();
+  const id = kind === 'camera' ? 'cover-camera-input' : 'cover-file-input';
+  document.getElementById(id).click();
+}
+
+function onCoverFileSelected(file) {
+  if (!file) return;
+  if (!/^image\/(jpe?g|png|webp)$/i.test(file.type || '')) { showToast(t('cover_bad_type')); return; }
+  const reader = new FileReader();
+  reader.onload = e => loadCropImage(e.target.result);
+  reader.onerror = () => showToast(t('cover_read_failed'));
+  reader.readAsDataURL(file);
+}
+
+function loadCropImage(dataUrl) {
+  const img = new Image();
+  img.onload = () => {
+    _cropImg = img;
+    // "cover" fit: smallest scale that fills the 2:3 frame, so no empty edges.
+    _cropMinScale = Math.max(COVER_OUT_W / img.width, COVER_OUT_H / img.height);
+    _cropScale = _cropMinScale;
+    _cropOffX = (COVER_OUT_W - img.width * _cropScale) / 2;
+    _cropOffY = (COVER_OUT_H - img.height * _cropScale) / 2;
+    document.getElementById('crop-zoom').value = 1;
+    document.getElementById('crop-modal').showModal();
+    renderCrop();
+  };
+  img.onerror = () => showToast(t('cover_read_failed'));
+  img.src = dataUrl;
+}
+
+function renderCrop() {
+  if (!_cropImg) return;
+  const canvas = document.getElementById('crop-canvas');
+  canvas.width = COVER_OUT_W; canvas.height = COVER_OUT_H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, COVER_OUT_W, COVER_OUT_H);
+  ctx.drawImage(_cropImg, _cropOffX, _cropOffY, _cropImg.width * _cropScale, _cropImg.height * _cropScale);
+}
+
+function clampCrop() {
+  const w = _cropImg.width * _cropScale, h = _cropImg.height * _cropScale;
+  _cropOffX = Math.min(0, Math.max(COVER_OUT_W - w, _cropOffX));
+  _cropOffY = Math.min(0, Math.max(COVER_OUT_H - h, _cropOffY));
+}
+
+function setCropZoom(v) {
+  if (!_cropImg) return;
+  const newScale = _cropMinScale * parseFloat(v);
+  const cx = COVER_OUT_W / 2, cy = COVER_OUT_H / 2;   // keep the frame centre fixed
+  const ix = (cx - _cropOffX) / _cropScale, iy = (cy - _cropOffY) / _cropScale;
+  _cropScale = newScale;
+  _cropOffX = cx - ix * _cropScale;
+  _cropOffY = cy - iy * _cropScale;
+  clampCrop();
+  renderCrop();
+}
+
+function _cropDown(e) {
+  _cropDragging = true;
+  const p = e.touches ? e.touches[0] : e;
+  _cropLastX = p.clientX; _cropLastY = p.clientY;
+}
+function _cropMove(e) {
+  if (!_cropDragging || !_cropImg) return;
+  e.preventDefault();
+  const p = e.touches ? e.touches[0] : e;
+  const stage = document.getElementById('crop-stage');
+  const ratio = COVER_OUT_W / stage.clientWidth;   // display px -> canvas px
+  _cropOffX += (p.clientX - _cropLastX) * ratio;
+  _cropOffY += (p.clientY - _cropLastY) * ratio;
+  _cropLastX = p.clientX; _cropLastY = p.clientY;
+  clampCrop();
+  renderCrop();
+}
+function _cropUp() { _cropDragging = false; }
+
+function setupCropStage() {
+  const stage = document.getElementById('crop-stage');
+  if (!stage) return;
+  stage.addEventListener('mousedown', _cropDown);
+  window.addEventListener('mousemove', _cropMove);
+  window.addEventListener('mouseup', _cropUp);
+  stage.addEventListener('touchstart', _cropDown, { passive: false });
+  stage.addEventListener('touchmove', _cropMove, { passive: false });
+  stage.addEventListener('touchend', _cropUp);
+}
+
+function closeCrop() {
+  document.getElementById('crop-modal').close();
+  _cropImg = null;
+}
+
+async function saveCover() {
+  if (!_cropImg || !_coverTargetId) return;
+  const canvas = document.getElementById('crop-canvas');
+  const btn = document.getElementById('crop-save-btn');
+  btn.disabled = true;
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.9));
+  if (!blob) { btn.disabled = false; showToast(t('cover_save_failed')); return; }
+  const fd = new FormData();
+  fd.append('file', blob, 'cover.jpg');
+  const r = await api(`/api/books/${_coverTargetId}/cover`, { method: 'POST', body: fd });
+  btn.disabled = false;
+  if (!r.ok) { showToast(t('cover_save_failed')); return; }
+  const data = await r.json();
+  const cached = books.find(b => b.id === _coverTargetId);
+  if (cached) cached.cover_url = data.cover_url;
+  _detailNeedsRefresh = true;   // grid refreshes when the detail modal closes
+  if (currentBookId === _coverTargetId && cached) {
+    const wrap = document.getElementById('detail-cover-wrap');
+    if (wrap) {
+      const src = getBookCover(cached);
+      wrap.innerHTML =
+        `<div class="detail-cover-box"><img class="detail-cover" src="${esc(src)}" alt="cover">` +
+        `<button class="cover-edit-btn" onclick="openCoverChooser()" title="${esc(t('cover_edit'))}">📷</button></div>`;
+    }
+  }
+  closeCrop();
+  showToast(t('cover_saved'));
+}
+
+// ─── Batch scanning ──────────────────────────────────────────────────────────
+// Scan many books without stopping; each ISBN is looked up in the background as
+// it is scanned. "Review & add" opens a fully editable list, and "Add all"
+// commits the whole list at once.
+let batchScanner = null, batchScannerRunning = false;
+let batchItems = [];    // {isbn, status, book, addStatus}
+let batchReview = [];   // addable subset, edited in the review list
+
+function startBatchScan() {
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast(t('toast_camera_insecure'));
+    return;
+  }
+  batchItems = [];
+  renderBatchScanList();
+  document.getElementById('batch-count').textContent = '0';
+  document.getElementById('batch-scan-modal').showModal();
+  batchScanner = new Html5Qrcode('batch-reader');
+  batchScanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 280, height: 120 } },
+    (decodedText) => onBatchScan(decodedText),
+    () => {}
+  ).then(() => { batchScannerRunning = true; })
+   .catch(err => { showToast('Camera access denied: ' + err); });
+}
+
+async function stopBatchScanner() {
+  if (batchScanner && batchScannerRunning) {
+    await batchScanner.stop().catch(() => {});
+    try { batchScanner.clear(); } catch (_) {}
+  }
+  batchScanner = null;
+  batchScannerRunning = false;
+}
+
+async function onBatchScan(raw) {
+  const isbn = (raw || '').trim();
+  if (!isbn || batchItems.some(it => it.isbn === isbn)) return;   // dedupe repeats
+  const inLib = books.some(b => (b.isbn || '') === isbn);
+  const item = { isbn, status: inLib ? 'inlibrary' : 'pending', book: null, addStatus: 'want_to_read' };
+  batchItems.push(item);
+  if (navigator.vibrate) { try { navigator.vibrate(40); } catch (_) {} }
+  document.getElementById('batch-count').textContent =
+    String(batchItems.filter(it => it.status !== 'inlibrary').length);
+  renderBatchScanList();
+  if (inLib) return;
+  try {
+    const r = await api(`/api/lookup/${isbn}`);
+    if (r.ok) { item.book = await r.json(); item.status = 'found'; }
+    else { item.status = 'notfound'; }
+  } catch (_) { item.status = 'notfound'; }
+  renderBatchScanList();
+}
+
+function batchStateLabel(it) {
+  if (it.status === 'inlibrary') return t('batch_already');
+  if (it.status === 'pending')   return t('batch_looking');
+  if (it.status === 'notfound')  return t('batch_notfound');
+  return '';
+}
+
+function renderBatchScanList() {
+  const el = document.getElementById('batch-scan-list');
+  el.innerHTML = batchItems.slice().reverse().map(it => {
+    const title = it.book ? esc(it.book.title || it.isbn) : esc(it.isbn);
+    const cls = it.status === 'inlibrary' ? 'batch-scan-item dup' : 'batch-scan-item';
+    return `<div class="${cls}"><span class="bsi-title">${title}</span>` +
+           `<span class="bsi-state">${esc(batchStateLabel(it))}</span></div>`;
+  }).join('');
+}
+
+async function cancelBatchScan() {
+  await stopBatchScanner();
+  document.getElementById('batch-scan-modal').close();
+  batchItems = [];
+}
+
+async function finishBatchScan() {
+  await stopBatchScanner();
+  document.getElementById('batch-scan-modal').close();
+  batchReview = batchItems
+    .filter(it => it.status !== 'inlibrary')
+    .map(it => ({
+      isbn: it.isbn,
+      book: it.book || { isbn: it.isbn, title: '', author: '', year: '' },
+      addStatus: 'want_to_read',
+    }));
+  batchItems = [];
+  if (!batchReview.length) { showToast(t('batch_none')); return; }
+  renderBatchReview();
+  document.getElementById('batch-review-modal').showModal();
+}
+
+function batchStatusOptions(sel) {
+  const opts = [
+    ['want_to_read', 'status_want'], ['reading', 'status_reading'],
+    ['read', 'status_read'], ['dnf', 'status_dnf'],
+  ];
+  return opts.map(([v, k]) => `<option value="${v}" ${v === sel ? 'selected' : ''}>${esc(t(k))}</option>`).join('');
+}
+
+function renderBatchReview() {
+  const list = document.getElementById('batch-review-list');
+  const addBtn = document.getElementById('batch-add-all-btn');
+  if (!batchReview.length) {
+    list.innerHTML = `<p class="batch-empty">${esc(t('batch_empty'))}</p>`;
+    addBtn.disabled = true;
+    return;
+  }
+  addBtn.disabled = false;
+  addBtn.textContent = `${t('batch_add_all')} (${batchReview.length})`;
+  list.innerHTML = batchReview.map((r, i) => {
+    const b = r.book || {};
+    const cover = b.title ? (getBookCover(b) || '') : '';
+    const coverHtml = cover ? `<img src="${esc(cover)}" alt="">` : '📖';
+    return `<div class="batch-row" data-idx="${i}">
+      <div class="batch-row-cover">${coverHtml}</div>
+      <div class="batch-row-fields">
+        <input class="batch-title" value="${esc(b.title || '')}" placeholder="${esc(t('ph_title'))}">
+        <input class="batch-author" value="${esc(b.author || '')}" placeholder="${esc(t('ph_author'))}">
+        <div class="batch-row-meta">
+          <input class="batch-year" value="${esc(b.year || '')}" placeholder="${esc(t('ph_year'))}" inputmode="numeric">
+          <select class="batch-status">${batchStatusOptions(r.addStatus)}</select>
+        </div>
+        <div class="batch-row-isbn">${esc(r.isbn)}</div>
+      </div>
+      <button class="batch-remove" onclick="removeBatchRow(${i})" title="${esc(t('btn_remove'))}">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function _syncBatchReviewFromDom() {
+  document.querySelectorAll('#batch-review-list .batch-row').forEach(row => {
+    const i = parseInt(row.dataset.idx, 10);
+    if (!batchReview[i]) return;
+    const b = batchReview[i].book || (batchReview[i].book = {});
+    b.title = row.querySelector('.batch-title').value.trim();
+    b.author = row.querySelector('.batch-author').value.trim();
+    b.year = row.querySelector('.batch-year').value.trim();
+    b.isbn = batchReview[i].isbn;
+    batchReview[i].addStatus = row.querySelector('.batch-status').value;
+  });
+}
+
+function removeBatchRow(i) {
+  _syncBatchReviewFromDom();
+  batchReview.splice(i, 1);
+  renderBatchReview();
+}
+
+async function submitBatchAdd() {
+  _syncBatchReviewFromDom();
+  const payload = batchReview
+    .filter(r => (r.book.title || '').trim())
+    .map(r => ({ isbn: r.isbn, book_data: r.book, status: r.addStatus, genre_tags: r.book.genre_tags || [] }));
+  if (!payload.length) { showToast(t('batch_need_titles')); return; }
+  const btn = document.getElementById('batch-add-all-btn');
+  btn.disabled = true;
+  const r = await api('/api/books/batch', { method: 'POST', body: JSON.stringify({ books: payload }) });
+  btn.disabled = false;
+  if (!r.ok) { showToast(t('batch_add_failed')); return; }
+  const data = await r.json();
+  document.getElementById('batch-review-modal').close();
+  batchReview = [];
+  const added = (data.added || []).length, skipped = (data.skipped || []).length;
+  showToast(t('batch_added').replace('{n}', added).replace('{s}', skipped));
+  if (typeof closeAdd === 'function') closeAdd();
+  await loadBooks();
+}
+
+// Escape / backdrop on the batch dialogs should stop the camera cleanly.
+document.getElementById('batch-scan-modal').addEventListener('cancel', e => { e.preventDefault(); cancelBatchScan(); });
+document.getElementById('batch-scan-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('batch-scan-modal')) cancelBatchScan();
+});
+
 // ─── i18n hook — re-render all dynamic content on language change ─────────────
 const _origApplyLang = window.applyLang;
 window.applyLang = function(lang) {
@@ -4731,6 +5216,7 @@ refreshSessionSummary();
 loadLatestMetadataJob();
 registerServiceWorker();
 setupEbookDrop();
+setupCropStage();
 window.addEventListener('resize', debouncedSyncShelfLines);
 </script>
 </body>

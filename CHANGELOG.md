@@ -7,6 +7,22 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.11.0] — 2026-07-26
+
+A feature release for building the library faster and filling in missing covers.
+
+### Added
+- **Batch scanning.** A "Batch scan" option keeps the camera open and collects
+  ISBNs without stopping; each is looked up in the background as it is scanned.
+  "Review & add" then opens a fully editable list (title, author, year and
+  reading status per book, with rows removable), and "Add all" commits the whole
+  list at once. Books already in the library are detected and left out.
+- **Custom cover images.** Any book can be given a cover from a photo or an
+  uploaded image (JPEG, PNG or WebP). A crop step frames the picture to the
+  standard 2:3 book-cover shape — drag to reposition, slide to zoom — before it
+  is stored on-device and shown throughout the app. On phones the "Take a photo"
+  option opens the camera directly.
+
 ## [1.10.0] — 2026-07-24
 
 A feature release focused on adding books: a clearer scan-to-add flow, editable

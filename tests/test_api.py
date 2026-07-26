@@ -1895,3 +1895,120 @@ def test_opds_acquisition_feed(client, app):
     root = _ET.fromstring(resp.data)
     assert len(root.findall("a:entry", ns)) == 1
     assert len(root.findall(".//a:link[@rel='http://opds-spec.org/acquisition']", ns)) == 1
+
+
+class TestBatchAndCover:
+    """Batch scanning endpoints and user-supplied cover images (v1.11)."""
+
+    _JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 32  # valid JPEG magic bytes + filler
+    _PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+
+    def test_upload_cover_stores_and_serves(self, client, added_book):
+        book_id = added_book["id"]
+        data = {"file": (io.BytesIO(self._JPEG), "cover.jpg")}
+        r = client.post(
+            f"/api/books/{book_id}/cover", data=data, content_type="multipart/form-data"
+        )
+        assert r.status_code == 200, r.get_json()
+        body = r.get_json()
+        assert body["ok"] is True
+        assert body["cover_url"].startswith(f"/api/books/{book_id}/cover-image")
+
+        served = client.get(f"/api/books/{book_id}/cover-image")
+        assert served.status_code == 200
+        assert served.mimetype == "image/jpeg"
+        assert served.data == self._JPEG
+
+    def test_upload_cover_accepts_png(self, client, added_book):
+        book_id = added_book["id"]
+        data = {"file": (io.BytesIO(self._PNG), "cover.png")}
+        r = client.post(
+            f"/api/books/{book_id}/cover", data=data, content_type="multipart/form-data"
+        )
+        assert r.status_code == 200
+        assert client.get(f"/api/books/{book_id}/cover-image").mimetype == "image/png"
+
+    def test_upload_cover_rejects_wrong_extension(self, client, added_book):
+        book_id = added_book["id"]
+        data = {"file": (io.BytesIO(b"hello"), "notes.txt")}
+        r = client.post(
+            f"/api/books/{book_id}/cover", data=data, content_type="multipart/form-data"
+        )
+        assert r.status_code == 400
+
+    def test_upload_cover_rejects_bad_magic_bytes(self, client, added_book):
+        book_id = added_book["id"]
+        data = {"file": (io.BytesIO(b"not really an image"), "cover.jpg")}
+        r = client.post(
+            f"/api/books/{book_id}/cover", data=data, content_type="multipart/form-data"
+        )
+        assert r.status_code == 400
+
+    def test_cover_serve_404_when_none_uploaded(self, client, added_book):
+        assert client.get(f"/api/books/{added_book['id']}/cover-image").status_code == 404
+
+    def test_uploaded_cover_removed_with_book(self, client, added_book):
+        book_id = added_book["id"]
+        data = {"file": (io.BytesIO(self._JPEG), "cover.jpg")}
+        client.post(f"/api/books/{book_id}/cover", data=data, content_type="multipart/form-data")
+        assert client.get(f"/api/books/{book_id}/cover-image").status_code == 200
+        client.delete(f"/api/books/{book_id}")
+        assert client.get(f"/api/books/{book_id}/cover-image").status_code == 404
+
+    def test_batch_lookup_resolves_and_flags_existing(self, client, added_book, monkeypatch):
+        existing_isbn = added_book["isbn"]
+
+        def fake_lookup(isbn):
+            return {"isbn": isbn, "title": f"Book {isbn}", "author": "A"}
+
+        monkeypatch.setattr(app_module, "lookup_isbn", fake_lookup)
+        r = client.post(
+            "/api/lookup/batch",
+            json={"isbns": ["9781111111116", existing_isbn, "9781111111116"]},
+        )
+        assert r.status_code == 200
+        results = r.get_json()["results"]
+        # Duplicate ISBN collapsed to one entry, order preserved.
+        assert [x["isbn"] for x in results] == ["9781111111116", existing_isbn]
+        by_isbn = {x["isbn"]: x for x in results}
+        assert by_isbn[existing_isbn]["already_in_library"] is True
+        assert by_isbn["9781111111116"]["already_in_library"] is False
+        assert by_isbn["9781111111116"]["book"]["title"] == "Book 9781111111116"
+
+    def test_batch_lookup_requires_list(self, client):
+        assert client.post("/api/lookup/batch", json={"isbns": "nope"}).status_code == 400
+
+    def test_batch_add_adds_new_and_skips_duplicates(self, client, added_book):
+        payload = {
+            "books": [
+                {
+                    "isbn": "9782222222222",
+                    "book_data": {"isbn": "9782222222222", "title": "New One", "author": "X"},
+                    "status": "want_to_read",
+                },
+                {
+                    # Duplicate of the fixture book -> skipped.
+                    "isbn": added_book["isbn"],
+                    "book_data": {"isbn": added_book["isbn"], "title": "Dup"},
+                    "status": "read",
+                },
+                {
+                    # No metadata and no title -> error, not a crash.
+                    "isbn": "9783333333333",
+                    "book_data": {"isbn": "9783333333333"},
+                    "status": "read",
+                },
+            ]
+        }
+        r = client.post("/api/books/batch", json=payload)
+        assert r.status_code == 200
+        body = r.get_json()
+        assert [a["isbn"] for a in body["added"]] == ["9782222222222"]
+        assert body["skipped"] == [added_book["isbn"]]
+        assert [e["isbn"] for e in body["errors"]] == ["9783333333333"]
+        # The added book is really in the library now.
+        listing = client.get("/api/books").get_json()
+        assert any(b["isbn"] == "9782222222222" for b in listing)
+
+    def test_batch_add_requires_list(self, client):
+        assert client.post("/api/books/batch", json={"books": "nope"}).status_code == 400

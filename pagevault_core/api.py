@@ -8,6 +8,8 @@ to test in isolation.
 
 from __future__ import annotations
 
+import concurrent.futures
+import contextlib
 import csv
 import hashlib
 import io
@@ -62,6 +64,29 @@ _COVER_REDIRECT_SUFFIXES = (".archive.org", ".googleusercontent.com")
 _COVER_MAX_BYTES = 10 * 1024 * 1024
 _COVER_FETCH_TIMEOUT = 8
 _COVER_CACHE_MAX_AGE = 86400
+
+# User-supplied covers (uploaded or photographed). Stored on disk and served
+# locally, so a book with no online cover can still get one. Validated by magic
+# bytes rather than trusting the filename.
+_UPLOADED_COVER_EXTS = {"jpg", "jpeg", "png", "webp"}
+_UPLOADED_COVER_SIGNATURES = {
+    "jpg": b"\xff\xd8\xff",
+    "jpeg": b"\xff\xd8\xff",
+    "png": b"\x89PNG\r\n\x1a\n",
+    "webp": b"RIFF",  # RIFF....WEBP; the WEBP tag at offset 8 is checked separately
+}
+_UPLOADED_COVER_MIME = {
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "webp": "image/webp",
+}
+_UPLOADED_COVER_MAX_BYTES = 8 * 1024 * 1024
+
+# Batch scanning: resolve many ISBNs at once, then add the reviewed list.
+_BATCH_LOOKUP_MAX = 80
+_BATCH_LOOKUP_WORKERS = 4
+_BATCH_ADD_MAX = 200
 
 
 def _cover_host_allowed(host: str | None) -> bool:
@@ -487,6 +512,57 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             return err("Book not found for this ISBN", 404)
         return jsonify(data)
 
+    @bp.post("/lookup/batch")
+    def api_lookup_batch():
+        """Resolve metadata for many ISBNs at once (batch scanning).
+
+        Returns one entry per unique ISBN, in input order, each with the resolved
+        ``book`` metadata or ``null`` when nothing matched. Already-catalogued
+        ISBNs are flagged so the review list can grey them out.
+        """
+        payload = request.get_json(silent=True) or {}
+        raw = payload.get("isbns")
+        if not isinstance(raw, list):
+            return err("isbns must be a list")
+
+        seen: set[str] = set()
+        isbns: list[str] = []
+        for item in raw:
+            clean = str(item or "").strip().replace("-", "").replace(" ", "")
+            if clean and clean not in seen:
+                seen.add(clean)
+                isbns.append(clean)
+            if len(isbns) >= _BATCH_LOOKUP_MAX:
+                break
+        if not isbns:
+            return jsonify({"results": []})
+
+        db = get_db()
+        placeholders = ",".join("?" for _ in isbns)
+        existing = {
+            row["isbn"]
+            for row in db.execute(
+                f"SELECT isbn FROM books WHERE isbn IN ({placeholders})", isbns
+            ).fetchall()
+        }
+
+        resolved: dict[str, dict | None] = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=_BATCH_LOOKUP_WORKERS) as executor:
+            futures = {executor.submit(lookup_isbn, isbn): isbn for isbn in isbns}
+            for future in concurrent.futures.as_completed(futures):
+                isbn = futures[future]
+                try:
+                    resolved[isbn] = future.result()
+                except Exception as exc:
+                    log.warning("Batch lookup failed for ISBN %s: %s", isbn, exc)
+                    resolved[isbn] = None
+
+        results = [
+            {"isbn": isbn, "book": resolved.get(isbn), "already_in_library": isbn in existing}
+            for isbn in isbns
+        ]
+        return jsonify({"results": results})
+
     @bp.get("/books")
     def api_list_books():
         db = get_db()
@@ -748,6 +824,99 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         ).fetchone()
         log.info("Book added: %s (ISBN %s)", book.get("title"), isbn)
         return jsonify(with_book_relations(db, row)), 201
+
+    @bp.post("/books/batch")
+    def api_add_books_batch():
+        """Add a reviewed list of scanned books in one request (batch scanning).
+
+        Each entry mirrors the single-add payload (``isbn``, ``book_data``,
+        ``status``, ``genre_tags``, ``shelf_ids``). Duplicates and metadata-less
+        entries are skipped rather than failing the whole batch; the response
+        reports what was added, skipped and errored.
+        """
+        payload = request.get_json(silent=True) or {}
+        entries = payload.get("books")
+        if not isinstance(entries, list):
+            return err("books must be a list")
+        if len(entries) > _BATCH_ADD_MAX:
+            return err(f"Too many books in one batch (max {_BATCH_ADD_MAX})")
+
+        db = get_db()
+        added: list[dict] = []
+        skipped: list[str] = []
+        errors: list[dict] = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                errors.append({"isbn": None, "error": "invalid entry"})
+                continue
+            isbn = str(entry.get("isbn") or "").strip().replace("-", "")
+            if not isbn:
+                errors.append({"isbn": None, "error": "isbn is required"})
+                continue
+            status = entry.get("status") or "want_to_read"
+            if not validate_status(status):
+                status = "want_to_read"
+            if db.execute("SELECT id FROM books WHERE isbn=?", (isbn,)).fetchone():
+                skipped.append(isbn)
+                continue
+
+            book = entry.get("book_data") or lookup_isbn(isbn) or {}
+            if not book.get("title"):
+                errors.append({"isbn": isbn, "error": "no metadata"})
+                continue
+
+            genre_tags = normalize_tags(entry.get("genre_tags") or book.get("genre_tags"))
+            shelf_ids = int_list(entry.get("shelf_ids"))
+            current = now()
+            try:
+                db.execute(
+                    """INSERT INTO books
+                       (isbn, title, author, cover_url, description, publisher,
+                        year, pages, genre, language, location_type, location_note,
+                        loan_person, added_at, updated_at, status,
+                        series_name, series_number, community_rating, community_rating_count)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        isbn,
+                        book.get("title", "Unknown"),
+                        book.get("author"),
+                        book.get("cover_url"),
+                        book.get("description"),
+                        book.get("publisher"),
+                        book.get("year"),
+                        book.get("pages"),
+                        book.get("genre"),
+                        book.get("language", "en"),
+                        "shelf",
+                        None,
+                        None,
+                        current,
+                        current,
+                        status,
+                        book.get("series_name"),
+                        book.get("series_number"),
+                        book.get("community_rating"),
+                        book.get("community_rating_count"),
+                    ),
+                )
+                new_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+                replace_book_shelves(db, new_id, shelf_ids)
+                replace_book_tags(db, new_id, genre_tags)
+                added.append({"id": new_id, "isbn": isbn, "title": book.get("title")})
+            except sqlite3.Error as exc:
+                log.error("Batch add failed for ISBN %s: %s", isbn, exc)
+                errors.append({"isbn": isbn, "error": "database error"})
+
+        try:
+            db.commit()
+        except sqlite3.Error as exc:
+            db.rollback()
+            log.error("Failed to commit batch add: %s", exc)
+            return err("Database error — no books were saved", 500)
+        log.info(
+            "Batch add: %d added, %d skipped, %d errors", len(added), len(skipped), len(errors)
+        )
+        return jsonify({"added": added, "skipped": skipped, "errors": errors})
 
     @bp.get("/books/<int:book_id>")
     def api_get_book(book_id: int):
@@ -1450,8 +1619,81 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         target.write_bytes(data)
         return send_file(str(target), max_age=_COVER_CACHE_MAX_AGE)
 
+    def _uploaded_covers_dir() -> pathlib.Path:
+        covers = pathlib.Path(current_app.config["BOOK_FILES_DIR"]).parent / "covers" / "uploaded"
+        covers.mkdir(parents=True, exist_ok=True)
+        return covers
+
+    def _find_uploaded_cover(book_id: int) -> pathlib.Path | None:
+        covers = _uploaded_covers_dir()
+        for ext in _UPLOADED_COVER_EXTS:
+            candidate = covers / f"book_{book_id}.{ext}"
+            if candidate.is_file():
+                return candidate
+        return None
+
+    @bp.post("/books/<int:book_id>/cover")
+    def api_upload_book_cover(book_id: int):
+        """Store a user-supplied cover image (uploaded or photographed) on disk and
+        point the book's cover at it. The client sends an already-cropped image."""
+        db = get_db()
+        if not db.execute("SELECT 1 FROM books WHERE id=?", (book_id,)).fetchone():
+            return err("Book not found", 404)
+        if "file" not in request.files:
+            return err("No file provided")
+        f = request.files["file"]
+        if not f.filename:
+            return err("No filename")
+        ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
+        if ext not in _UPLOADED_COVER_EXTS:
+            return err("Only JPEG, PNG or WebP images are supported")
+
+        data = f.stream.read(_UPLOADED_COVER_MAX_BYTES + 1)
+        if not data:
+            return err("Empty file")
+        if len(data) > _UPLOADED_COVER_MAX_BYTES:
+            return err("Image too large (max 8 MB)")
+        signature = _UPLOADED_COVER_SIGNATURES[ext]
+        if not data.startswith(signature) or (ext == "webp" and data[8:12] != b"WEBP"):
+            return err("File content does not look like a valid image")
+
+        covers = _uploaded_covers_dir()
+        for old_ext in _UPLOADED_COVER_EXTS:
+            old = covers / f"book_{book_id}.{old_ext}"
+            if old_ext != ext and old.exists():
+                with contextlib.suppress(OSError):
+                    old.unlink()
+        dest = covers / f"book_{book_id}.{ext}"
+        try:
+            dest.write_bytes(data)
+        except OSError as exc:
+            log.error("Failed to store cover for book %d: %s", book_id, exc)
+            return err("Could not store the image on disk", 500)
+
+        # Cache-busting version so browsers reload the replaced image immediately.
+        cover_url = f"/api/books/{book_id}/cover-image?v={int(time.time())}"
+        db.execute(
+            "UPDATE books SET cover_url=?, updated_at=? WHERE id=?", (cover_url, now(), book_id)
+        )
+        db.commit()
+        log.info("Cover uploaded for book %d (%s).", book_id, ext)
+        return jsonify({"ok": True, "cover_url": cover_url})
+
+    @bp.get("/books/<int:book_id>/cover-image")
+    def api_serve_book_cover(book_id: int):
+        path = _find_uploaded_cover(book_id)
+        if not path:
+            return err("No uploaded cover for this book", 404)
+        ext = path.suffix.lstrip(".").lower()
+        return send_file(
+            str(path),
+            mimetype=_UPLOADED_COVER_MIME.get(ext, "image/jpeg"),
+            conditional=True,
+            max_age=0,
+        )
+
     def remove_book_files(book_id: int) -> None:
-        """Delete any stored ebook files for a book from disk."""
+        """Delete any stored ebook files and uploaded cover for a book from disk."""
         files_dir = pathlib.Path(current_app.config["BOOK_FILES_DIR"])
         for ext in _ALLOWED_BOOK_EXTS:
             candidate = files_dir / f"{book_id}.{ext}"
@@ -1460,6 +1702,12 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                     candidate.unlink()
             except OSError as exc:
                 log.warning("Could not delete ebook file %s: %s", candidate, exc)
+        cover = _find_uploaded_cover(book_id)
+        if cover:
+            try:
+                cover.unlink()
+            except OSError as exc:
+                log.warning("Could not delete uploaded cover %s: %s", cover, exc)
 
     @bp.delete("/books/<int:book_id>/file")
     def api_delete_book_file(book_id: int):
