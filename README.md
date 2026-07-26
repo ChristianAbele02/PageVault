@@ -62,10 +62,20 @@ to look up metadata).
 ## Features
 
 **Scanning &amp; metadata.** Scan an ISBN with the camera (or type it) and PageVault fills in
-title, author, cover, publisher, year, page count, genre, language, and community rating
-through a multi-provider fallback chain: Open Library → Google Books → Open Library Search →
-Crossref, with Open Library Covers for cover rescue. German-group ISBNs (978-3) also query
-the Deutsche Nationalbibliothek. Books without a real ISBN are resolved by title/author.
+title, author, cover, publisher, year, page count, genre, language, and community rating.
+Every ISBN runs through an ordered pipeline of free providers — Crossref, Open Library
+(search and editions), the Library of Congress (English-group ISBNs), Google Books, and the
+Deutsche Nationalbibliothek (German-group 978-3) — where each source fills gaps and richer
+ones refine what earlier ones found. A lookup popup shows a loading bar and a *found* /
+*not found* result; auto-filled title, author and year stay editable before you add the
+book. On Android, scanning uses Google's on-device ML Kit barcode scanner (with the in-page
+scanner as fallback). Books without a real ISBN are resolved by title/author.
+
+**Batch scanning &amp; custom covers.** *Batch scan* keeps the camera open and collects ISBNs
+without stopping, looking each up in the background; a fully editable review list (title,
+author, year and status per book) is then added in one go. Any book can also be given a
+cover from a photo or an uploaded image, cropped to the standard 2:3 book-cover shape and
+stored on-device.
 
 **Reading tracking.** Status (*want to read* / *reading* / *read* / *DNF*), per-review page
 progress with a live progress bar, reading sessions (pages + time), annual goals with pace
@@ -153,8 +163,7 @@ Play Store). Everything runs on-device: the Flask app runs on a loopback port in
 app via embedded CPython (Chaquopy) and the UI renders in a WebView, so the catalogue,
 camera scanner, reader, stats, import/export, and backups all work locally with no server.
 Admin login is omitted. To build from source instead, open the `android/` folder in Android
-Studio and Run — see [android/README.md](android/README.md) and
-[ANDROID_APP_PLAN.md](ANDROID_APP_PLAN.md).
+Studio and Run — see [android/README.md](android/README.md).
 
 ---
 
@@ -279,10 +288,10 @@ pagevault/
 ├── templates/                          index · stats · reader · admin (Jinja2)
 ├── static/                             PWA manifest · service worker · i18n.js · vendor/
 ├── android/                            On-device Android app (Chaquopy + WebView)
-├── tests/                              132 tests (API · metadata · TLS)
+├── tests/                              159 tests (API · metadata · TLS)
 ├── Dockerfile · docker-compose.yml     Multi-stage, non-root, gunicorn
 ├── Makefile · pyproject.toml           Tooling and packaging
-└── ANDROID_APP_PLAN.md · CHANGELOG.md · CONTRIBUTING.md · SECURITY.md
+└── CHANGELOG.md · CONTRIBUTING.md · SECURITY.md
 ```
 
 ---

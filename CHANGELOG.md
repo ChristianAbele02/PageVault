@@ -7,6 +7,14 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- A metadata refresh ("Reload metadata") no longer overwrites a cover the user
+  photographed or uploaded. Custom covers are served locally, and refresh now
+  leaves them in place while still refreshing every other field and replacing
+  online covers as before.
+
 ## [1.11.0] — 2026-07-26
 
 A feature release for building the library faster and filling in missing covers.
@@ -129,7 +137,7 @@ The first release with a working, installable Android app.
   and renders the web UI in a WebView. ISBN scanning uses the phone camera
   (loopback is a secure context, so no certificate is needed); the catalogue,
   reader, stats, import/export and backups all run locally. Admin login is
-  omitted. See `android/README.md` and `ANDROID_APP_PLAN.md`.
+  omitted. See `android/README.md`.
 - **Offline front-end.** html5-qrcode, Plotly, epub.js, qrcodejs and the
   Playfair Display / Lato web fonts are vendored under `static/vendor`, so the
   app no longer depends on any CDN at runtime. This is a prerequisite for the

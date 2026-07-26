@@ -1191,9 +1191,15 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
             metadata = lookup_book_metadata(row["isbn"], row["title"], row["author"])
             updates = {}
             if metadata:
+                current_cover = str(row["cover_url"] or "")
+                # A cover the user photographed or uploaded is served locally; a
+                # metadata refresh must never replace it with an online one.
+                keep_local_cover = current_cover.startswith("/api/books/")
                 for field in refresh_fields:
                     value = metadata.get(field)
                     if value in (None, ""):
+                        continue
+                    if field == "cover_url" and keep_local_cover:
                         continue
                     updates[field] = value
             if updates:

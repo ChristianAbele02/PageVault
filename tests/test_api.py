@@ -2012,3 +2012,46 @@ class TestBatchAndCover:
 
     def test_batch_add_requires_list(self, client):
         assert client.post("/api/books/batch", json={"books": "nope"}).status_code == 400
+
+
+class TestRefreshPreservesCustomCover:
+    """A metadata refresh must not overwrite a user-uploaded cover (v1.11)."""
+
+    _JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 32
+
+    def test_refresh_keeps_uploaded_cover(self, client, added_book, monkeypatch):
+        book_id = added_book["id"]
+        # Give the book a custom, locally-served cover.
+        data = {"file": (io.BytesIO(self._JPEG), "cover.jpg")}
+        client.post(f"/api/books/{book_id}/cover", data=data, content_type="multipart/form-data")
+        local_cover = client.get(f"/api/books/{book_id}").get_json()["cover_url"]
+        assert local_cover.startswith(f"/api/books/{book_id}/cover-image")
+
+        # A refresh that finds an online cover must not clobber the custom one.
+        monkeypatch.setattr(
+            app_module,
+            "lookup_isbn",
+            lambda _isbn: {
+                "title": "The Great Gatsby",
+                "cover_url": "https://covers.openlibrary.org/b/isbn/x-L.jpg",
+                "description": "Refreshed description.",
+            },
+        )
+        r = client.post("/api/books/refresh")
+        assert r.status_code == 200
+
+        after = client.get(f"/api/books/{book_id}").get_json()
+        assert after["cover_url"] == local_cover  # cover preserved
+        assert after["description"] == "Refreshed description."  # other fields still refresh
+
+    def test_refresh_replaces_online_cover(self, client, added_book, monkeypatch):
+        """A book whose cover is an online URL is still refreshed normally."""
+        book_id = added_book["id"]
+        monkeypatch.setattr(
+            app_module,
+            "lookup_isbn",
+            lambda _isbn: {"title": "The Great Gatsby", "cover_url": "https://example.com/new.jpg"},
+        )
+        client.post("/api/books/refresh")
+        after = client.get(f"/api/books/{book_id}").get_json()
+        assert after["cover_url"] == "https://example.com/new.jpg"

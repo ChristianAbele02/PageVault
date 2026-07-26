@@ -5107,7 +5107,7 @@ function renderBatchReview() {
   list.innerHTML = batchReview.map((r, i) => {
     const b = r.book || {};
     const cover = b.title ? (getBookCover(b) || '') : '';
-    const coverHtml = cover ? `<img src="${esc(cover)}" alt="">` : '📖';
+    const coverHtml = cover ? `<img src="${esc(cover)}" alt="" onerror="this.outerHTML='📖'">` : '📖';
     return `<div class="batch-row" data-idx="${i}">
       <div class="batch-row-cover">${coverHtml}</div>
       <div class="batch-row-fields">

@@ -5,8 +5,6 @@ loopback port inside the app process (embedded CPython via Chaquopy) and renders
 the existing web UI in a `WebView`. The camera ISBN scanner, catalogue, reader,
 stats, import/export and backups all run locally.
 
-See [`../ANDROID_APP_PLAN.md`](../ANDROID_APP_PLAN.md) for the design rationale.
-
 ## How it fits together
 
 ```
