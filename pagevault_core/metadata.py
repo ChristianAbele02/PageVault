@@ -498,8 +498,9 @@ LOC_SRU_URL = "http://lx2.loc.gov:210/lcdb"
 # Genre-form / subject source codes LoC appends to `dc:type` values, e.g.
 # "Love stories. gsafd" or "Fiction. lcgft https://id.loc.gov/...". Stripped so
 # the tag reads "Love stories" rather than carrying the vocabulary label.
-_LOC_GENRE_SOURCES = re.compile(r"\s*(?:https?://\S+|\b(?:gsafd|lcgft|lcsh|rbgenr|aat|fast)\b)\.?",
-                                re.IGNORECASE)
+_LOC_GENRE_SOURCES = re.compile(
+    r"\s*(?:https?://\S+|\b(?:gsafd|lcgft|lcsh|rbgenr|aat|fast)\b)\.?", re.IGNORECASE
+)
 # Generic `dc:type` values that describe the medium, not a literary genre.
 _LOC_TYPE_NOISE = {"text", "still image", "cartographic material", "notated music"}
 
@@ -676,12 +677,12 @@ _ENRICHABLE_FIELDS = (
 # ISBN's language. genre_tags always accumulate. Each tuple is
 # (name, may_override_enrichable, authoritative_for_title_author).
 _PIPELINE = (
-    ("crossref", False, False),            # scholarly registry; weakest, fill-only
-    ("openlibrary_search", True, False),   # community ratings + basics
-    ("openlibrary", True, False),          # primary bibliographic data + cover
-    ("loc", True, False),                  # English title/author/genre (fill titles)
-    ("googlebooks", True, False),          # richest: cover, description, ratings, series
-    ("dnb", True, True),                   # German national library: authoritative
+    ("crossref", False, False),  # scholarly registry; weakest, fill-only
+    ("openlibrary_search", True, False),  # community ratings + basics
+    ("openlibrary", True, False),  # primary bibliographic data + cover
+    ("loc", True, False),  # English title/author/genre (fill titles)
+    ("googlebooks", True, False),  # richest: cover, description, ratings, series
+    ("dnb", True, True),  # German national library: authoritative
     ("openlibrary_covers", False, False),  # cover-of-last-resort, fill-only
 )
 

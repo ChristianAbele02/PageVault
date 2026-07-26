@@ -174,11 +174,19 @@ class TestLookupPipeline:
         metadata.clear_lookup_cache()
         gb_called: list[str] = []
         complete = {
-            "isbn": "9780000000009", "title": "T", "author": "A", "cover_url": "c",
-            "description": "d", "publisher": "p", "year": "2020", "community_rating": 4.0,
+            "isbn": "9780000000009",
+            "title": "T",
+            "author": "A",
+            "cover_url": "c",
+            "description": "d",
+            "publisher": "p",
+            "year": "2020",
+            "community_rating": 4.0,
         }
         stubs = {**self._STUBS, "fetch_googlebooks_fn": lambda i: gb_called.append(i)}
-        metadata.lookup_isbn("9780000000009", fetch_openlibrary_fn=lambda i: dict(complete, isbn=i), **stubs)
+        metadata.lookup_isbn(
+            "9780000000009", fetch_openlibrary_fn=lambda i: dict(complete, isbn=i), **stubs
+        )
         assert gb_called == ["9780000000009"]
 
     def test_later_provider_enriches_present_field(self):
@@ -187,15 +195,19 @@ class TestLookupPipeline:
         stubs = {
             **self._STUBS,
             "fetch_googlebooks_fn": lambda i: {
-                "isbn": i, "cover_url": "http://google/large.jpg",
+                "isbn": i,
+                "cover_url": "http://google/large.jpg",
                 "description": "a much fuller description",
             },
         }
         r = metadata.lookup_isbn(
             "9780000000010",
             fetch_openlibrary_fn=lambda i: {
-                "isbn": i, "title": "T", "author": "A",
-                "cover_url": "http://ol/small.jpg", "description": "short",
+                "isbn": i,
+                "title": "T",
+                "author": "A",
+                "cover_url": "http://ol/small.jpg",
+                "description": "short",
             },
             **stubs,
         )
@@ -212,13 +224,19 @@ class TestLookupPipeline:
             **self._STUBS,
             "fetch_googlebooks_fn": lambda _i: None,
             "fetch_loc_fn": lambda i: {
-                "isbn": i, "title": "it ends with us", "author": "Hoover, Colleen",
+                "isbn": i,
+                "title": "it ends with us",
+                "author": "Hoover, Colleen",
                 "genre_tags": ["Love stories"],
             },
         }
         r = metadata.lookup_isbn(
             "9780000000011",
-            fetch_openlibrary_fn=lambda i: {"isbn": i, "title": "It Ends With Us", "author": "Colleen Hoover"},
+            fetch_openlibrary_fn=lambda i: {
+                "isbn": i,
+                "title": "It Ends With Us",
+                "author": "Colleen Hoover",
+            },
             **stubs,
         )
         assert r is not None
@@ -280,7 +298,11 @@ class TestDnbRouting:
             fetch_crossref_fn=lambda _i: None,
             fetch_openlibrary_search_fn=lambda _i: None,
             fetch_openlibrary_covers_fn=lambda _i: None,
-            fetch_dnb_fn=lambda i: {"isbn": i, "title": "Lichtspiel: Roman", "author": "Daniel Kehlmann"},
+            fetch_dnb_fn=lambda i: {
+                "isbn": i,
+                "title": "Lichtspiel: Roman",
+                "author": "Daniel Kehlmann",
+            },
             fetch_loc_fn=lambda _i: None,
         )
         assert result is not None
