@@ -15,6 +15,7 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, cast
 
+from .utils import isbn_core as _isbn_core
 from .utils import normalize_tags
 
 log = logging.getLogger(__name__)
@@ -266,6 +267,20 @@ def _parse_googlebooks_items(items: list, isbn: str | None) -> dict | None:
         return None
 
     info = items[0].get("volumeInfo") or {}
+
+    # Guard against Google's `isbn:` search returning a loosely related edition:
+    # when the volume lists its own ISBNs, accept it only if one shares the
+    # queried ISBN's core. (Title searches pass isbn=None and skip this.)
+    if isbn is not None:
+        volume_isbns = {
+            _isbn_core(ident.get("identifier"))
+            for ident in (info.get("industryIdentifiers") or [])
+            if str(ident.get("type") or "").upper().startswith("ISBN")
+        }
+        volume_isbns.discard("")
+        if volume_isbns and _isbn_core(isbn) not in volume_isbns:
+            return None
+
     authors = ", ".join(info.get("authors") or [])
     categories = normalize_tags(info.get("categories") or [])[:3]
     image_links = info.get("imageLinks") or {}
@@ -391,6 +406,16 @@ _DC_NS = "{http://purl.org/dc/elements/1.1/}"
 _MARC_LANG = {"ger": "de", "eng": "en", "fre": "fr", "spa": "es", "ita": "it", "dut": "nl"}
 
 
+def _is_isbn_like(text: str | None) -> bool:
+    """True when a record identifier is shaped like an ISBN (10 or 13 digits).
+
+    Lets the national-library ISBN-match guards ignore unrelated identifiers such
+    as URNs and control numbers, which would otherwise pollute the comparison.
+    """
+    digits = re.sub(r"[^0-9Xx]", "", text or "")
+    return len(digits) in (10, 13)
+
+
 def is_german_isbn(isbn: str) -> bool:
     """True for ISBNs in the German-language group (prefix 978-3 or ISBN-10 '3')."""
     return isbn.startswith("9783") or (len(isbn) == 10 and isbn.startswith("3"))
@@ -461,6 +486,18 @@ def fetch_dnb(isbn: str) -> dict | None:
         log.warning("DNB lookup failed for ISBN %s: %s", isbn, exc)
         return None
 
+    # DNB is authoritative in the pipeline (it overrides title and author), so a
+    # non-matching record would be especially damaging. Accept the record only if
+    # one of its ISBN-shaped identifiers shares the queried ISBN's core.
+    record_isbns = {
+        _isbn_core(e.text)
+        for e in root.iter(f"{_DC_NS}identifier")
+        if e.text and _is_isbn_like(e.text)
+    }
+    record_isbns.discard("")
+    if record_isbns and _isbn_core(isbn) not in record_isbns:
+        return None
+
     titles = [e.text for e in root.iter(f"{_DC_NS}title") if e.text]
     title = _clean_dnb_title(titles[0]) if titles else None
     if not title:
@@ -503,23 +540,6 @@ _LOC_GENRE_SOURCES = re.compile(
 )
 # Generic `dc:type` values that describe the medium, not a literary genre.
 _LOC_TYPE_NOISE = {"text", "still image", "cartographic material", "notated music"}
-
-
-def _isbn_core(value: str | None) -> str:
-    """Return the 9-digit registrant+publication core shared by an ISBN-10 and
-    its ISBN-13 form, so the two can be compared without check-digit maths.
-
-    ISBN-13 "978/979 XXXXXXXXX C" and ISBN-10 "XXXXXXXXX C" share the middle nine
-    digits; comparing those matches a book regardless of which form is held.
-    """
-    digits = re.sub(r"[^0-9Xx]", "", value or "").upper()
-    if len(digits) == 13 and digits.startswith(("978", "979")):
-        return digits[3:12]
-    if len(digits) == 10:
-        return digits[:9]
-    if len(digits) >= 12:
-        return digits[3:12]
-    return digits
 
 
 def _clean_loc_title(raw: str | None) -> str | None:

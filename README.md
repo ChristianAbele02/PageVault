@@ -7,7 +7,7 @@
   Scan ISBN barcodes · fetch covers &amp; metadata automatically · keep your reading life private.
 </p>
 
-<p align="center"><strong>Latest release:</strong> v1.11.1 · batch scanning · custom cover photos · installable <a href="https://github.com/ChristianAbele02/PageVault/releases">Android APK</a></p>
+<p align="center"><strong>Latest release:</strong> v1.12.0 · scan-integrity hardening · batch scanning · custom cover photos · installable <a href="https://github.com/ChristianAbele02/PageVault/releases">Android APK</a></p>
 
 <br/>
 
@@ -288,7 +288,7 @@ pagevault/
 ├── templates/                          index · stats · reader · admin (Jinja2)
 ├── static/                             PWA manifest · service worker · i18n.js · vendor/
 ├── android/                            On-device Android app (Chaquopy + WebView)
-├── tests/                              159 tests (API · metadata · TLS)
+├── tests/                              186 tests (API · metadata · utils · TLS)
 ├── Dockerfile · docker-compose.yml     Multi-stage, non-root, gunicorn
 ├── Makefile · pyproject.toml           Tooling and packaging
 └── CHANGELOG.md · CONTRIBUTING.md · SECURITY.md

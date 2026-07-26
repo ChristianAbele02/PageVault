@@ -32,7 +32,12 @@ from flask import Blueprint, Response, current_app, jsonify, request, send_file,
 
 from pagevault_core.db import ensure_schema, ensure_search_index, search_index_available
 from pagevault_core.services import admin_service, recommendations
-from pagevault_core.utils import format_from_binding, normalize_goodreads_date, repair_mojibake
+from pagevault_core.utils import (
+    format_from_binding,
+    isbn_core,
+    normalize_goodreads_date,
+    repair_mojibake,
+)
 
 
 def _to_fts_query(text: str) -> str:
@@ -182,6 +187,28 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         if lookup_title_author and title:
             return cast("dict | None", lookup_title_author(title, author))
         return None
+
+    def reconcile_book_data(isbn: str, book_data: Any) -> dict | None:
+        """Return caller-supplied metadata only if it belongs to ``isbn``.
+
+        The Add form keeps the last looked-up metadata in a single client
+        variable; if the scanned/typed ISBN changes without a fresh lookup, that
+        variable can still describe a *different* book. When the metadata carries
+        its own ISBN and it does not share the requested ISBN's core, it is stale
+        and is dropped so the ISBN, not the leftover blob, decides what is stored.
+        Metadata without an ISBN (hand-typed for a not-found book) is trusted.
+        """
+        if not isinstance(book_data, dict):
+            return None
+        data_isbn = str(book_data.get("isbn") or "").strip()
+        if data_isbn and isbn_core(data_isbn) != isbn_core(isbn):
+            log.warning(
+                "Ignoring metadata submitted for ISBN %s: it belongs to ISBN %s",
+                isbn,
+                data_isbn,
+            )
+            return None
+        return book_data
 
     def parse_location_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
         if not payload:
@@ -773,7 +800,9 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
         if existing:
             return err("Book already in your library", 409)
 
-        book = payload.get("book_data") or lookup_isbn(isbn)
+        # Guard against stale client metadata being stored under this ISBN: if the
+        # supplied book_data describes a different book, drop it and look up fresh.
+        book = reconcile_book_data(isbn, payload.get("book_data")) or lookup_isbn(isbn)
         if not book:
             return err("Could not fetch metadata — try providing book_data manually", 404)
 
@@ -860,7 +889,8 @@ def create_api_blueprint(*, deps: dict[str, Any]) -> Blueprint:
                 skipped.append(isbn)
                 continue
 
-            book = entry.get("book_data") or lookup_isbn(isbn) or {}
+            # Same stale-metadata guard as the single-add path (see reconcile_book_data).
+            book = reconcile_book_data(isbn, entry.get("book_data")) or lookup_isbn(isbn) or {}
             if not book.get("title"):
                 errors.append({"isbn": isbn, "error": "no metadata"})
                 continue

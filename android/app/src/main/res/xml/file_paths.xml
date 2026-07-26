@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Paths the app's FileProvider may hand to other apps as content:// URIs.
+     Only the cache subfolder used for camera-capture output is exposed, so the
+     third-party camera app can write the photo the user takes for a book cover. -->
+<paths>
+    <cache-path name="camera_captures" path="captures/"/>
+</paths>

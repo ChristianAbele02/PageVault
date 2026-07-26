@@ -7,6 +7,30 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.12.0] — 2026-07-26
+
+A reliability release that stops a scanned book from ever being catalogued with
+another book's details, and fixes the "Take a photo" cover option on Android.
+
+### Fixed
+- **A scanned book can no longer inherit another book's metadata.** When a book
+  is added, any supplied metadata that belongs to a different ISBN is discarded
+  and the correct details are fetched fresh, so leftover data from the previous
+  scan cannot be stored under the new ISBN. This applies to single and batch
+  adds alike.
+- **Barcode misreads are rejected at scan time.** A scan must be a valid ISBN
+  (correct check digit, and the 978/979 book prefix for 13-digit codes); other
+  barcodes — product codes, price add-ons, garbled reads — are ignored during
+  single and batch scanning instead of being looked up or added.
+- **Wrong-record protection for the metadata sources.** The Deutsche
+  Nationalbibliothek and Google Books results are now accepted only when the
+  record's own ISBN matches the one queried, matching the existing Library of
+  Congress check. This prevents a loosely matched edition from overwriting
+  correct details.
+- **"Take a photo" opens the camera on Android.** Choosing to photograph a cover
+  now launches the camera directly; previously it opened the photo gallery. The
+  separate "Choose an image" option still opens the gallery.
+
 ## [1.11.1] — 2026-07-26
 
 ### Fixed

@@ -2014,6 +2014,98 @@ class TestBatchAndCover:
         assert client.post("/api/books/batch", json={"books": "nope"}).status_code == 400
 
 
+class TestStaleMetadataGuard:
+    """Metadata submitted for one ISBN must never be stored under a different ISBN.
+
+    Reproduces the reported bug where an already-scanned book's metadata was
+    carried onto the next book because the client kept it in a single variable.
+    """
+
+    def test_single_add_discards_mismatched_book_data(self, client, monkeypatch):
+        monkeypatch.setattr(
+            app_module,
+            "lookup_isbn",
+            lambda isbn: {"isbn": isbn, "title": "Correct Book", "author": "Right Author"},
+        )
+        r = client.post(
+            "/api/books",
+            json={
+                "isbn": "9780451524935",
+                # Stale metadata left over from a different, already-scanned book.
+                "book_data": {
+                    "isbn": "9783498003876",
+                    "title": "Wrong Book",
+                    "author": "Other Author",
+                },
+                "status": "want_to_read",
+            },
+        )
+        assert r.status_code == 201
+        body = r.get_json()
+        assert body["isbn"] == "9780451524935"
+        assert body["title"] == "Correct Book"
+        assert body["author"] == "Right Author"
+
+    def test_single_add_keeps_matching_book_data_without_a_lookup(self, client, monkeypatch):
+        def boom(_isbn):
+            raise AssertionError("lookup_isbn must not run when book_data matches the ISBN")
+
+        monkeypatch.setattr(app_module, "lookup_isbn", boom)
+        r = client.post(
+            "/api/books",
+            json={
+                "isbn": "9780451524935",
+                "book_data": {
+                    "isbn": "9780451524935",
+                    "title": "Provided Title",
+                    "author": "Provided Author",
+                },
+                "status": "read",
+            },
+        )
+        assert r.status_code == 201
+        assert r.get_json()["title"] == "Provided Title"
+
+    def test_single_add_trusts_book_data_without_its_own_isbn(self, client, monkeypatch):
+        # Hand-typed metadata for a not-found book carries no ISBN and must be kept.
+        def boom(_isbn):
+            raise AssertionError("lookup_isbn must not run for hand-typed metadata")
+
+        monkeypatch.setattr(app_module, "lookup_isbn", boom)
+        r = client.post(
+            "/api/books",
+            json={
+                "isbn": "9780451524935",
+                "book_data": {"title": "Typed Title", "author": "Typed Author"},
+                "status": "want_to_read",
+            },
+        )
+        assert r.status_code == 201
+        assert r.get_json()["title"] == "Typed Title"
+
+    def test_batch_add_discards_mismatched_book_data(self, client, monkeypatch):
+        monkeypatch.setattr(
+            app_module,
+            "lookup_isbn",
+            lambda isbn: {"isbn": isbn, "title": f"Fresh {isbn}", "author": "A"},
+        )
+        payload = {
+            "books": [
+                {
+                    "isbn": "9780451524935",
+                    "book_data": {"isbn": "9783498003876", "title": "Stale", "author": "X"},
+                    "status": "want_to_read",
+                }
+            ]
+        }
+        r = client.post("/api/books/batch", json=payload)
+        assert r.status_code == 200
+        assert [a["isbn"] for a in r.get_json()["added"]] == ["9780451524935"]
+        listing = client.get("/api/books").get_json()
+        stored = next(b for b in listing if b["isbn"] == "9780451524935")
+        assert stored["title"] == "Fresh 9780451524935"
+
+
 class TestRefreshPreservesCustomCover:
     """A metadata refresh must not overwrite a user-uploaded cover (v1.11)."""
 

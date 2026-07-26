@@ -71,6 +71,48 @@ def normalize_isbn(value: str | None) -> str:
     return cleaned.upper()
 
 
+def isbn_core(value: str | None) -> str:
+    """Return the 9-digit registrant+publication core shared by an ISBN-10 and
+    its ISBN-13 form, so the two can be compared without check-digit maths.
+
+    ISBN-13 "978/979 XXXXXXXXX C" and ISBN-10 "XXXXXXXXX C" share the middle nine
+    digits; comparing those matches a book regardless of which form is held. An
+    empty string is returned when no core can be extracted, and two empty cores
+    are never treated as a match by the callers.
+    """
+    digits = normalize_isbn(value)
+    if len(digits) == 13 and digits.startswith(("978", "979")):
+        return digits[3:12]
+    if len(digits) == 10:
+        return digits[:9]
+    if len(digits) >= 12:
+        return digits[3:12]
+    return digits
+
+
+def is_valid_isbn(value: str | None) -> bool:
+    """True when ``value`` is a structurally valid ISBN-10 or ISBN-13.
+
+    The check digit is verified, and an ISBN-13 must carry the 978/979 Bookland
+    prefix printed on book barcodes. This rejects the great majority of barcode
+    misreads and typed-in typos (every single-digit error, and ISBN-13's most
+    common transpositions), so a mis-scanned code cannot be resolved against, or
+    stored as, a different book. Hyphens and spaces are ignored.
+    """
+    digits = normalize_isbn(value)
+    if len(digits) == 10:
+        if any(ch == "X" for ch in digits[:9]) or (digits[9] not in "0123456789X"):
+            return False
+        total = sum((10 - i) * (10 if ch == "X" else int(ch)) for i, ch in enumerate(digits))
+        return total % 11 == 0
+    if len(digits) == 13:
+        if not digits.isdigit() or not digits.startswith(("978", "979")):
+            return False
+        total = sum((1 if i % 2 == 0 else 3) * int(ch) for i, ch in enumerate(digits))
+        return total % 10 == 0
+    return False
+
+
 def split_multi_value(value: str | None) -> list[str]:
     if not value:
         return []

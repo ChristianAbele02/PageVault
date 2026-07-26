@@ -5,10 +5,12 @@ import android.annotation.SuppressLint
 import android.app.DownloadManager
 import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
 import android.view.View
 import android.webkit.JavascriptInterface
@@ -24,6 +26,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
@@ -55,6 +58,10 @@ class MainActivity : AppCompatActivity() {
     // Held while the system file picker is open, for <input type="file"> uploads.
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
 
+    // Output URI handed to the camera app while a cover photo is being taken
+    // (for <input type="file" capture>), so the result can be returned to the page.
+    private var cameraCaptureUri: Uri? = null
+
     private val cameraPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             pendingCameraRequest?.let { request ->
@@ -75,6 +82,33 @@ class MainActivity : AppCompatActivity() {
                 WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
             )
             fileChooserCallback = null
+        }
+
+    // Returns the freshly taken photo to the page, or null if the user backed out.
+    private val cameraCaptureLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val callback = fileChooserCallback ?: return@registerForActivityResult
+            val uri = cameraCaptureUri
+            if (result.resultCode == RESULT_OK && uri != null) {
+                callback.onReceiveValue(arrayOf(uri))
+            } else {
+                callback.onReceiveValue(null)
+            }
+            fileChooserCallback = null
+            cameraCaptureUri = null
+        }
+
+    // The app declares the CAMERA permission, so ACTION_IMAGE_CAPTURE requires it
+    // to be granted at runtime before the camera app is launched for a cover photo.
+    private val coverCameraPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                launchCoverCameraCapture()
+            } else {
+                fileChooserCallback?.onReceiveValue(null)
+                fileChooserCallback = null
+                toast(getString(R.string.camera_denied))
+            }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -212,6 +246,19 @@ class MainActivity : AppCompatActivity() {
             ): Boolean {
                 fileChooserCallback?.onReceiveValue(null)
                 fileChooserCallback = callback
+
+                // "Take a photo" uses <input capture>: open the camera directly
+                // rather than the document picker (the default createIntent() would
+                // ignore the capture hint and show the gallery instead).
+                if (params.isCaptureEnabled && acceptsImage(params)) {
+                    if (hasCameraPermission()) {
+                        launchCoverCameraCapture()
+                    } else {
+                        coverCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
+                    return true
+                }
+
                 return try {
                     fileChooserLauncher.launch(params.createIntent())
                     true
@@ -247,6 +294,46 @@ class MainActivity : AppCompatActivity() {
     private fun hasCameraPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
+
+    /** True when a file input accepts images (so a camera capture is meaningful). */
+    private fun acceptsImage(params: WebChromeClient.FileChooserParams): Boolean {
+        val types = params.acceptTypes
+        if (types.isNullOrEmpty()) return true
+        return types.any { it.isBlank() || it == "*/*" || it.startsWith("image/") }
+    }
+
+    /**
+     * Launch the system camera app to take a book-cover photo. The image is
+     * written to a private cache file exposed through the app's FileProvider, and
+     * that URI is returned to the WebView's file input by [cameraCaptureLauncher].
+     */
+    private fun launchCoverCameraCapture() {
+        try {
+            val captureDir = File(cacheDir, "captures").apply { mkdirs() }
+            val photoFile = File.createTempFile("cover_", ".jpg", captureDir)
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", photoFile)
+            cameraCaptureUri = uri
+            val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+                putExtra(MediaStore.EXTRA_OUTPUT, uri)
+                addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            }
+            cameraCaptureLauncher.launch(intent)
+        } catch (e: ActivityNotFoundException) {
+            Log.w(TAG, "No camera app available for cover capture", e)
+            cancelPendingFileChooser(R.string.camera_unavailable)
+        } catch (e: java.io.IOException) {
+            Log.e(TAG, "Could not prepare a file for the cover photo", e)
+            cancelPendingFileChooser(R.string.camera_unavailable)
+        }
+    }
+
+    /** Abort an in-flight file/camera request, returning null to the page. */
+    private fun cancelPendingFileChooser(messageRes: Int) {
+        fileChooserCallback?.onReceiveValue(null)
+        fileChooserCallback = null
+        cameraCaptureUri = null
+        toast(getString(messageRes))
+    }
 
     // ── Native barcode scanner ───────────────────────────────────────────────────
 

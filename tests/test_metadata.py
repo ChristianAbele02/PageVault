@@ -335,6 +335,89 @@ class TestDnbRouting:
         assert metadata.is_german_isbn("3499267829")
         assert not metadata.is_german_isbn("9780451524935")
 
+
+# A DNB record that echoes its own ISBN as a dc:identifier, so the ISBN-match
+# guard has something to compare against.
+_DNB_WITH_ISBN = """<?xml version="1.0" encoding="UTF-8"?>
+<searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/">
+  <numberOfRecords>1</numberOfRecords>
+  <records><record><recordData>
+    <dc xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title>Lichtspiel : Roman / Daniel Kehlmann</dc:title>
+      <dc:creator>Kehlmann, Daniel [Verfasser]</dc:creator>
+      <dc:identifier>9783498003876</dc:identifier>
+      <dc:identifier>urn:nbn:de:101:1-2023</dc:identifier>
+      <dc:language>ger</dc:language>
+    </dc>
+  </recordData></record></records>
+</searchRetrieveResponse>"""
+
+
+class TestDnbIsbnGuard:
+    """DNB is authoritative (overrides title/author), so a wrong record is costly."""
+
+    def test_accepts_record_matching_the_queried_isbn(self, monkeypatch):
+        monkeypatch.setattr(
+            "urllib.request.urlopen",
+            lambda req, timeout=8: _FakeResp(_DNB_WITH_ISBN.encode("utf-8")),
+        )
+        result = metadata.fetch_dnb("9783498003876")
+        assert result is not None and result["title"] == "Lichtspiel: Roman"
+
+    def test_matches_isbn10_form_of_isbn13_record(self, monkeypatch):
+        monkeypatch.setattr(
+            "urllib.request.urlopen",
+            lambda req, timeout=8: _FakeResp(_DNB_WITH_ISBN.encode("utf-8")),
+        )
+        # ISBN-10 form of the record's 978-3-498-00387-6.
+        assert metadata.fetch_dnb("3498003879") is not None
+
+    def test_rejects_record_for_a_different_isbn(self, monkeypatch):
+        monkeypatch.setattr(
+            "urllib.request.urlopen",
+            lambda req, timeout=8: _FakeResp(_DNB_WITH_ISBN.encode("utf-8")),
+        )
+        assert metadata.fetch_dnb("9783111111113") is None
+
+    def test_accepts_when_record_has_no_isbn_identifier(self, monkeypatch):
+        # The original sample carries no dc:identifier; the guard must not reject
+        # it (nothing to contradict the queried ISBN).
+        monkeypatch.setattr(
+            "urllib.request.urlopen",
+            lambda req, timeout=8: _FakeResp(_DNB_SAMPLE.encode("utf-8")),
+        )
+        assert metadata.fetch_dnb("9783498003876") is not None
+
+
+class TestGoogleBooksIsbnGuard:
+    def _payload(self, identifiers):
+        return {
+            "items": [
+                {
+                    "volumeInfo": {
+                        "title": "Some Book",
+                        "authors": ["An Author"],
+                        "industryIdentifiers": identifiers,
+                    }
+                }
+            ]
+        }
+
+    def test_accepts_matching_identifier(self, monkeypatch):
+        payload = self._payload([{"type": "ISBN_13", "identifier": "9780451524935"}])
+        monkeypatch.setattr(metadata, "_googlebooks_get", lambda url: payload)
+        assert metadata.fetch_googlebooks("9780451524935") is not None
+
+    def test_rejects_non_matching_identifier(self, monkeypatch):
+        payload = self._payload([{"type": "ISBN_13", "identifier": "9780000000000"}])
+        monkeypatch.setattr(metadata, "_googlebooks_get", lambda url: payload)
+        assert metadata.fetch_googlebooks("9780451524935") is None
+
+    def test_accepts_when_volume_lists_no_isbns(self, monkeypatch):
+        payload = self._payload([{"type": "OTHER", "identifier": "xyz"}])
+        monkeypatch.setattr(metadata, "_googlebooks_get", lambda url: payload)
+        assert metadata.fetch_googlebooks("9780451524935") is not None
+
     def test_is_english_isbn(self):
         assert metadata.is_english_isbn("9780451524935")
         assert metadata.is_english_isbn("9781234567897")
