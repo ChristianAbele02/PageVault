@@ -41,7 +41,7 @@ dev = [
     "mypy>=2.3.1",
 ]
 prod = [
-    "gunicorn>=26.1.0",
+    "gunicorn>=26.2.0",
 ]
 # Native desktop app: a local WSGI server (waitress, cross-platform) rendered in
 # an OS webview window (pywebview uses WebView2 on Windows, WebKit on macOS, GTK on Linux).
